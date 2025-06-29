@@ -1,0 +1,28 @@
+{application, bench_ctrl,
+ [
+  {description, "Control-plane prototype for pub/sub benchmark"},
+  {vsn, "0.1.0"},
+
+  %% OTP processes we register
+  {registered, [bench_ctrl_sup,
+                clock_sync,
+                dynamic_sup,
+                metric_agg_srv]},
+
+  %% application callback
+  {mod, {bench_ctrl_app, []}},
+
+  %% mandatory deps
+  {applications,[kernel, stdlib, os_mon]}, 
+
+  {env, []},
+
+  %% every module in src/
+  {registered,[bench_ctrl_sup,clock_sync,dynamic_sup,metric_agg_srv]},
+  {modules,[bench_ctrl_app,bench_ctrl_sup,
+          clock_sync,dynamic_sup,node_agent,metric_agg_srv]},
+
+
+  {licenses, ["Apache-2.0"]},
+  {links,    []}
+ ]}.

@@ -1,101 +1,109 @@
 %%%-------------------------------------------------------------------
-%%% node_agent.erl
-%%%-------------------------------------------------------------------
-%%% • joins pg group ‘node_agents’
-%%% • spawns workers/sub.py (via /bin/sh -c …) that prints
-%%%     "timestamp_ns,lat_ms" lines
-%%% • pushes latencies into ETS and replies to metric_agg_srv
+%%% node_agent
+%%% • Spawns the Python MQTT subscriber in a port.
+%%% • Collects latency samples in an ETS table (ordered_set).
+%%% • Replies to {metric_request, Pid} with {metric_reply, [Latencies]}.
 %%%-------------------------------------------------------------------
 -module(node_agent).
+
 -behaviour(gen_server).
 
 %% API
 -export([start_link/0]).
 
 %% gen_server callbacks
--export([init/1, handle_call/3, handle_cast/2, handle_info/2,
-         terminate/2, code_change/3]).
+-export([init/1,
+         handle_call/3,
+         handle_cast/2,
+         handle_info/2,
+         terminate/2,
+         code_change/3]).
 
--define(ETS_OPTS, [ordered_set, private]).
--define(SUB_CMD, "/bin/sh -c 'BROKER=localhost:1884 ./workers/sub.py'").
-
--record(state,
-        {tab        :: ets:tid(),
-         sub_port   :: port()}).
+-record(state, {tab,          %% ETS table id
+                port}).        %% Port talking to sub.py
 
 %%%===================================================================
-%%% API
+%%% Public API
 %%%===================================================================
+
 start_link() ->
     gen_server:start_link(?MODULE, [], []).
 
 %%%===================================================================
-%%% gen_server
+%%% gen_server callbacks
 %%%===================================================================
+
 init([]) ->
-    ensure_pg(),
+    %% allow process‑group look‑ups
     pg:join(node_agents, self()),
 
-    Tab  = ets:new(lat_samples, ?ETS_OPTS),
-    Port = open_port({spawn, ?SUB_CMD},
-                     [stream, eof, exit_status, {line,256}, use_stdio]),
+    Cmd = "/bin/sh -c 'BROKER=localhost:1884 "
+          "TOPIC=bench/test exec ./workers/sub.py'",
 
-    io:format("~p node_agent up (subscriber ~p)~n", [node(), Port]),
-    {ok, #state{tab = Tab, sub_port = Port}}.
+    %% open port – line‑oriented, huge max line
+    Port = open_port({spawn, Cmd},
+                     [stream, eof, exit_status, {line, 32768}]),
 
-%% no synchronous API for now
-handle_call(_Req, _From, S) -> {reply, ok, S}.
-handle_cast(_Msg, S)        -> {noreply, S}.
+    Tab  = ets:new(lat_samples, [ordered_set, private]),
+    {ok, #state{tab = Tab, port = Port}}.
 
-%%%-------------------------------------------------------------------
-%%% info messages
-%%%-------------------------------------------------------------------
-%% 1 – metric poll
+%%--------------------------------------------------------------------
+handle_call(_Req, _From, State) ->
+    {reply, ok, State}.
+
+handle_cast(_Msg, State) ->
+    {noreply, State}.
+
+%%--------------------------------------------------------------------
+%% metric aggregation request
 handle_info({metric_request, From},
-            S = #state{tab = Tab}) ->
-    Lats = [Lat || {_K,Lat} <- ets:tab2list(Tab)],
+            #state{tab = Tab}=St) ->
+    Lats = [Lat || {_, Lat} <- ets:tab2list(Tab)],
     ets:delete_all_objects(Tab),
     From ! {metric_reply, Lats},
-    {noreply, S};
+    {noreply, St};
 
-%% 2 – CSV line from Python: Port delivers {data,{eol,Bin}}
-handle_info({Port,{data,{eol,RawLine}}},
-            S = #state{tab = Tab, sub_port = Port}) ->
-    %% convert to plain string safely
-    Line =
-        case RawLine of
-            Bin when is_binary(Bin) -> binary_to_list(Bin);
-            Str when is_list(Str)   -> Str
-        end,
+%%--------------------------------------------------------------------
+%% FIRST – the “{eol, Line}” variant
+handle_info({Port, {data, {eol, Line}}},
+            #state{tab = Tab, port = Port}=St) ->
+    maybe_store_line(Line, Tab),
+    {noreply, St};
 
+%% THEN – plain line variant (list/binary)
+handle_info({Port, {data, Line}},
+            #state{tab = Tab, port = Port}=St)
+  when is_list(Line); is_binary(Line) ->
+    maybe_store_line(Line, Tab),
+    {noreply, St};
+
+%%--------------------------------------------------------------------
+%% everything else
+handle_info(Other, St) ->
+    logger:debug("unhandled message: ~p", [Other]),
+    {noreply, St}.
+
+terminate(_Reason, _State) -> ok.
+
+code_change(_Vsn, State, _Extra) ->
+    {ok, State}.
+
+%%%===================================================================
+%%% Internal helpers
+%%%===================================================================
+
+maybe_store_line(Line, Tab) ->
+    %% Line already has no line‑feed.
     case string:tokens(Line, ",") of
-        [_,LatStr] ->
-            ets:insert(Tab,
-                       {erlang:unique_integer([monotonic]),
-                        list_to_float(LatStr)});
-        _ -> ok
-    end,
-    {noreply, S};
-
-
-%% 3 – subprocess exit
-handle_info({'EXIT',Port,_Reason},
-            S = #state{sub_port = Port}) ->
-    io:format("subscriber exited (~p)~n",[Port]),
-    {noreply, S};
-
-handle_info(_, S) -> {noreply, S}.
-
-%%%-------------------------------------------------------------------
-terminate(_Why, #state{sub_port = Port}) ->
-    catch port_close(Port),
-    ok.
-
-code_change(_, S, _) -> {ok, S}.
-
-%%%-------------------------------------------------------------------
-ensure_pg() ->
-    case whereis(pg) of
-        undefined -> pg:start_link();
-        _         -> ok
+        [_Stamp, LatStr] ->
+            case string:to_float(LatStr) of
+                {Lat, _} ->
+                    K = erlang:unique_integer([monotonic]),
+                    ets:insert(Tab, {K, Lat}),
+                    ok;
+                _ ->
+                    logger:warning("cannot convert latency: ~p", [Line])
+            end;
+        _ ->
+            logger:warning("malformed line: ~p", [Line])
     end.

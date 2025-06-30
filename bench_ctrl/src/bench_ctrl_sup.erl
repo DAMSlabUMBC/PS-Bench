@@ -15,6 +15,12 @@ init([]) ->
     %% permanent children
     %% ---------------------------------------------------------------
     Children = [
+    %%  pg process – needed once so pg:join/2 works
+        #{id       => pg_srv,
+          start    => {pg, start_link, []},
+          restart  => permanent, shutdown => 5000,
+          type     => worker,   modules  => [pg]},
+    
     %%  clock sync ----------------------------------------------------
     #{id => clock_sync,
       start => {clock_sync, start_link, []},

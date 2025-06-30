@@ -38,7 +38,7 @@ handle_info(poll,
                       last_time = PrevTime}) ->
     lists:foreach(
       fun(P) -> P ! {metric_request, self()} end,
-      pg:get_members(node_agents, all)),
+      pg:get_members(node_agents)),
 
     Now      = now_ms(),
     DeltaT   = max(1, Now - PrevTime),

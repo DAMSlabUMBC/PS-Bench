@@ -31,12 +31,12 @@ offset(Node) ->
 
 init([]) ->
     %% ETS table for offsets {Node, Microsecs}
-    Table = ets:new(clock_sync_offsets, [named_table, public, set]),
-    erlang:send_after(?INTVL, self(), tick),
-    {ok, #{table => Table}}.
+    Tab = ets:new(clock_sync_offsets, [named_table, public, set]),
+     erlang:send_after(?INTVL, self(), tick),
+    {ok, #{table => Tab}}.
 
-handle_call({get_offset, Node}, _From, S = #{table := T}) ->
-    case ets:lookup(T, Node) of
+handle_call({get_offset, Node}, _From, S = #{table := Tab}) ->
+    case ets:lookup(Tab, Node) of
         [{Node, Off}] -> {reply, Off, S};
         []            -> {reply, undefined, S}
     end;
@@ -47,7 +47,7 @@ handle_cast(_Msg, S) ->
     %% no cast logic yet, just fulfill behaviour
     {noreply, S}.
 
-handle_info(tick, S = #{table := T}) ->
+handle_info(tick, S = #{table := _}) ->
     lists:foreach(fun ping/1, nodes()),
     erlang:send_after(?INTVL, self(), tick),
     {noreply, S};

@@ -1,109 +1,106 @@
 %%%-------------------------------------------------------------------
-%%% node_agent
-%%% • Spawns the Python MQTT subscriber in a port.
-%%% • Collects latency samples in an ETS table (ordered_set).
-%%% • Replies to {metric_request, Pid} with {metric_reply, [Latencies]}.
+%%% node_agent – collects latency + fault‑tolerance metrics
 %%%-------------------------------------------------------------------
 -module(node_agent).
-
 -behaviour(gen_server).
 
-%% API
 -export([start_link/0]).
+-export([init/1, handle_call/3, handle_cast/2,
+         handle_info/2, terminate/2, code_change/3]).
 
-%% gen_server callbacks
--export([init/1,
-         handle_call/3,
-         handle_cast/2,
-         handle_info/2,
-         terminate/2,
-         code_change/3]).
-
--record(state, {tab,          %% ETS table id
-                port}).        %% Port talking to sub.py
+-record(state,
+        {tab,            %% ETS id for latencies
+         port,           %% Port to sub.py
+         last_seq   = -1,
+         drops      = 0, %% Δ dropped msgs since last poll
+         volatility = 0  %% Δ disconnects since last poll
+        }).
 
 %%%===================================================================
-%%% Public API
-%%%===================================================================
-
 start_link() ->
     gen_server:start_link(?MODULE, [], []).
 
 %%%===================================================================
-%%% gen_server callbacks
-%%%===================================================================
-
 init([]) ->
-    %% allow process‑group look‑ups
     pg:join(node_agents, self()),
 
-    Cmd = "/bin/sh -c 'BROKER=localhost:1884 "
-          "TOPIC=bench/test exec ./workers/sub.py'",
-
-    %% open port – line‑oriented, huge max line
+    Cmd  = "/bin/sh -c 'BROKER=localhost:1884 "
+           "TOPIC=bench/test exec ./workers/sub.py'",
     Port = open_port({spawn, Cmd},
                      [stream, eof, exit_status, {line, 32768}]),
 
+    process_flag(trap_exit, true),       %% so we see {'EXIT',Port,…}
     Tab  = ets:new(lat_samples, [ordered_set, private]),
     {ok, #state{tab = Tab, port = Port}}.
 
-%%--------------------------------------------------------------------
-handle_call(_Req, _From, State) ->
-    {reply, ok, State}.
+%%%-------------------------------------------------------------------
+handle_call(_Req, _From, St) ->
+    {reply, ok, St}.
 
-handle_cast(_Msg, State) ->
-    {noreply, State}.
+handle_cast(_, St) -> {noreply, St}.
 
-%%--------------------------------------------------------------------
-%% metric aggregation request
+%%%-------------------------------------------------------------------
+%% poll from metric_agg_srv
 handle_info({metric_request, From},
-            #state{tab = Tab}=St) ->
-    Lats = [Lat || {_, Lat} <- ets:tab2list(Tab)],
+            St=#state{tab = Tab, drops = D, volatility = V}) ->
+    Lats = [Lat || {_,Lat} <- ets:tab2list(Tab)],
     ets:delete_all_objects(Tab),
-    From ! {metric_reply, Lats},
-    {noreply, St};
+    From ! {metric_reply, Lats, D, V},
+    {noreply, St#state{drops = 0, volatility = 0}};  %% reset deltas
 
-%%--------------------------------------------------------------------
-%% FIRST – the “{eol, Line}” variant
+%%%-------------------------------------------------------------------
+%% line‑oriented port data  – variant 1
 handle_info({Port, {data, {eol, Line}}},
-            #state{tab = Tab, port = Port}=St) ->
-    maybe_store_line(Line, Tab),
-    {noreply, St};
+            St=#state{port = Port}) ->
+    {noreply, maybe_store_line(Line, St)};
 
-%% THEN – plain line variant (list/binary)
+%% variant 2 – plain list / binary
 handle_info({Port, {data, Line}},
-            #state{tab = Tab, port = Port}=St)
+            St=#state{port = Port})
   when is_list(Line); is_binary(Line) ->
-    maybe_store_line(Line, Tab),
-    {noreply, St};
+    {noreply, maybe_store_line(Line, St)};
 
-%%--------------------------------------------------------------------
+%% port closed → volatility +1
+handle_info({Port, {exit_status, _Code}},
+            St=#state{port = Port, volatility = V}) ->
+    {noreply, St#state{volatility = V + 1}};
+
+handle_info({'EXIT', Port, _Reason},
+            St=#state{port = Port, volatility = V}) ->
+    {noreply, St#state{volatility = V + 1}};
+
 %% everything else
 handle_info(Other, St) ->
-    logger:debug("unhandled message: ~p", [Other]),
+    logger:debug("unhandled: ~p",[Other]),
     {noreply, St}.
 
-terminate(_Reason, _State) -> ok.
+terminate(_,_)  -> ok.
+code_change(_,St,_) -> {ok,St}.
 
-code_change(_Vsn, State, _Extra) ->
-    {ok, State}.
-
-%%%===================================================================
-%%% Internal helpers
-%%%===================================================================
-
-maybe_store_line(Line, Tab) ->
-    %% Line already has no line‑feed.
+%%%-------------------------------------------------------------------
+%%% helper
+%%%-------------------------------------------------------------------
+maybe_store_line(Line,
+                 St=#state{tab = Tab,
+                           last_seq = Last,
+                           drops    = D0}) ->
     case string:tokens(Line, ",") of
-        [_Stamp, LatStr] ->
-            case string:to_float(LatStr) of
+        [SeqS, LatS] ->
+            {Seq, _} = string:to_integer(SeqS),
+            DropInc  = if Last == -1 -> 0;
+                          true       -> max(0, Seq - Last - 1)
+                       end,
+            case string:to_float(LatS) of
                 {Lat, _} ->
                     K = erlang:unique_integer([monotonic]),
                     ets:insert(Tab, {K, Lat}),
-                    ok;
+                    St#state{last_seq = Seq,
+                             drops    = D0 + DropInc};
                 _ ->
-                    logger:warning("cannot convert latency: ~p", [Line])
+                    logger:warning("bad latency: ~p",[Line]),
+                    St
             end;
         _ ->
-            logger:warning("malformed line: ~p", [Line])
+            logger:warning("malformed: ~p",[Line]),
+            St
     end.

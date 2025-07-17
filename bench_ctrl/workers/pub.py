@@ -27,6 +27,7 @@ qos   = int(os.getenv("QOS", 0))
 
 # ── MQTT setup ─────────────────────────────────────────────────────
 client = mqtt.Client()
+print(f"connecting to {host}:{port}")
 client.connect(host, port, keepalive=60)
 client.loop_start()
 

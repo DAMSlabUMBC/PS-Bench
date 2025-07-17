@@ -5,7 +5,7 @@
   {registered, []},
   {mod, {bench_ctrl_app, []}},
   {applications,[kernel, stdlib]},   
-  {env, []},
+  {env, [{broker, "127.0.0.1"}, {port, "1883"}]},
   {modules,[bench_ctrl_app,
             bench_ctrl_sup,
             clock_sync,

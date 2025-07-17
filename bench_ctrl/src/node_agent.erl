@@ -24,8 +24,11 @@ start_link() ->
 init([]) ->
     pg:join(node_agents, self()),
 
-    Cmd  = "/bin/sh -c 'BROKER=localhost:1884 "
-           "TOPIC=bench/test exec ./workers/sub.py'",
+    {ok, Broker} = application:get_env(broker),
+    {ok, BrokerNetPort} = application:get_env(port),
+
+    Cmd  = "/bin/sh -c 'BROKER=" ++ Broker ++":" ++ BrokerNetPort ++ 
+           " TOPIC=bench/test exec ./workers/sub.py'",
     Port = open_port({spawn, Cmd},
                      [stream, eof, exit_status, {line, 32768}]),
 

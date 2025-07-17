@@ -35,6 +35,7 @@ def on_message(_cli, _ud, msg):
 # ── MQTT setup ─────────────────────────────────────────────────────
 client = mqtt.Client()
 client.on_message = on_message
+print(f"connecting to {host}:{port}")
 client.connect(host, port, keepalive=60)
 client.subscribe(topic, qos=qos)
 client.loop_forever()

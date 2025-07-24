@@ -1,0 +1,5 @@
+FROM python:3.12-slim            
+WORKDIR /app
+COPY workers/pub.py /app/pub.py
+RUN pip install --no-cache-dir paho-mqtt
+ENTRYPOINT ["python3", "/app/pub.py"]

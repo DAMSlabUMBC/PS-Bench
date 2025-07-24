@@ -1,0 +1,26 @@
+services:
+  broker:
+    image: eclipse-mosquitto:2.0
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+    restart: unless-stopped
+
+  bench_ctrl:
+    build: .
+    depends_on: [broker]
+    environment:
+      BROKER: broker:1883
+    restart: unless-stopped
+
+  pub:
+    build:
+      context: .
+      dockerfile: workers/Dockerfile.pub
+    depends_on: [broker]
+    environment:
+      BROKER: broker:1883
+      TOPIC: bench/test
+      RATE: 2000
+    restart: unless-stopped

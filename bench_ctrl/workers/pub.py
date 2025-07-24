@@ -9,7 +9,7 @@ Env vars (all optional):
   SIZE   = 100           # payload bytes (minimum)
   QOS    = 0|1|2
 """
-import os, time, struct
+import os, time, struct, socket
 import paho.mqtt.client as mqtt
 
 # ── configuration ──────────────────────────────────────────────────
@@ -28,7 +28,15 @@ qos   = int(os.getenv("QOS", 0))
 # ── MQTT setup ─────────────────────────────────────────────────────
 client = mqtt.Client()
 print(f"connecting to {host}:{port}")
-client.connect(host, port, keepalive=60)
+
+
+while True:
+    try:
+        client.connect(host, port, keepalive=60)   # single attempt
+        break                                      # success leave loop
+    except (socket.gaierror, ConnectionRefusedError):
+        time.sleep(0.5)                            # broker not up yet
+
 client.loop_start()
 
 # ── publisher loop ─────────────────────────────────────────────────

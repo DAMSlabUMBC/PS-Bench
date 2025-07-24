@@ -4,7 +4,7 @@
   {vsn, "0.1.0"},
   {registered, []},
   {mod, {bench_ctrl_app, []}},
-  {applications,[kernel, stdlib]},   
+  {applications,[kernel,stdlib,os_mon,bench_ctrl]},
   {env, [{broker, "127.0.0.1"}, {port, "1883"}]},
   {modules,[bench_ctrl_app,
             bench_ctrl_sup,

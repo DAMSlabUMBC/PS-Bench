@@ -2,7 +2,7 @@
 -behaviour(gen_statem).
 
 % Process managment callbacks
--export([start_link/3,current_step_complete/1]).
+-export([start_link/2,current_step_complete/1]).
 
 % Callbacks for gen_statem
 -export([init/1,callback_mode/0]).
@@ -10,8 +10,8 @@
 % States
 -export([configuring/3,benchmarking/3,calculating_metrics/3,done/3]).
 
-start_link(NodeList, BenchmarkManagerPid, SetupTimeout) ->
-    NodeStatusMap = #{all_nodes => NodeList, pending_nodes => NodeList, manager_pid => BenchmarkManagerPid, timeout => SetupTimeout},
+start_link(NodeList, SetupTimeout) ->
+    NodeStatusMap = #{all_nodes => NodeList, pending_nodes => NodeList, timeout => SetupTimeout},
     gen_statem:start_link({local,?MODULE}, ?MODULE, NodeStatusMap, []).
 
 init(NodeStatusMap) ->
@@ -23,6 +23,7 @@ callback_mode() ->
 % This should be called whenever the benchmarking manager on a node
 % is ready to transition to the next phase of the application
 current_step_complete(NodeName) ->
+    io:format("~s Do Cast~n", [NodeName]),
     gen_statem:cast(?MODULE, NodeName).
 
 % ============== State machine definitions ==============
@@ -40,13 +41,16 @@ configuring(cast, NodeName, #{all_nodes := AllNodes, pending_nodes := PendingNod
     NewPendingNodes = PendingNodes -- [NodeName],
     case NewPendingNodes of
         [] -> 
+            io:format("~s Done Config~n", [NodeName]),
             {next_state, benchmarking, Data#{pending_nodes := AllNodes}};
         _ -> 
+            io:format("~s Wait Config on ~s~n", [NodeName, NewPendingNodes]),
             {keep_state, Data#{pending_nodes := NewPendingNodes}}
         end.
 
 % Instruct the manager to start benchmarking
-benchmarking(enter, _OldState, #{manager_pid := ManagerPid}) ->
+benchmarking(enter, _OldState, _State) ->
+    ManagerPid = whereis(ps_bench_manager),
     ManagerPid ! {self(), start_benchmark},
     keep_state_and_data;
 
@@ -58,11 +62,12 @@ benchmarking(cast, NodeName, #{all_nodes := AllNodes, pending_nodes := PendingNo
             {next_state, calculating_metrics, Data#{pending_nodes := AllNodes}};
         _ -> 
             {keep_state, Data#{pending_nodes := NewPendingNodes}}
-        end.
+    end.
 
 % Instruct the manager to start metric calculation
-calculating_metrics(enter, _OldState, #{manager_pid := ManagerPid}) ->
-    ManagerPid ! {self(), calculate_metrics},
+calculating_metrics(enter, _OldState, _State) ->
+    ManagerPid = whereis(ps_bench_manager),
+    ManagerPid ! {self(), start_calculate_metrics},
     keep_state_and_data;
 
 % Process casts until every node is ready to transition state
@@ -76,8 +81,9 @@ calculating_metrics(cast, NodeName, #{all_nodes := AllNodes, pending_nodes := Pe
         end.
 
 % The only thing we do in this state is instruct the manager to shutdown the benchmark
-done(enter, _OldState, #{manager_pid := ManagerPid}) ->
-    ManagerPid ! {self(), clean_up},
+done(enter, _OldState, _State) ->
+    ManagerPid = whereis(ps_bench_manager),
+    ManagerPid ! {self(), start_clean_up},
     keep_state_and_data;
 
 % We don't want to crash if we get repeated messages here

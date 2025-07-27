@@ -1,0 +1,10 @@
+[
+    {type, occupancy_sensor},
+    {publication_frequency_ms, 500},
+    {payload_bytes_mean, 1024},
+    {payload_bytes_variance, 100},
+    {disconnect_check_period_ms, 2000},
+    {disconnect_chance_pct, 0.1},
+    {reconnect_check_period_ms, 2000},
+    {reconnect_chance_pct, 0.9}
+].

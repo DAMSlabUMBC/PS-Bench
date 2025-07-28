@@ -1,36 +1,38 @@
 -module(ps_bench_default_erlang_client).
 -behaviour(gen_server).
 
+-include("ps_bench_config.hrl").
+
 %% public
--export([start_link/2]).
+-export([start_link/3]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3,
          handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
-start_link(TestName, ClientName) ->
-    gen_server:start_link(?MODULE, [{TestName, ClientName}], []).
+start_link(TestName, ClientName, DeviceType) ->
+    gen_server:start_link(?MODULE, [{TestName, ClientName, DeviceType}], []).
 
 %%%===================================================================
 %%% gen_server callbacks
 %%%===================================================================
 
-init([{TestName, ClientName}]) ->
-    % Fetch required config options
-    %{ok, InterfaceName} = application:get_env(client_interface_name),
-    %{ok, InterfaceType} = application:get_env(client_interface_type),
+init([{TestName, ClientName, DeviceType}]) ->
+    {ok, #{test_name => TestName, client_name => ClientName, client_pid => 0, device_type => DeviceType, connected => false, first_start => true}}.
 
-    {ok, #{test_name => TestName, client_name => ClientName, client_pid => 0, clean_start => true}}.
+handle_call(connect, _From, State = #{first_start := FirstStart}) ->
+    % If not specifically told, we start clean by default, then preserve old sessions on reconnects
+    do_connect(FirstStart, State);
 
-handle_call(connect, _From, State = #{client_name := ClientName, client_pid := ClientPid, clean_start := CleanStart}) when ClientPid =:= 0 ->
-    % Connect to the MQTT broker
-    {ok, NewClientPid} = start_client_link(ClientName, CleanStart),
-    {ok, Properties} = emqtt:connect(NewClientPid),
-    io:format("Connected with ~p~n", [Properties]),
-    % For now, we assume the properties are accepted as requested
+handle_call(connect_clean, _From, State) ->
+    % Force clean connect
+    do_connect(false, State);
 
-    {reply, ok, State#{client_pid := NewClientPid, clean_start := false}};
+handle_call(reconnect, _From, State) ->
+    % Force restablishment of session
+    % By the MQTT standard, this just starts a clean session if none existed previously
+    do_connect(true, State);
 
 handle_call({subscribe, Properties, Topics}, _From, State = #{client_pid := ClientPid}) ->
     % Subscribe with the on Topic with Options
@@ -56,10 +58,17 @@ handle_call({unsubcribe, Properties, Topics}, _From, State = #{client_pid := Cli
     {ok, _Props, _ReasonCodes} = emqtt:unsubscribe(ClientPid, Properties, Topics),
     {reply, ok, State};
 
-handle_call(disconnect, _From, State = #{client_pid := ClientPid}) ->
-    % Subscribe with the on Topic with Options
-    ok = emqtt:disconnect(ClientPid),
-    {reply, ok, State#{client_pid := 0}};
+handle_call(disconnect, _From, State = #{client_pid := ClientPid, connected := Connected}) ->
+    % Disconnect from MQTT broker if connected
+    case Connected of 
+        true ->
+            % For now, we assume the properties are accepted as requested
+            ok = emqtt:disconnect(ClientPid),
+            {reply, ok, State#{client_pid := 0, connected := false}};
+        false ->
+            % Not connected don't do anything
+            {reply, ok, State}
+    end;
 
 handle_call(_, _, State) ->
     % Subscribe with the on Topic with Options
@@ -98,23 +107,45 @@ terminate(shutdown, {TestName, ClientName}) ->
 code_change(_OldVsn, State, _Extra) -> 
     {ok, State}.
 
-start_client_link(ClientName, CleanStart) when is_boolean(CleanStart) ->
+start_client_link(ClientName, CleanStart) ->
     
-    {ok, BrokerIP} = application:get_env(broker),
-    {ok, BrokerPort} = application:get_env(port),
+    {ok, BrokerIP} = ps_bench_config_manager:fetch_protocol_property(?MQTT_BROKER_IP_PROP),
+    {ok, BrokerPort} = ps_bench_config_manager:fetch_protocol_property(?MQTT_BROKER_PORT_PROP),
+    {ok, Protocol} = ps_bench_config_manager:fetch_protocol_type(),
 
     % Configure properties
-    StartPropList = [
+    PropList = [
         {owner, self()}, % This process should get notifications from the MQTT client
         {host, BrokerIP},
         {port, BrokerPort},
         {clientid, ClientName},
         {clean_start, CleanStart},
-        {proto_ver, v5}, % TODO Specify from config
         {msg_handler, #{publish => fun handle_publish/1, 
                         connected => fun handle_connect/1,
                         disconnected => fun handle_disconnect/1}}
     ],
 
     % Start the client process
-    emqtt:start_link(StartPropList).
+    case Protocol of
+        ?MQTT_V5_PROTOCOL ->
+            FullPropList = PropList ++ [{proto_ver, v5}],
+            emqtt:start_link(FullPropList);
+        ?MQTT_V311_PROTOCOL ->
+            FullPropList = PropList ++ [{proto_ver, v3}],
+            emqtt:start_link(FullPropList)
+    end.
+
+% Helper function to handle clean starts and reconnects
+do_connect(CleanStart, State = #{client_name := ClientName, connected := Connected}) ->
+    % Connect to the MQTT broker if not already connected
+    case Connected of 
+        false ->
+            % For now, we assume the properties are accepted as requested
+            {ok, NewClientPid} = start_client_link(ClientName, CleanStart),
+            {ok, Properties} = emqtt:connect(NewClientPid),
+            io:format("Connected with ~p~n", [Properties]),
+            {reply, ok, State#{client_pid := NewClientPid, connected := true, first_start := false}};
+        true ->
+            % Already connected, don't do anything
+            {reply, ok, State}
+    end.

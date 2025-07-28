@@ -10,7 +10,7 @@ start_link() ->
 
 init([]) ->
     % Get test name
-    {ok, TestName} = application:get_env(test_name),
+    {ok, TestName} = ps_bench_config_manager:fetch_test_name(),
 
     Template = #{id => client_worker,
                  start => {?WORKER_MODULE, start_link, [TestName]},

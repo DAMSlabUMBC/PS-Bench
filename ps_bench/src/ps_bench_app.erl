@@ -13,22 +13,21 @@
 
 start(_StartType, _StartArgs) ->
 
-    % Load current module name
-    {ok, NodeName} = application:get_env(node_name),
-    {ok, NodeList} = application:get_env(node_list),
-    {ok, TestConfigFile} = application:get_env(test_configuration_file),
-    {ok, DeviceDefsDir} = application:get_env(device_definitions_directory),
-
-    case ps_bench_config_manager:load_config(DeviceDefsDir, TestConfigFile) of
+    io:format("=== Loading Config ===~n"),
+    case ps_bench_config_manager:load_config_from_env_vars() of
         ok ->
+            io:format("=== Initializing Benchmark ===~n"),
+            {ok, NodeName} = ps_bench_config_manager:fetch_node_name(),
+            io:format("~p starting~n", [NodeName]),
 
-            {ok, Value} = ps_bench_config_manager:fetch_property_for_device(occupancy_sensor, ?DEVICE_SIZE_MEAN_FIELD),
+            {ok, Value} = ps_bench_config_manager:fetch_property_for_device(occupancy_sensor, ?DEVICE_SIZE_MEAN_PROP),
             io:format("Got value: ~p~n", [Value]),
 
-            %{ok, TopSupPid} = ps_bench_sup:start_link(NodeName, NodeList),
-            %ps_bench_sup:start_benchmark(NodeName),
-            %{ok, TopSupPid}.
-            {ok, self()};
+            {ok, NodeList} = ps_bench_config_manager:fetch_node_list(),
+
+            {ok, TopSupPid} = ps_bench_sup:start_link(NodeName, NodeList),
+            ps_bench_sup:start_benchmark(NodeName),
+            {ok, TopSupPid};
         {error, Reason} ->
             {error, Reason}
     end.

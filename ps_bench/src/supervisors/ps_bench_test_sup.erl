@@ -29,19 +29,19 @@ init([]) ->
     {ok, {{one_for_one, 1, 60}, Children}}. 
 
 start_test() ->
-    ps_bench_client_manager:start_clients(),
+    ps_bench_test_manager:initialize_clients(),
     timer:sleep(1000),
-    ps_bench_client_manager:print_clients(),
+    ps_bench_test_manager:print_clients(),
     timer:sleep(1000),
-    ps_bench_client_manager:connect_clients(),
+    ps_bench_test_manager:connect_clients(),
     timer:sleep(1000),
-    ps_bench_client_manager:subscribe_clients_to_topic(<<"test">>, 0),
+    ps_bench_test_manager:subscribe_clients_to_topic(<<"test">>, 0),
     timer:sleep(1000),
-    ps_bench_client_manager:publish_data_to_clients(<<"test">>, <<"Data">>, 0),
+    ps_bench_test_manager:publish_data_to_clients(<<"test">>, <<"Data">>, 0),
     timer:sleep(1000),
-    ps_bench_client_manager:disconnect_clients(),
+    ps_bench_test_manager:disconnect_clients(),
     timer:sleep(1000),
-    ps_bench_client_manager:connect_clients(),
+    ps_bench_test_manager:reconnect_clients(),
     timer:sleep(1000),
-    ps_bench_client_manager:disconnect_clients().
+    ps_bench_test_manager:disconnect_clients().
 

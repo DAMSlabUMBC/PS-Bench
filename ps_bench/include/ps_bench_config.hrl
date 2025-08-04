@@ -31,16 +31,19 @@
 -define(TEST_CONFIG_GLOBAL_REQ_KEY_LIST, [?TEST_NAME_PROP, ?TEST_NODE_LIST_PROP, ?TEST_PROTOCOL_PROP]).
 -define(TEST_CONFIG_NODE_REQ_KEY_LIST, [?TEST_NODE_DEVICES_PROP]).
 
-% MQTT configuration fields
--define(MQTT_BROKER_IP_PROP, broker).
--define(MQTT_BROKER_PORT_PROP, port).
--define(MQTT_REQ_KEY_LIST, [?MQTT_BROKER_IP_PROP, ?MQTT_BROKER_PORT_PROP]).
-
 % Supported protocol types
 -define(MQTT_V5_PROTOCOL, mqttv5).
 -define(MQTT_V311_PROTOCOL, mqttv311).
 -define(DDS_PROTOCOL, dds).
 -define(SUPPORTED_PROTOCOLS, [?MQTT_V5_PROTOCOL, ?MQTT_V311_PROTOCOL, ?DDS_PROTOCOL]).
+
+% MQTT configuration fields
+-define(MQTT_BROKER_IP_PROP, broker).
+-define(MQTT_BROKER_PORT_PROP, port).
+-define(MQTT_REQ_KEY_LIST, [?MQTT_BROKER_IP_PROP, ?MQTT_BROKER_PORT_PROP]).
+
+% MQTT topic constants
+-define(MQTT_TOPIC_PREFIX, <<"ps_bench/device/">>).
 
 % Supported interfaces types
 -define(PYTHON_INTERFACE, python).

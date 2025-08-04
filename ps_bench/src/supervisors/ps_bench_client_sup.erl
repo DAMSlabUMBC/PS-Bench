@@ -3,7 +3,7 @@
 
 -export([start_link/0, init/1]).
 
--define(WORKER_MODULE, ps_bench_default_erlang_client).
+-define(WORKER_MODULE, ps_bench_erlang_adapter).
 
 start_link() ->
     supervisor:start_link({local, ?MODULE}, ?MODULE, []).
@@ -11,9 +11,10 @@ start_link() ->
 init([]) ->
     % Get test name
     {ok, TestName} = ps_bench_config_manager:fetch_test_name(),
+    {ok, _InterfaceType, InterfaceName} = ps_bench_config_manager:fetch_client_interface_information(),
 
     Template = #{id => client_worker,
-                 start => {?WORKER_MODULE, start_link, [TestName]},
+                 start => {?WORKER_MODULE, start_link, [TestName, InterfaceName]},
                  restart => transient, 
                  shutdown => 5000,
                  type => worker, 

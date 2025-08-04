@@ -1,10 +1,12 @@
 -module(ps_bench_test_manager).
 
+-include("ps_bench_config.hrl").
+
 -define(CHILD_MODULE, ps_bench_client_sup).
 
 %% public
--export([initialize_clients/0, print_clients/0, connect_clients/0, reconnect_clients/0,
-    subscribe_clients_to_topic/2, publish_data_to_clients/3, disconnect_clients/0]).
+-export([initialize_clients/0, print_clients/0, connect_clients/0, start_client_loops/0,
+    subscribe_clients/0]).
 
 initialize_clients() ->
 
@@ -49,33 +51,27 @@ initialize_client_for_device_type(NodeName, DeviceType, DevicesToCreateCount, De
             NewDeviceClientList
     end.
 
-print_clients() ->
-    ClientList = persistent_term:get(?MODULE),
-    io:format("==== All Clients ====~n", []),
-    PrintFunction = fun({ClientName, ClientPid}) -> io:format("~p - ~p~n", [ClientName, ClientPid]) end,
-    lists:foreach(PrintFunction, ClientList).
-
 connect_clients() ->
     ClientList = persistent_term:get(?MODULE),
     ConnectFunction = fun({_ClientName, ClientPid}) -> gen_server:call(ClientPid, connect) end,
     lists:foreach(ConnectFunction, ClientList).
 
+subscribe_clients() ->
+    WildcardBinary = <<"#">>,
+    subscribe_clients_to_topic(<<?MQTT_TOPIC_PREFIX/binary, WildcardBinary/binary>>, 0).
+
 subscribe_clients_to_topic(Topic, QoS) ->
     ClientList = persistent_term:get(?MODULE),
-    SubscribeFunction = fun({_ClientName, ClientPid}) -> gen_server:call(ClientPid, {subscribe, #{}, [{Topic, [{qos, QoS}]}]}) end,
+    SubscribeFunction = fun({_ClientName, ClientPid}) -> gen_server:call(ClientPid, {subscribe, [{Topic, [{qos, QoS}]}]}) end,
     lists:foreach(SubscribeFunction, ClientList).
 
-publish_data_to_clients(Topic, Data, QoS) ->
+start_client_loops() ->
     ClientList = persistent_term:get(?MODULE),
-    PublishFunction = fun({_ClientName, ClientPid}) -> gen_server:call(ClientPid, {publish, #{}, Topic, Data, [{qos, QoS}]}) end,
-    lists:foreach(PublishFunction, ClientList).
+    StartFunction = fun({_ClientName, ClientPid}) -> gen_server:cast(ClientPid, start_client_loops) end,
+    lists:foreach(StartFunction, ClientList).
 
-disconnect_clients() ->
+print_clients() ->
     ClientList = persistent_term:get(?MODULE),
-    DisconnectFunction = fun({_ClientName, ClientPid}) -> gen_server:call(ClientPid, disconnect) end,
-    lists:foreach(DisconnectFunction, ClientList).
-
-reconnect_clients() ->
-    ClientList = persistent_term:get(?MODULE),
-    ReconnectFunction = fun({_ClientName, ClientPid}) -> gen_server:call(ClientPid, reconnect) end,
-    lists:foreach(ReconnectFunction, ClientList).
+    io:format("==== All Clients ====~n", []),
+    PrintFunction = fun({ClientName, ClientPid}) -> io:format("~p - ~p~n", [ClientName, ClientPid]) end,
+    lists:foreach(PrintFunction, ClientList).

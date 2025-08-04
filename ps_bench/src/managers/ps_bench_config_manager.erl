@@ -167,10 +167,7 @@ process_global_properties(PropList) ->
 
                 case MissingKeys of
                     [] ->
-                        % Extract the required global keys and store
-                        % (Note this will remove the protocol section, which we want here)
-                        PropsToSave = lists:filter(fun({Key, _Value}) -> lists:member(Key, ?TEST_CONFIG_GLOBAL_REQ_KEY_LIST) end, GlobalPropList),
-                        ok = persistent_term:put({?MODULE, ?TEST_CONFIG_GLOBAL_SECTION_PROP}, PropsToSave),
+                        ok = persistent_term:put({?MODULE, ?TEST_CONFIG_GLOBAL_SECTION_PROP}, GlobalPropList),
 
                         % Then parse protocol config
                         process_protocol_config(GlobalPropList);

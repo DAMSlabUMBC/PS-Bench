@@ -1,7 +1,8 @@
 -module(ps_bench_utils).
 
 %% public
--export([initialize_rng_seed/0 ,initialize_rng_seed/1, generate_payload/2, evaluate_uniform_chance/1]).
+-export([initialize_rng_seed/0, initialize_rng_seed/1, generate_payload/2,
+         evaluate_uniform_chance/1, decode_seq_header/1]).
 
 initialize_rng_seed() ->
     % No seed provided, use the crypto library to generate a 12 digit seed
@@ -32,3 +33,9 @@ evaluate_uniform_chance(ChanceOfEvent) when 0.0 =< ChanceOfEvent, ChanceOfEvent 
     % We want strict inequality so the event doesn't fire on 0.0 <= 0.0
     % This is fine since rand:uniform cannot generate 1.0, so a chance of 1.0 will always fire
     RandVal < ChanceOfEvent.
+
+decode_seq_header(<<Seq:64/unsigned, Tns:64/unsigned, Rest/binary>>) ->
+    {Seq, Tns, Rest};
+
+decode_seq_header(Bin) ->
+    {undefined, undefined, Bin}.

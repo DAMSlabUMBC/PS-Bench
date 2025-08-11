@@ -4,7 +4,7 @@
 -include("ps_bench_config.hrl").
 
 %% public
--export([start_link/2]).
+-export([start_link/2, publish_with_seq/6]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3,
@@ -60,7 +60,7 @@ handle_call({publish, Properties, Topic, Data, PubOpts}, _From, State = #{client
     end;
     
 
-handle_call({unsubcribe, Properties, Topics}, _From, State = #{client_pid := ClientPid}) ->
+handle_call({unsubscribe, Properties, Topics}, _From, State = #{client_pid := ClientPid}) ->
     % Subscribe with the on Topic with Options
     {ok, _Props, _ReasonCodes} = emqtt:unsubscribe(ClientPid, Properties, Topics),
     {reply, ok, State};
@@ -78,14 +78,34 @@ handle_call(disconnect, _From, State = #{client_pid := ClientPid, connected := C
     end;
 
 handle_call(_, _, State) ->
-    % Subscribe with the on Topic with Options
-    {noreply, State}.
+    {reply, ok, State}.
 
 handle_cast(stop, State = #{client_pid := ClientPid}) ->
     % Shutdown the client
     ok = emqtt:stop(ClientPid),
     {noreply, State}.
 
+%% emqtt often delivers to owner as {publish, Map}
+handle_info({publish, Msg}, State) when is_map(Msg) ->
+    Topic = maps:get(topic, Msg, undefined),
+    Payload = maps:get(payload, Msg, <<>>),
+    TRecvNs = erlang:monotonic_time(nanosecond),
+    {Seq, TPubNs, _Rest} = ps_bench_utils:decode_seq_header(Payload),
+    Bytes = byte_size(Payload),
+    case Topic of
+        undefined -> ok;
+        _ -> ps_bench_store:record_recv(Topic, Seq, TPubNs, TRecvNs, Bytes)
+    end,
+    {noreply, State};
+
+%% or sometimes as {publish, TopicBin, PayloadBin, _Props}
+handle_info({publish, TopicBin, PayloadBin, _Props}, State) ->
+    TRecvNs = erlang:monotonic_time(nanosecond),
+    {Seq, TPubNs, _Rest} = ps_bench_utils:decode_seq_header(PayloadBin),
+    Bytes = byte_size(PayloadBin),
+    ps_bench_store:record_recv(TopicBin, Seq, TPubNs, TRecvNs, Bytes),
+    {noreply, State};
+    
 handle_info(_Info, State) ->
     %% no info logic yet, just fulfill behaviour
     {noreply, State}.
@@ -141,3 +161,14 @@ do_connect(CleanStart, State = #{client_name := ClientName, connected := Connect
             % Already connected, don't do anything
             {reply, {ok, already_connected}, State}
     end.
+
+publish_with_seq(_Props, _Topic, _Data, _PubOpts, _ClientPid, false) ->
+    ok;
+
+publish_with_seq(Properties, Topic, Data, PubOpts, ClientPid, true) ->
+    Seq = ps_bench_store:next_seq(Topic),
+    Tns = erlang:monotonic_time(nanosecond),
+    Payload = <<Seq:64/unsigned, Tns:64/unsigned, Data/binary>>,
+    emqtt:publish(ClientPid, Topic, Properties, Payload, PubOpts),
+    ok.
+

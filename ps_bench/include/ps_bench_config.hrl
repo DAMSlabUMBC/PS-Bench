@@ -51,3 +51,19 @@
 -define(DEFAULT_INTERFACE_TYPE, ?ERLANG_INTERFACE).
 -define(DEFAULT_INTERFACE_NAME, "ps_bench_default_client").
 -define(SUPPORTED_INTERFACES, [?PYTHON_INTERFACE, ?ERLANG_INTERFACE]).
+
+%% metrics and runtime knobs 
+-define(WINDOW_MS_PROP, window_ms).
+-define(ROLLUP_SECS_PROP, rollup_secs).
+-define(METRICS_PLUGINS_PROP, metrics_plugins).
+-define(PYTHON_PATH_PROP, python_path).
+
+%% future: multiple transports keep existing TEST_PROTOCOL_PROP for now
+-define(TRANSPORTS_PROP, transports).
+
+%% sane defaults
+-define(DEFAULT_WINDOW_MS, 1000).
+-define(DEFAULT_ROLLUP_SECS, 5).
+
+%% seq header (8B seq + 8B t_pub_ns)
+-define(SEQ_HDR_BYTES, 16).

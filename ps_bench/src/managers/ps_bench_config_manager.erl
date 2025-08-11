@@ -4,7 +4,7 @@
 
 %% public
 -export([load_config_from_env_vars/0, fetch_property_for_device/2, fetch_node_name/0, fetch_test_name/0, fetch_node_list/0,
-    fetch_protocol_type/0, fetch_client_interface_information/0, fetch_protocol_property/1, fetch_devices_for_this_node/0]).
+    fetch_protocol_type/0, fetch_client_interface_information/0, fetch_protocol_property/1, fetch_devices_for_this_node/0, fetch_optional/1, fetch_optional/2]).
 
 % =====================================================================
 % Loading functions
@@ -21,7 +21,7 @@ load_config_from_env_vars() ->
 
 ensure_env_vars_set() ->
     % Validate needed keys are here
-    EnvVars = application:get_all_env(),
+    EnvVars = application:get_all_env(ps_bench),
     MissingKeys = ?ENV_REQ_KEY_LIST -- proplists:get_keys(EnvVars),
 
     % Missing keys is fatal
@@ -261,14 +261,14 @@ process_local_node_config(PropList) ->
 % Retrival functions
 % =====================================================================
 fetch_node_name() ->
-    application:get_env(?ENV_NODE_NAME).
+    application:get_env(ps_bench, ?ENV_NODE_NAME).
 
 fetch_device_definitions_dir() ->
-    application:get_env(?ENV_DEVICE_DEF_DIR).
+    application:get_env(ps_bench, ?ENV_DEVICE_DEF_DIR).
 
 fetch_config_file_path() ->
-    application:get_env(?ENV_TEST_CONFIG_FILE).
-
+    application:get_env(ps_bench, ?ENV_TEST_CONFIG_FILE).
+    
 fetch_property_for_device(DeviceType, PropName) ->
 
     % Retrieve prop list and make sure the device exists
@@ -336,3 +336,34 @@ get_node_property(PropName) ->
 
 get_persistent_term(Key) ->
     persistent_term:get({?MODULE, Key}).
+
+fetch_optional(Key) ->
+    case maybe_get_from_global(Key) of
+        {ok, V} -> {ok, V};
+        not_found -> fetch_optional_env(Key)
+    end.
+
+fetch_optional(Key, Default) ->
+    case fetch_optional(Key) of
+        {ok, V} -> {ok, V};
+        not_found -> {ok, Default}
+    end.
+
+maybe_get_from_global(Key) ->
+    %% If the test config hasn't been loaded yet, persistent_term:get/2
+    %% with default avoids exceptions.
+    case persistent_term:get({?MODULE, ?TEST_CONFIG_GLOBAL_SECTION_PROP}, undefined) of
+        undefined -> not_found;
+        Global ->
+            case proplists:get_value(Key, Global) of
+                undefined -> not_found;
+                V -> {ok, V}
+            end
+    end.
+
+fetch_optional_env(Key) ->
+    case application:get_env(ps_bench, Key) of
+        undefined -> not_found;
+        {ok, V} -> {ok, V};
+        V -> {ok, V}
+    end.

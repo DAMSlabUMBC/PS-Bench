@@ -6,7 +6,7 @@
 
 %% public
 -export([initialize_clients/0, print_clients/0, connect_clients/0, start_client_loops/0,
-    subscribe_clients/0]).
+    subscribe_clients/0, get_window_ms/0, get_rollup_secs/0]).
 
 initialize_clients() ->
 
@@ -59,6 +59,16 @@ connect_clients() ->
 subscribe_clients() ->
     WildcardBinary = <<"#">>,
     subscribe_clients_to_topic(<<?MQTT_TOPIC_PREFIX/binary, WildcardBinary/binary>>, 0).
+
+get_window_ms() ->
+    case ps_bench_config_manager:fetch_optional(?WINDOW_MS_PROP) of
+        {ok, W} -> W; _ -> ?DEFAULT_WINDOW_MS
+    end.
+
+get_rollup_secs() ->
+    case ps_bench_config_manager:fetch_optional(?ROLLUP_SECS_PROP) of
+        {ok, S} -> S; _ -> ?DEFAULT_ROLLUP_SECS
+    end.
 
 subscribe_clients_to_topic(Topic, QoS) ->
     ClientList = persistent_term:get(?MODULE),

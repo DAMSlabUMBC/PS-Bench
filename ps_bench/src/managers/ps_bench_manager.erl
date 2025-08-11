@@ -22,8 +22,7 @@ init(NodeName) ->
     {ok, #{node_name => NodeName}}.
 
 handle_call(_Msg, _From, State) ->
-    %% no call logic yet, just fulfill behaviour
-    {noreply, State}.
+    {reply, ok, State}.   
 
 handle_cast(local_continue, State = #{node_name := NodeName}) ->
     ps_bench_lifecycle:current_step_complete(NodeName),
@@ -55,13 +54,7 @@ start_next_step(start_clean_up, State = #{node_name := NodeName}) ->
     io:format("~s Starting Cleanup~n", [NodeName]),
     {noreply, State}.
 
-terminate(normal, {TestName, ClientName}) -> 
-    io:format("Manager shutdown ~s for ~s~n",[TestName, ClientName]),
-    ok;
-
-terminate(shutdown, {TestName, ClientName}) ->
-    io:format("Manager shutdown ~s for ~s~n",[TestName, ClientName]),
-    ok.
+terminate(_Reason, _State) -> ok.
 
 code_change(_OldVsn, State, _Extra) -> 
     {ok, State}.

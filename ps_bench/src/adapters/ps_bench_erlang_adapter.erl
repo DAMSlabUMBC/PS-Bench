@@ -110,9 +110,8 @@ do_subscribe(Topics, ServerReference, Tid) ->
 
 start_publication_loop(DeviceType, ServerReference) ->
     % Lookup needed parameters
-    {ok, PubFrequencyMs} = ps_bench_config_manager:fetch_property_for_device(DeviceType, ?DEVICE_PUB_FREQ_PROP),
-    {ok, PayloadSizeMean} = ps_bench_config_manager:fetch_property_for_device(DeviceType, ?DEVICE_SIZE_MEAN_PROP),
-    {ok, PayloadSizeVariance} = ps_bench_config_manager:fetch_property_for_device(DeviceType, ?DEVICE_SIZE_VARIANCE_PROP),
+    {ok, PubFrequencyMs} = ps_bench_config_manager:fetch_device_publication_frequency(DeviceType),
+    {ok, PayloadSizeMean, PayloadSizeVariance} = ps_bench_config_manager:fetch_device_payload_info(DeviceType),
 
     % Construct topic
     DeviceTypeBinary = atom_to_binary(DeviceType, latin1),
@@ -128,8 +127,7 @@ publication_loop(ServerReference, Topic, QoS, PayloadSizeMean, PayloadSizeVarian
 
 start_disconnection_loop(DeviceType, ServerReference) ->
     % Lookup needed parameters
-    {ok, DisconPeriodMs} = ps_bench_config_manager:fetch_property_for_device(DeviceType, ?DEVICE_DISCON_CHECK_MS_PROP),
-    {ok, DisconChance} = ps_bench_config_manager:fetch_property_for_device(DeviceType, ?DEVICE_DISCON_PCT_PROP),
+    {ok, DisconPeriodMs, DisconChance} = ps_bench_config_manager:fetch_device_disconnect_info(DeviceType),
 
     % Make sure we have a non-zero period
     case DisconPeriodMs of 
@@ -151,8 +149,7 @@ disconnect_loop(ServerReference, DisconChance) ->
 
 start_reconnection_loop(DeviceType, ServerReference) ->
     % Lookup needed parameters
-    {ok, ReconPeriodMs} = ps_bench_config_manager:fetch_property_for_device(DeviceType, ?DEVICE_RECON_CHECK_MS_PROP),
-    {ok, ReconChance} = ps_bench_config_manager:fetch_property_for_device(DeviceType, ?DEVICE_RECON_PCT_PROP),
+    {ok, ReconPeriodMs, ReconChance} = ps_bench_config_manager:fetch_device_reconnect_info(DeviceType),
 
     % Make sure we have a non-zero period
     case ReconPeriodMs of 

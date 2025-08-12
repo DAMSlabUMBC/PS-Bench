@@ -103,8 +103,7 @@ code_change(_OldVsn, State, _Extra) ->
 
 start_client_link(ClientName, CleanStart, MsgHandlers) ->
     
-    {ok, BrokerIP} = ps_bench_config_manager:fetch_protocol_property(?MQTT_BROKER_IP_PROP),
-    {ok, BrokerPort} = ps_bench_config_manager:fetch_protocol_property(?MQTT_BROKER_PORT_PROP),
+    {ok, BrokerIP, BrokerPort} = ps_bench_config_manager:fetch_mqtt_broker_information(),
     {ok, Protocol} = ps_bench_config_manager:fetch_protocol_type(),
 
     % Configure properties

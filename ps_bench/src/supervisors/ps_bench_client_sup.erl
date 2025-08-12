@@ -10,11 +10,11 @@ start_link() ->
 
 init([]) ->
     % Get test name
-    {ok, TestName} = ps_bench_config_manager:fetch_test_name(),
+    {ok, ScenarioName} = ps_bench_config_manager:fetch_selected_scenario(),
     {ok, _InterfaceType, InterfaceName} = ps_bench_config_manager:fetch_client_interface_information(),
 
     Template = #{id => client_worker,
-                 start => {?WORKER_MODULE, start_link, [TestName, InterfaceName]},
+                 start => {?WORKER_MODULE, start_link, [ScenarioName, InterfaceName]},
                  restart => transient, 
                  shutdown => 5000,
                  type => worker, 

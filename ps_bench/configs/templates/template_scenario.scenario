@@ -1,0 +1,12 @@
+[
+    {name, REPLACE_SNAKECASE_SCENARIO_NAME},                                % Format: Erlang atom
+    {protocol, REPLACE_PROTOCOL_TYPE},                                      % Format: Erlang atom, must be a supported protocol
+    {protocol_config,                                                       % Protocol specific configuration, see README for details on protocol configuration
+    [
+        {REPLACE_PROTOCOL_SETTING_1_KEY, REPLACE_PROTOCOL_SETTING_1_VALUE},
+        {REPLACE_PROTOCOL_SETTING_2_KEY, REPLACE_PROTOCOL_SETTING_2_VALUE}
+    ]},
+    {client_interface_type, REPLACE_INTERFACE_TYPE},                        % Format: Erlang atom, must be a supported type
+    {client_interface_name, REPLACE_INTERFACE_NAME},                        % Format: Quoted string
+    {deployment_name, REPLACE_DEPLOYMENT_NAME}                              % Format: Erlang atom, must match the name field in a deployment definition file
+].

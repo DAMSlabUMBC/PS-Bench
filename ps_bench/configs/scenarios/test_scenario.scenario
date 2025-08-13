@@ -13,5 +13,18 @@
     ]},
     {client_interface_type, erlang},                                % Format: Erlang atom, must be a supported type
     {client_interface_name, "ps_bench_mqtt_erlang_interface"},                        % Format: Quoted string
-    {deployment_name, test_deployment}                              % Format: Erlang atom, must match the name field in a deployment definition file
+    {deployment_name, test_deployment},                              % Format: Erlang atom, must match the name field in a deployment definition file
+
+    {metric_config,
+    [
+        {calculation_window_ms, 1000},
+        {rollup_period_s, 5},
+        {metric_plugins, 
+        [
+            {percentiles, python},
+            {throughput, python},
+            {drops, python}
+        ]},
+        {python_path, "priv/py_engine"}
+    ]}
 ].

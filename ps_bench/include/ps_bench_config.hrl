@@ -37,9 +37,9 @@
 -define(SCENARIO_INTERFACE_TYPE_PROP, client_interface_type).
 -define(SCENARIO_INTERFACE_NAME_PROP, client_interface_name).
 -define(SCENARIO_DEPLOYMENT_NAME_PROP, deployment_name).
+-define(SCENARIO_METRIC_CONFIG_PROP, metric_config).
 % NOTE: We do not require a default type or interface since we fall back to the builtin erlang interface
--define(SCENARIO_REQ_KEY_LIST, [?SCENARIO_NAME_PROP, ?SCENARIO_PROTOCOL_PROP, ?SCENARIO_PROTOCOL_CONFIG_PROP, ?SCENARIO_DEPLOYMENT_NAME_PROP]).
--define(SCENARIO_STORAGE_CONSTANT, scenario).
+-define(SCENARIO_REQ_KEY_LIST, [?SCENARIO_NAME_PROP, ?SCENARIO_PROTOCOL_PROP, ?SCENARIO_PROTOCOL_CONFIG_PROP, ?SCENARIO_DEPLOYMENT_NAME_PROP, ?SCENARIO_METRIC_CONFIG_PROP]).
 
 % Supported protocol types
 -define(MQTT_V5_PROTOCOL, mqttv5).
@@ -64,3 +64,23 @@
 -define(DEFAULT_INTERFACE_TYPE, ?ERLANG_INTERFACE).
 -define(DEFAULT_INTERFACE_NAME, "ps_bench_default_client").
 -define(SUPPORTED_INTERFACES, [?PYTHON_INTERFACE, ?ERLANG_INTERFACE]).
+
+% metrics and runtime knobs 
+-define(METRIC_STORAGE_CONSTANT, metrics).
+-define(METRIC_WINDOW_MS_PROP, calculation_window_ms).
+-define(METRIC_ROLLUP_PERIOD_S_PROP, rollup_period_s).
+-define(METRIC_PYTHON_ENGINE_PATH, python_metric_engine_path).
+-define(METRIC_PLUGINS_PROP, metric_plugins).
+% NOTE: We do not require a window, rollup period, or python path to be defined
+-define(METRIC_REQ_KEY_LIST, [?METRIC_PLUGINS_PROP]).
+
+% Set some defaults for metric calculation
+-define(DEFAULT_WINDOW_MS, 1000).
+-define(DEFAULT_ROLLUP_PERIOD_S, 5).
+-define(DEFAULT_PYTHON_ENGINE_PATH, "priv/py_engine").
+
+% TODO: What to do with this
+-define(TRANSPORTS_PROP, transports).
+
+% seq header (8B seq + 8B t_pub_ns)
+-define(SEQ_HDR_BYTES, 16).

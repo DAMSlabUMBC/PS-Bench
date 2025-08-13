@@ -14,6 +14,9 @@
 % MQTT exports
 -export([fetch_mqtt_broker_information/0, fetch_mqtt_default_qos/0, fetch_mqtt_qos_for_device/1]).
 
+% Metric exports
+-export([fetch_metric_calculation_window/0, fetch_metric_rollup_period/0, fetch_python_metric_engine_path/0,
+    fetch_metric_plugin_list/0]).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Loading Bootstrapping Functions
@@ -266,14 +269,17 @@ process_scenario_definition(Def) ->
         [] ->
             % Store all properties except for the specific protocol settings
             ScenarioName = proplists:get_value(?SCENARIO_NAME_PROP, Def),
-            PropsToSave = lists:filter(fun({Key, _Value}) -> not lists:member(Key, [?SCENARIO_PROTOCOL_CONFIG_PROP]) end, Def),
+            PropsToSave = lists:filter(fun({Key, _Value}) -> not lists:member(Key, [?SCENARIO_PROTOCOL_CONFIG_PROP, ?SCENARIO_METRIC_CONFIG_PROP]) end, Def),
             persistent_term:put({?MODULE, ScenarioName}, PropsToSave),
 
             % Now process the protocol configurations to ensure they're valid
             ProtocolType = proplists:get_value(?SCENARIO_PROTOCOL_PROP, Def),
             ProtocolProps = proplists:get_value(?SCENARIO_PROTOCOL_CONFIG_PROP, Def),
+            process_scenario_protocol_config(ProtocolProps, ProtocolType, ScenarioName),
 
-            process_scenario_protocol_config(ProtocolProps, ProtocolType, ScenarioName);
+            % Now process the metric configurations to ensure they're valid
+            MetricProps = proplists:get_value(?SCENARIO_METRIC_CONFIG_PROP, Def),
+            process_scenario_metric_config(MetricProps, ScenarioName);
         _ ->
             Reason = io_lib:format("Missings key(s) ~p in definition.~n", [MissingKeys]),
             {error, Reason}
@@ -297,6 +303,28 @@ process_scenario_protocol_config(ProtocolProps, ProtocolName, ScenarioName) ->
         Reason = io_lib:format("Unsupported protocol ~p requested.", [ProtocolName]),
         {error, Reason}
 end.
+
+process_scenario_metric_config(MetricProps, ScenarioName) ->
+    % Validate needed keys are here
+    PropListKeys = proplists:get_keys(MetricProps),
+    ExtraKeys = PropListKeys -- ?MQTT_REQ_KEY_LIST,
+    MissingKeys = ?MQTT_REQ_KEY_LIST -- PropListKeys,
+
+    % Having extra keys is just a warning, disregard return of the case
+    case ExtraKeys of
+        [] -> ok;
+        _ -> io:format("\tWarning: Unknown key(s) ~p found in metric properties. Ignoring...~n", [ExtraKeys])
+    end,
+
+    % Missing keys is fatal
+    case MissingKeys of
+        [] ->
+            % Store proplist in persistent_term since it won't be edited 
+            persistent_term:put({?MODULE, ScenarioName, ?METRIC_STORAGE_CONSTANT}, MetricProps);
+        _ ->
+            Reason = io_lib:format("Missings key(s) ~p in metric properties.", [MissingKeys]),
+            {error, Reason}
+    end.
 
 process_mqtt_config(ProtocolProps, ProtocolVersion, ScenarioName) ->
     % Validate needed keys are here
@@ -385,6 +413,18 @@ fetch_node_list() ->
             {ok, NodeList}
     end.
 
+fetch_metric_calculation_window() ->
+    fetch_metric_property(?METRIC_WINDOW_MS_PROP, ?DEFAULT_WINDOW_MS).
+
+fetch_metric_rollup_period() ->
+    fetch_metric_property(?METRIC_ROLLUP_PERIOD_S_PROP, ?DEFAULT_ROLLUP_PERIOD_S).
+
+fetch_python_metric_engine_path() ->
+    fetch_metric_property(?METRIC_PYTHON_ENGINE_PATH, ?DEFAULT_PYTHON_ENGINE_PATH).
+
+fetch_metric_plugin_list() ->
+    fetch_metric_property(?METRIC_PLUGINS_PROP).
+
 fetch_devices_for_this_node() ->
     {ok, NodeName} = fetch_node_name(),
     fetch_devices_for_node(NodeName).
@@ -444,6 +484,19 @@ fetch_protocol_property(Key) ->
     {ok, Protocol} = fetch_protocol_type(),
     ProtocolProps = persistent_term:get({?MODULE, ScenarioName, Protocol}),
     case proplists:get_value(Key, ProtocolProps) of
+        undefined -> 
+            {error, unknown_property};
+        Value ->
+            {ok, Value}
+    end.
+
+fetch_metric_property(Key) ->
+    fetch_metric_property(Key, undefined).
+
+fetch_metric_property(Key, Default) ->
+    {ok, ScenarioName} = fetch_selected_scenario(),
+    MetricProps = persistent_term:get({?MODULE, ScenarioName, ?METRIC_STORAGE_CONSTANT}),
+    case proplists:get_value(Key, MetricProps, Default) of
         undefined -> 
             {error, unknown_property};
         Value ->

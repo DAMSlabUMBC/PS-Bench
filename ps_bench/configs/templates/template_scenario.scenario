@@ -9,4 +9,17 @@
     {client_interface_type, REPLACE_INTERFACE_TYPE},                        % Format: Erlang atom, must be a supported type
     {client_interface_name, REPLACE_INTERFACE_NAME},                        % Format: Quoted string
     {deployment_name, REPLACE_DEPLOYMENT_NAME}                              % Format: Erlang atom, must match the name field in a deployment definition file
+
+    {metric_config,                                                         % Metric specific configuration, see README for details on metric configuration
+    [
+        {calculation_window_ms, REPLACE_CALCULATION_WINDOW_MS},                                      
+        {rollup_period_s, REPLACE_ROLLUP_PERIOD_S},
+        {python_metric_engine_path, REPLACE_PYTHON_PATH}                    % Only required if there are python metric plugins
+        {metric_plugins, 
+        [
+            {REPLACE_PLUGIN_1, REPLACE_PLUGIN_1_INTERFACE},
+            {REPLACE_PLUGIN_2, REPLACE_PLUGIN_2_INTERFACE}
+        ]},
+        
+    ]}
 ].

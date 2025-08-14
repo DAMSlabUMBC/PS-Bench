@@ -32,6 +32,7 @@
 
 % Scenario file fields
 -define(SCENARIO_NAME_PROP, name).
+-define(SCENARIO_DURATION_PROP, duration).
 -define(SCENARIO_PROTOCOL_PROP, protocol).
 -define(SCENARIO_PROTOCOL_CONFIG_PROP, protocol_config).
 -define(SCENARIO_INTERFACE_TYPE_PROP, client_interface_type).
@@ -39,7 +40,7 @@
 -define(SCENARIO_DEPLOYMENT_NAME_PROP, deployment_name).
 -define(SCENARIO_METRIC_CONFIG_PROP, metric_config).
 % NOTE: We do not require a default type or interface since we fall back to the builtin erlang interface
--define(SCENARIO_REQ_KEY_LIST, [?SCENARIO_NAME_PROP, ?SCENARIO_PROTOCOL_PROP, ?SCENARIO_PROTOCOL_CONFIG_PROP, ?SCENARIO_DEPLOYMENT_NAME_PROP, ?SCENARIO_METRIC_CONFIG_PROP]).
+-define(SCENARIO_REQ_KEY_LIST, [?SCENARIO_NAME_PROP, ?SCENARIO_DURATION_PROP, ?SCENARIO_PROTOCOL_PROP, ?SCENARIO_PROTOCOL_CONFIG_PROP, ?SCENARIO_DEPLOYMENT_NAME_PROP, ?SCENARIO_METRIC_CONFIG_PROP]).
 
 % Supported protocol types
 -define(MQTT_V5_PROTOCOL, mqttv5).
@@ -62,7 +63,7 @@
 -define(PYTHON_INTERFACE, python).
 -define(ERLANG_INTERFACE, erlang).
 -define(DEFAULT_INTERFACE_TYPE, ?ERLANG_INTERFACE).
--define(DEFAULT_INTERFACE_NAME, "ps_bench_default_client").
+-define(DEFAULT_INTERFACE_NAME, ps_bench_mqtt_erlang_interface).
 -define(SUPPORTED_INTERFACES, [?PYTHON_INTERFACE, ?ERLANG_INTERFACE]).
 
 % metrics and runtime knobs 
@@ -82,5 +83,5 @@
 % TODO: What to do with this
 -define(TRANSPORTS_PROP, transports).
 
-% seq header (8B seq + 8B t_pub_ns)
--define(SEQ_HDR_BYTES, 16).
+% Payload header (8B seq_id + 8B t_pub_ns)
+-define(PAYLOAD_HDR_BYTES, 16).

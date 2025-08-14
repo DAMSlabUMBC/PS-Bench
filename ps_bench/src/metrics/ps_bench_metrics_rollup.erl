@@ -11,13 +11,13 @@ start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 init([]) ->
-    {ok, TestName} = ps_bench_config_manager:fetch_test_name(),
+    {ok, TestName} = ps_bench_config_manager:fetch_selected_scenario(),
     {ok, WinMs} = ps_bench_config_manager:fetch_metric_calculation_window(),
     WinNs = WinMs * 1000000,
     Ref = erlang:send_after(WinMs, self(), tick),
     {ok, #state{win_ms=WinMs, win_ns=WinNs, run_id=TestName, next_tick_ref=Ref}}.
 
-handle_info(tick, S=#state{win_ms=WinMs, win_ns=WinNs, run_id=RunId}) ->
+handle_info(tick, S=#state{win_ms=WinMs, win_ns=_WinNs, run_id=RunId}) ->
     Tnow = erlang:monotonic_time(nanosecond),
     %% Drain all events received up to now
     Events = ps_bench_store:take_events_until(Tnow),
@@ -82,7 +82,7 @@ drops_for_topic(Topic, EvtsAsc) ->
     Prev = ps_bench_store:get_last_recv_seq(Topic),
     drops_for_topic_(Prev, EvtsAsc, 0, Prev).
 
-drops_for_topic_(PrevSeq, [], DropsAcc, LastOut) ->
+drops_for_topic_(_PrevSeq, [], DropsAcc, LastOut) ->
     {DropsAcc, LastOut};
 drops_for_topic_(PrevSeq, [E|Rest], DropsAcc, _LastOut) ->
     Seq = maps:get(seq, E, undefined),

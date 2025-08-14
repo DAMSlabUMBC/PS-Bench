@@ -1,5 +1,6 @@
 [
     {name, REPLACE_SNAKECASE_SCENARIO_NAME},                                % Format: Erlang atom
+    {duration, {REPLACE_DURATION_TIME, REPLACE_DURATION_UNITS}},              % Format: REPLACE_DURATION_TIME is an integer > 0, REPLACE_DURATION_UNITS must be millseconds, seconds, or minutes
     {protocol, REPLACE_PROTOCOL_TYPE},                                      % Format: Erlang atom, must be a supported protocol
     {protocol_config,                                                       % Protocol specific configuration, see README for details on protocol configuration
     [

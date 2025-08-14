@@ -1,4 +1,4 @@
--module(ps_bench_erlang_adapter).
+-module(ps_bench_erlang_mqtt_adapter).
 -behaviour(gen_server).
 
 -include("ps_bench_config.hrl").
@@ -92,7 +92,13 @@ handle_cast(start_client_loops, State = #{device_type := DeviceType, server_refe
     {ok, ReconLoopTaskRef} = start_reconnection_loop(DeviceType, ServerReference),
     {noreply, State#{pub_task := PubTaskRef, discon_task := DisconLoopTaskRef, recon_task := ReconLoopTaskRef}};
 
-handle_cast(stop, State = #{server_reference := ServerReference}) ->
+handle_cast(stop, State = #{server_reference := ServerReference, pub_task := PubTaskRef, discon_task := DisconLoopTaskRef, recon_task := ReconLoopTaskRef}) ->
+    % Stop all loops
+    timer:cancel(PubTaskRef),
+    timer:cancel(DisconLoopTaskRef),
+    timer:cancel(ReconLoopTaskRef),
+
+    % Tell interface to stop
     gen_server:cast(ServerReference, stop),
     {noreply, State}.
 
@@ -118,11 +124,11 @@ start_publication_loop(DeviceType, ServerReference) ->
     Topic = <<?MQTT_TOPIC_PREFIX/binary, DeviceTypeBinary/binary>>,
 
     % Create task
-    QoS = 0, % TODO: Get QoS from config
+    {ok, QoS} = ps_bench_config_manager:fetch_mqtt_qos_for_device(DeviceType),
     timer:apply_interval(PubFrequencyMs, fun publication_loop/5, [ServerReference, Topic, QoS, PayloadSizeMean, PayloadSizeVariance]).
 
 publication_loop(ServerReference, Topic, QoS, PayloadSizeMean, PayloadSizeVariance) ->
-    Payload = ps_bench_utils:generate_payload(PayloadSizeMean, PayloadSizeVariance),
+    Payload = ps_bench_utils:generate_payload_data(PayloadSizeMean, PayloadSizeVariance, Topic),
     gen_server:call(ServerReference, {publish, #{}, Topic, Payload, [{qos, QoS}]}). % TODO, more settings?
 
 start_disconnection_loop(DeviceType, ServerReference) ->
@@ -181,16 +187,24 @@ resub_to_previous_topics(ServerReference) ->
         [] ->
             ok;
         [{ServerReference, Topics}] ->
-            do_subscribe(Topics, ServerReference, Tid)
+            do_subscribe(Topics, ServerReference, Tid);
+        _ ->
+            ok
     end.
 
 handle_connect_event(Properties) ->
     io:format("Recv Connect with ~p~n",[Properties]),
     ok.
 
-handle_publish_event(_Msg = #{qos := _QoS, properties := _Props, payload := _Payload}) ->
-    io:format("Recv Publish with ~p~n",[_Msg]),
-    ok.
+handle_publish_event(_Msg = #{qos := _QoS, properties := _Props, payload := Payload, topic := Topic}) ->
+    % io:format("Recv Publish with ~p~n",[_Msg]),
+    TRecvNs = erlang:monotonic_time(nanosecond),
+    {Seq, TPubNs, _Rest} = ps_bench_utils:decode_seq_header(Payload),
+    Bytes = byte_size(Payload),
+    case Topic of
+        undefined -> ok;
+        _ -> ps_bench_store:record_recv(Topic, Seq, TPubNs, TRecvNs, Bytes)
+    end.
 
 handle_disconnect_event(Arg) ->
     io:format("Recv Disconnect with ~p~n",[Arg]),

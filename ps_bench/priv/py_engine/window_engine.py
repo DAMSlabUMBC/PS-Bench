@@ -10,8 +10,9 @@ def _atom(name: str): return Atom(name.encode())
 def start(listener_atom, plugins):
     global LISTENER, PLUGINS
     LISTENER = listener_atom
+    plugins = list(map(lambda p: p.decode('utf-8'), plugins))
     PLUGINS = [import_module(f"plugins.{p}") for p in plugins]
-    return True
+    return Atom(b'ok')
 
 def ingest_window(run_id, win_start_ms, win_map):
     lat = win_map.get(Atom(b'lat_ms'), [])
@@ -21,4 +22,4 @@ def ingest_window(run_id, win_start_ms, win_map):
     for p in PLUGINS:
         summary.update(p.apply(lat, size, counts))
     erlang.cast(LISTENER, (_atom('win_summary'), run_id, win_start_ms, summary))
-    return True
+    return Atom(b'ok')

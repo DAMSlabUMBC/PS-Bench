@@ -1,16 +1,55 @@
--module(ps_bench_test_manager).
+-module(ps_bench_scenario_manager).
 
 -include("ps_bench_config.hrl").
 
--define(CHILD_MODULE, ps_bench_client_sup).
+-define(CLIENT_SUPERVISOR, ps_bench_client_sup).
+-define(NODE_MANAGER, ps_bench_node_manager).
 
 %% public
--export([initialize_clients/0, print_clients/0, connect_clients/0, start_client_loops/0,
-    subscribe_clients/0]).
+-export([initialize_scenario/0, run_scenario/0, stop_scenario/0]).
+
+% Currently we only support one scenario a run
+initialize_scenario() ->
+    
+    {ok, ScenarioName} = ps_bench_config_manager:fetch_selected_scenario(),
+    ps_bench_utils:log_state_change("Initializing Scenario: ~p", [ScenarioName]),
+    
+    initialize_clients(),
+    timer:sleep(1000),
+    print_clients(),
+    timer:sleep(1000),
+    connect_clients(),
+    timer:sleep(1000),
+    subscribe_clients(),
+    timer:sleep(1000).
+
+run_scenario() ->
+
+    {ok, ScenarioName} = ps_bench_config_manager:fetch_selected_scenario(),
+    ps_bench_utils:log_state_change("Starting Scenario: ~p", [ScenarioName]),
+
+    {ok, DurationMs} = ps_bench_config_manager:fetch_scenario_duration(),
+
+    % Display time and duration for user
+    {{Y,M,D},{H,MM,SS}} = erlang:localtime(),
+    TimeStr = lists:flatten(io_lib:format("~B-~2.10.0B-~2.10.0B ~2.10.0B:~2.10.0B:~2.10.0B", [Y, M, D,H,MM,SS])),
+    ps_bench_utils:log_message("Starting at ~s and running for ~pms", [TimeStr, DurationMs]),
+
+    start_client_loops(),
+    timer:apply_after(DurationMs, fun stop_scenario/0).
+
+stop_scenario() ->
+    {ok, ScenarioName} = ps_bench_config_manager:fetch_selected_scenario(),
+    ps_bench_utils:log_state_change("Stopping Scenario: ~p", [ScenarioName]),
+
+    % Stop clients and notify the benchmarking scenario is complete
+    stop_clients(),
+    destroy_clients(),
+    gen_server:cast(?NODE_MANAGER, local_continue).
 
 initialize_clients() ->
 
-    % Fetch configs for this node
+    % Fetch devices for this node
     {ok, NodeDevices} = ps_bench_config_manager:fetch_devices_for_this_node(),
     {ok, NodeName} = ps_bench_config_manager:fetch_node_name(),
 
@@ -34,15 +73,12 @@ initialize_clients_for_devices(NodeName, [{DeviceType, DeviceCount} | NodeDevice
     % Recursively process the rest of the devices
     initialize_clients_for_devices(NodeName, NodeDevices, NewClientList).
 
-% This override just lets us use both atoms and strings as node names
-initialize_client_for_device_type(NodeName, DeviceType, DevicesToCreateCount, DeviceClientList) when is_atom(NodeName) ->
-    initialize_client_for_device_type(atom_to_list(NodeName), DeviceType, DevicesToCreateCount, DeviceClientList);
-
 initialize_client_for_device_type(NodeName, DeviceType, DevicesToCreateCount, DeviceClientList) ->
     % Construct name and start child
+    StringNodeName = atom_to_list(NodeName),
     ThisDeviceIndex = length(DeviceClientList) + 1,
-    ClientName = NodeName ++ "_" ++ atom_to_list(DeviceType) ++ "_" ++ integer_to_list(ThisDeviceIndex),
-    {ok, ClientPid} = supervisor:start_child(?CHILD_MODULE, [ClientName, DeviceType]),
+    ClientName = StringNodeName ++ "_" ++ atom_to_list(DeviceType) ++ "_" ++ integer_to_list(ThisDeviceIndex),
+    {ok, ClientPid} = supervisor:start_child(?CLIENT_SUPERVISOR, [ClientName, DeviceType]),
     NewDeviceClientList = [{ClientName, ClientPid} | DeviceClientList],
 
     if ThisDeviceIndex < DevicesToCreateCount -> 
@@ -70,8 +106,19 @@ start_client_loops() ->
     StartFunction = fun({_ClientName, ClientPid}) -> gen_server:cast(ClientPid, start_client_loops) end,
     lists:foreach(StartFunction, ClientList).
 
+stop_clients() ->
+    ClientList = persistent_term:get(?MODULE),
+    StopFunction = fun({_ClientName, ClientPid}) -> gen_server:cast(ClientPid, stop) end,
+    lists:foreach(StopFunction, ClientList).
+
+destroy_clients() ->
+    ClientList = persistent_term:get(?MODULE),
+    DestroyFunction = fun({_ClientName, ClientPid}) -> supervisor:terminate_child(?CLIENT_SUPERVISOR, ClientPid) end,
+    lists:foreach(DestroyFunction, ClientList),
+    persistent_term:erase(?MODULE).
+
 print_clients() ->
     ClientList = persistent_term:get(?MODULE),
-    io:format("==== All Clients ====~n", []),
-    PrintFunction = fun({ClientName, ClientPid}) -> io:format("~p - ~p~n", [ClientName, ClientPid]) end,
+    ps_bench_utils:log_state_change("All Clients"),
+    PrintFunction = fun({ClientName, ClientPid}) -> ps_bench_utils:log_message("~p - ~p", [ClientName, ClientPid]) end,
     lists:foreach(PrintFunction, ClientList).

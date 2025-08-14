@@ -1,12 +1,11 @@
 %%%-------------------------------------------------------------------
 %% @doc top-level supervisor
 %%%-------------------------------------------------------------------
--module(ps_bench_test_sup).
+-module(ps_bench_scenario_sup).
 -behaviour(supervisor).
 
 -export([start_link/0]).
 -export([init/1]).
--export([start_test/0]).
 
 start_link() ->
     supervisor:start_link({local, ?MODULE}, ?MODULE, []).
@@ -27,15 +26,3 @@ init([]) ->
     ],
     % TODO Tweak values
     {ok, {{one_for_one, 1, 60}, Children}}. 
-
-start_test() ->
-    ps_bench_test_manager:initialize_clients(),
-    timer:sleep(1000),
-    ps_bench_test_manager:print_clients(),
-    timer:sleep(1000),
-    ps_bench_test_manager:connect_clients(),
-    timer:sleep(1000),
-    ps_bench_test_manager:subscribe_clients(),
-    timer:sleep(1000),
-    ps_bench_test_manager:start_client_loops().
-

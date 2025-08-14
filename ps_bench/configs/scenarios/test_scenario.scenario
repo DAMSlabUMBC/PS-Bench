@@ -1,5 +1,6 @@
 [
     {name, test_scenario},                                % Format: Erlang atom
+    {duration, {10, seconds}},
     {protocol, mqttv5},                                      % Format: Erlang atom, must be a supported protocol
     {protocol_config,                                                       % Protocol specific configuration, see README for details on protocol configuration
     [
@@ -25,6 +26,6 @@
             {throughput, python},
             {drops, python}
         ]},
-        {python_path, "priv/py_engine"}
+        {python_metric_engine_path, "priv/py_engine"}
     ]}
 ].

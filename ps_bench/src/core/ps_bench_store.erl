@@ -1,7 +1,7 @@
 -module(ps_bench_store).
 -behaviour(gen_server).
 
--export([start_link/0]).
+-export([start_link/0, init/1]).
 %% seq mgmt
 -export([next_seq/1]).
 %% recv event I/O

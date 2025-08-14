@@ -8,24 +8,20 @@
 -behaviour(application).
 
 -export([start/2, stop/1]).
+-export([stop_benchmark_application/0]).
 
 start(_StartType, _StartArgs) ->
 
-    io:format("=== Loading Config ===~n"),
     case ps_bench_config_manager:load_config_from_env_vars() of
-        ok ->
-            io:format("=== Initializing Benchmark ===~n"),
-
-            % Initialize random number generator
-            ps_bench_utils:initialize_rng_seed(), % TODO, need to sync across all nodes and allow loading from config
-
+        ok ->   
+            % Fetch required information then start the supervisor
             {ok, NodeName} = ps_bench_config_manager:fetch_node_name(),
-            io:format("~p starting~n", [NodeName]),
-
             {ok, NodeList} = ps_bench_config_manager:fetch_node_list(),
-
             {ok, TopSupPid} = ps_bench_sup:start_link(NodeName, NodeList),
-            ps_bench_sup:start_benchmark(NodeName),
+
+            % Now that the supervision tree is started, tell the benchmark
+            % to initialize itself
+            ps_bench_node_manager:initialize_benchmark(),
             {ok, TopSupPid};
         {error, Reason} ->
             {error, Reason}
@@ -35,4 +31,11 @@ start(_StartType, _StartArgs) ->
 stop(_State) ->
     ok.
 
-%% internal functions
+stop_benchmark_application() ->
+
+    ps_bench_utils:log_state_change("Exiting Benchmark"),
+
+    {ok, ApplicationName} = application:get_application(),
+    error_logger:tty(false),
+    application:stop(ApplicationName),
+    error_logger:tty(true).

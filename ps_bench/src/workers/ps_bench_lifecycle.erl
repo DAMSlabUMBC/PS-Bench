@@ -23,7 +23,6 @@ callback_mode() ->
 % This should be called whenever the benchmarking manager on a node
 % is ready to transition to the next phase of the application
 current_step_complete(NodeName) ->
-    io:format("~s Do Cast~n", [NodeName]),
     gen_statem:cast(?MODULE, NodeName).
 
 % ============== State machine definitions ==============
@@ -41,16 +40,14 @@ configuring(cast, NodeName, #{all_nodes := AllNodes, pending_nodes := PendingNod
     NewPendingNodes = PendingNodes -- [NodeName],
     case NewPendingNodes of
         [] -> 
-            io:format("~s Done Config~n", [NodeName]),
             {next_state, benchmarking, Data#{pending_nodes := AllNodes}};
         _ -> 
-            io:format("~s Wait Config on ~s~n", [NodeName, NewPendingNodes]),
             {keep_state, Data#{pending_nodes := NewPendingNodes}}
         end.
 
 % Instruct the manager to start benchmarking
 benchmarking(enter, _OldState, _State) ->
-    ManagerPid = whereis(ps_bench_manager),
+    ManagerPid = whereis(ps_bench_node_manager),
     ManagerPid ! {self(), start_benchmark},
     keep_state_and_data;
 
@@ -66,7 +63,7 @@ benchmarking(cast, NodeName, #{all_nodes := AllNodes, pending_nodes := PendingNo
 
 % Instruct the manager to start metric calculation
 calculating_metrics(enter, _OldState, _State) ->
-    ManagerPid = whereis(ps_bench_manager),
+    ManagerPid = whereis(ps_bench_node_manager),
     ManagerPid ! {self(), start_calculate_metrics},
     keep_state_and_data;
 
@@ -82,7 +79,7 @@ calculating_metrics(cast, NodeName, #{all_nodes := AllNodes, pending_nodes := Pe
 
 % The only thing we do in this state is instruct the manager to shutdown the benchmark
 done(enter, _OldState, _State) ->
-    ManagerPid = whereis(ps_bench_manager),
+    ManagerPid = whereis(ps_bench_node_manager),
     ManagerPid ! {self(), start_clean_up},
     keep_state_and_data;
 

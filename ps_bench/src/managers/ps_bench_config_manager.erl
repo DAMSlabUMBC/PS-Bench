@@ -6,7 +6,7 @@
 -export([load_config_from_env_vars/0]).
 
 % Retrieval exports
--export([fetch_node_name/0, fetch_selected_scenario/0, fetch_deployment_name/0, fetch_node_list/0,
+-export([fetch_node_name/0, fetch_selected_scenario/0, fetch_scenario_duration/0, fetch_deployment_name/0, fetch_node_list/0,
     fetch_protocol_type/0, fetch_client_interface_information/0, fetch_devices_for_this_node/0,
     fetch_device_publication_frequency/1, fetch_device_payload_info/1, fetch_device_disconnect_info/1, 
     fetch_device_reconnect_info/1]).
@@ -16,7 +16,7 @@
 
 % Metric exports
 -export([fetch_metric_calculation_window/0, fetch_metric_rollup_period/0, fetch_python_metric_engine_path/0,
-    fetch_metric_plugin_list/0]).
+    fetch_python_metric_plugins/0]).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Loading Bootstrapping Functions
@@ -24,6 +24,13 @@
 load_config_from_env_vars() ->
     case ensure_env_vars_set() of
         ok ->
+            % Store the application name holding the env vars so we can fetch later
+            {ok, ApplicationName} = application:get_application(),
+            persistent_term:put({?MODULE, app_name}, ApplicationName),
+
+            ps_bench_utils:log_state_change("Loading Config"),
+            
+            % Load config
             {ok, DeviceDefDir} = fetch_device_definitions_dir(),
             {ok, DeploymentDefDir} = fetch_deployment_definitions_dir(),
             {ok, ScenarioDefDir} = fetch_scenario_definitions_dir(),
@@ -42,7 +49,7 @@ ensure_env_vars_set() ->
         [] ->
             ok;
         _ ->
-            io:format("Required environment variable(s) ~p not defined.~n", [MissingKeys]),
+            ps_bench_utils:log_message("Required environment variable(s) ~p not defined.", [MissingKeys]),
             error
     end.
 
@@ -74,29 +81,29 @@ load_config(DeviceDefDir, DeploymentDefDir, ScenarioDefDir) ->
 
 load_definition(FilePath, ProcessFunction) ->
     
-    io:format("\tLoading ~s...~n", [filename:basename(FilePath)]),
+    ps_bench_utils:log_message("\tLoading ~s...", [filename:basename(FilePath)]),
     
     case file:consult(FilePath) of
         {ok, [Def]} ->
             case ProcessFunction(Def) of
                 ok ->
-                    io:format("\t> Success!~n", []),
+                    ps_bench_utils:log_message("\t> Success!", []),
                     ok;
                 {error, Reason} ->
-                    io:format("\t> Failed: ~s~n", [Reason]),
+                    ps_bench_utils:log_message("\t> Failed: ~s", [Reason]),
                     error
             end;
 
         {error, {Line, _Mod, Term}} ->
-            io:format("\t> Failed: Malformed on line ~p: ~p~n", [Line, Term]),
+            ps_bench_utils:log_message("\t> Failed: Malformed on line ~p: ~p", [Line, Term]),
             error;
 
         {error, enoent} ->
-            io:format("\t> Failed: File not found at ~p~n", [FilePath]),
+            ps_bench_utils:log_message("\t> Failed: File not found at ~p", [FilePath]),
             error;
 
         {error, Error} ->
-            io:format("\t> Failed: Could not read file ~p. Error: ~p~n", [FilePath, Error]),
+            ps_bench_utils:log_message("\t> Failed: Could not read file ~p. Error: ~p", [FilePath, Error]),
             error
     end.
 
@@ -108,14 +115,14 @@ load_device_definitions(DirPath) ->
 
     case filelib:is_dir(DirPath) of
         true ->
-            io:format("Loading device definitions from ~p...~n", [DirPath]),
+            ps_bench_utils:log_message("Loading device definitions from ~p...", [DirPath]),
             DeviceDefs = filelib:wildcard(?DEVICE_FILE_EXT, DirPath),
             FullDevicePaths =  lists:map(fun(DefFile) -> string:join([DirPath, DefFile], "/") end, DeviceDefs),
             lists:foreach(fun(X) -> load_definition(X, fun process_device_definition/1) end, FullDevicePaths),
-            io:format("Done loading device definitions.~n"),
+            ps_bench_utils:log_message("Done loading device definitions."),
             ok;
         false ->
-            io:format("Provided device definitions path was not found or is not a directory: ~p~n", [DirPath]),
+            ps_bench_utils:log_message("Provided device definitions path was not found or is not a directory: ~p", [DirPath]),
             error
     end.
 
@@ -129,7 +136,7 @@ process_device_definition(Def) ->
     % Having extra keys is just a warning, disregard return of the case
     case ExtraKeys of
         [] -> ok;
-        _ -> io:format("\tWarning: Unknown key(s) ~p found in definition. Ignoring...~n", [ExtraKeys])
+        _ -> ps_bench_utils:log_message("\tWarning: Unknown key(s) ~p found in definition. Ignoring...", [ExtraKeys])
     end,
 
     % Missing keys is fatal
@@ -151,14 +158,14 @@ load_deployment_definitions(DirPath) ->
 
     case filelib:is_dir(DirPath) of
         true ->
-            io:format("Loading deployment definitions from ~p...~n", [DirPath]),
+            ps_bench_utils:log_message("Loading deployment definitions from ~p...", [DirPath]),
             DeploymentDefs = filelib:wildcard(?DEPLOYMENT_FILE_EXT, DirPath),
             FullPaths =  lists:map(fun(DefFile) -> string:join([DirPath, DefFile], "/") end, DeploymentDefs),
             lists:foreach(fun(X) -> load_definition(X, fun process_deployment_definition/1) end, FullPaths),
-            io:format("Done loading deployment definitions.~n"),
+            ps_bench_utils:log_message("Done loading deployment definitions."),
             ok;
         false ->
-            io:format("Provided deployment definitions path was not found or is not a directory: ~p~n", [DirPath]),
+            ps_bench_utils:log_message("Provided deployment definitions path was not found or is not a directory: ~p", [DirPath]),
             error
     end.
 
@@ -173,7 +180,7 @@ process_deployment_definition(Def) ->
     % Having extra keys is just a warning, disregard return of the case
     case ExtraKeys of
         [] -> ok;
-        _ -> io:format("\tWarning: Unknown key(s) ~p found in definition. Ignoring...~n", [ExtraKeys])
+        _ -> ps_bench_utils:log_message("\tWarning: Unknown key(s) ~p found in definition. Ignoring...", [ExtraKeys])
     end,
 
     % Missing keys is fatal
@@ -216,7 +223,7 @@ process_deployment_node(Def, NodeName, DeploymentName) ->
     % Having extra keys is just a warning, disregard return of the case
     case ExtraKeys of
         [] -> ok;
-        _ -> io:format("\tWarning: Unknown key(s) ~p found in node ~p definition. Ignoring...~n", [ExtraKeys, NodeName])
+        _ -> ps_bench_utils:log_message("\tWarning: Unknown key(s) ~p found in node ~p definition. Ignoring...", [ExtraKeys, NodeName])
     end,
 
     % Missing keys is fatal
@@ -238,14 +245,14 @@ load_scenario_definitions(DirPath) ->
 
     case filelib:is_dir(DirPath) of
         true ->
-            io:format("Loading scenario definitions from ~p...~n", [DirPath]),
+            ps_bench_utils:log_message("Loading scenario definitions from ~p...", [DirPath]),
             ScenarioDefs = filelib:wildcard(?SCENARIO_FILE_EXT, DirPath),
             FullPaths =  lists:map(fun(DefFile) -> string:join([DirPath, DefFile], "/") end, ScenarioDefs),
             lists:foreach(fun(X) -> load_definition(X, fun process_scenario_definition/1) end, FullPaths),
-            io:format("Done loading scenario definitions.~n"),
+            ps_bench_utils:log_message("Done loading scenario definitions."),
             ok;
         false ->
-            io:format("Provided scenario definitions path was not found or is not a directory: ~p~n", [DirPath]),
+            ps_bench_utils:log_message("Provided scenario definitions path was not found or is not a directory: ~p", [DirPath]),
             error
     end.
 
@@ -261,7 +268,7 @@ process_scenario_definition(Def) ->
     % Having extra keys is just a warning, disregard return of the case
     case ExtraKeys of
         [] -> ok;
-        _ -> io:format("\tWarning: Unknown key(s) ~p found in definition. Ignoring...~n", [ExtraKeys])
+        _ -> ps_bench_utils:log_message("\tWarning: Unknown key(s) ~p found in definition. Ignoring...", [ExtraKeys])
     end,
 
     % Missing keys is fatal
@@ -307,13 +314,14 @@ end.
 process_scenario_metric_config(MetricProps, ScenarioName) ->
     % Validate needed keys are here
     PropListKeys = proplists:get_keys(MetricProps),
-    ExtraKeys = PropListKeys -- ?MQTT_REQ_KEY_LIST,
-    MissingKeys = ?MQTT_REQ_KEY_LIST -- PropListKeys,
+    NonReqKeys = PropListKeys -- ?METRIC_REQ_KEY_LIST,
+    ExtraKeys =  NonReqKeys -- [?METRIC_WINDOW_MS_PROP, ?METRIC_ROLLUP_PERIOD_S_PROP, ?METRIC_PYTHON_ENGINE_PATH],
+    MissingKeys = ?METRIC_REQ_KEY_LIST -- PropListKeys,
 
     % Having extra keys is just a warning, disregard return of the case
     case ExtraKeys of
         [] -> ok;
-        _ -> io:format("\tWarning: Unknown key(s) ~p found in metric properties. Ignoring...~n", [ExtraKeys])
+        _ -> ps_bench_utils:log_message("\tWarning: Unknown key(s) ~p found in metric properties. Ignoring...", [ExtraKeys])
     end,
 
     % Missing keys is fatal
@@ -335,7 +343,7 @@ process_mqtt_config(ProtocolProps, ProtocolVersion, ScenarioName) ->
     % Having extra keys is just a warning, disregard return of the case
     case ExtraKeys of
         [] -> ok;
-        _ -> io:format("\tWarning: Unknown key(s) ~p found in MQTT properties. Ignoring...~n", [ExtraKeys])
+        _ -> ps_bench_utils:log_message("\tWarning: Unknown key(s) ~p found in MQTT properties. Ignoring...", [ExtraKeys])
     end,
 
     % Missing keys is fatal
@@ -355,20 +363,36 @@ process_dds_config(_ProtocolProps, _ScenarioName) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Retrival functions
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 fetch_node_name() ->
-    application:get_env(?ENV_NODE_NAME).
+    lookup_env_var(?ENV_NODE_NAME).
 
 fetch_device_definitions_dir() ->
-    application:get_env(?ENV_DEVICE_DEF_DIR).
+    lookup_env_var(?ENV_DEVICE_DEF_DIR).
 
 fetch_deployment_definitions_dir() ->
-    application:get_env(?ENV_DEPLOYMENT_DEF_DIR).
+    lookup_env_var(?ENV_DEPLOYMENT_DEF_DIR).
 
 fetch_scenario_definitions_dir() ->
-    application:get_env(?ENV_SCENARIO_DEF_DIR).
+    lookup_env_var(?ENV_SCENARIO_DEF_DIR).
 
 fetch_selected_scenario() ->
-    application:get_env(?ENV_SELECTED_SCENARIO).
+    lookup_env_var(?ENV_SELECTED_SCENARIO).
+
+lookup_env_var(VariableName) ->
+    ApplicationName = persistent_term:get({?MODULE, app_name}),
+    application:get_env(ApplicationName, VariableName).
+
+fetch_scenario_duration() ->
+    {ok, ScenarioName} = fetch_selected_scenario(),
+    {ok, {Duration, Units}} = fetch_property_for_scenario(ScenarioName, ?SCENARIO_DURATION_PROP),
+
+    case Units of
+        milliseconds -> {ok, Duration};
+        seconds -> {ok, Duration * 1000};
+        minutes -> {ok, Duration * 60 * 1000};
+        _ -> {error, unknown_units}
+    end.
 
 fetch_protocol_type() ->
     {ok, ScenarioName} = fetch_selected_scenario(),
@@ -422,8 +446,10 @@ fetch_metric_rollup_period() ->
 fetch_python_metric_engine_path() ->
     fetch_metric_property(?METRIC_PYTHON_ENGINE_PATH, ?DEFAULT_PYTHON_ENGINE_PATH).
 
-fetch_metric_plugin_list() ->
-    fetch_metric_property(?METRIC_PLUGINS_PROP).
+fetch_python_metric_plugins() ->
+    {ok, AllPlugins} = fetch_metric_property(?METRIC_PLUGINS_PROP),
+    PythonPlugins = lists:filtermap(fun({Name, Interface}) -> case Interface of ?PYTHON_INTERFACE -> {true, Name}; _ -> false end end, AllPlugins),
+    {ok, PythonPlugins}.
 
 fetch_devices_for_this_node() ->
     {ok, NodeName} = fetch_node_name(),

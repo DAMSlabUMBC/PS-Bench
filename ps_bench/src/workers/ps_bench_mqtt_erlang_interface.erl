@@ -4,22 +4,22 @@
 -include("ps_bench_config.hrl").
 
 %% public
--export([start_link/2, publish_with_seq/6]).
+-export([start_link/2]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3,
          handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
-start_link(TestName, ClientName) ->
-    gen_server:start_link({local, list_to_atom(ClientName)}, ?MODULE, [{TestName, ClientName}], []).
+start_link(ScenarioName, ClientName) ->
+    gen_server:start_link({local, list_to_atom(ClientName)}, ?MODULE, [{ScenarioName, ClientName}], []).
 
 %%%===================================================================
 %%% gen_server callbacks
 %%%===================================================================
 
-init([{TestName, ClientName}]) ->
-    {ok, #{test_name => TestName, client_name => ClientName, client_pid => 0, connected => false, first_start => true}}.
+init([{ScenarioName, ClientName}]) ->
+    {ok, #{scenario_name => ScenarioName, client_name => ClientName, client_pid => 0, connected => false, first_start => true}}.
 
 handle_call({connect, MsgHandlers}, _From, State = #{first_start := FirstStart}) ->
     % If not specifically told, we start clean by default, then preserve old sessions on reconnects
@@ -36,23 +36,25 @@ handle_call({reconnect, MsgHandlers}, _From, State) ->
 
 handle_call({subscribe, Properties, Topics}, _From, State = #{client_pid := ClientPid}) ->
     % Subscribe with the on Topic with Options
-    io:format("Real sub on ~p~n", [Topics]),
     {ok, _Props, _ReasonCodes} = emqtt:subscribe(ClientPid, Properties, Topics),
     {reply, ok, State};
 
-handle_call({publish, Properties, Topic, Data, PubOpts}, _From, State = #{client_pid := ClientPid, connected := Connected}) when is_binary(Topic), is_binary(Data) ->
+handle_call({publish, Properties, Topic, Payload, PubOpts}, _From, State = #{client_pid := ClientPid, connected := Connected}) when is_binary(Topic), is_binary(Payload) ->
     % Need to check QoS
     case Connected of
         true ->
             case lists:keysearch(qos, 1, PubOpts) of
                 % QoS >= 1, we need to return PacketId
                 {value, {qos, QoS}} when QoS >= 1  -> 
-                    emqtt:publish(ClientPid, Topic, Properties, Data, PubOpts),
+                    TimeNs = erlang:monotonic_time(nanosecond),
+                    PayloadWithTime = <<TimeNs:64/unsigned, Payload/binary>>,
+                    emqtt:publish(ClientPid, Topic, Properties, PayloadWithTime, PubOpts),
                     {reply, ok, State};
                 % QoS wasn't specified or was given a value of 0
                 _ ->
-                    io:format("Pubbing on ~s~n", [Topic]),
-                    emqtt:publish(ClientPid, Topic, Properties, Data, PubOpts),
+                    TimeNs = erlang:monotonic_time(nanosecond),
+                    PayloadWithTime = <<TimeNs:64/unsigned, Payload/binary>>,
+                    emqtt:publish(ClientPid, Topic, Properties, PayloadWithTime, PubOpts),
                     {reply, ok, State}
             end;
         false ->
@@ -71,7 +73,7 @@ handle_call(disconnect, _From, State = #{client_pid := ClientPid, connected := C
         true ->
             % For now, we assume the properties are accepted as requested
             ok = emqtt:disconnect(ClientPid),
-            {reply, ok, State#{client_pid := 0, connected := false}};
+            {reply, ok, State#{connected := false}};
         false ->
             % Not connected don't do anything
             {reply, ok, State}
@@ -83,39 +85,17 @@ handle_call(_, _, State) ->
 handle_cast(stop, State = #{client_pid := ClientPid}) ->
     % Shutdown the client
     ok = emqtt:stop(ClientPid),
+    {noreply, State};
+
+handle_cast(_, State) ->
     {noreply, State}.
-
-%% emqtt often delivers to owner as {publish, Map}
-handle_info({publish, Msg}, State) when is_map(Msg) ->
-    Topic = maps:get(topic, Msg, undefined),
-    Payload = maps:get(payload, Msg, <<>>),
-    TRecvNs = erlang:monotonic_time(nanosecond),
-    {Seq, TPubNs, _Rest} = ps_bench_utils:decode_seq_header(Payload),
-    Bytes = byte_size(Payload),
-    case Topic of
-        undefined -> ok;
-        _ -> ps_bench_store:record_recv(Topic, Seq, TPubNs, TRecvNs, Bytes)
-    end,
-    {noreply, State};
-
-%% or sometimes as {publish, TopicBin, PayloadBin, _Props}
-handle_info({publish, TopicBin, PayloadBin, _Props}, State) ->
-    TRecvNs = erlang:monotonic_time(nanosecond),
-    {Seq, TPubNs, _Rest} = ps_bench_utils:decode_seq_header(PayloadBin),
-    Bytes = byte_size(PayloadBin),
-    ps_bench_store:record_recv(TopicBin, Seq, TPubNs, TRecvNs, Bytes),
-    {noreply, State};
     
 handle_info(_Info, State) ->
     %% no info logic yet, just fulfill behaviour
     {noreply, State}.
 
-terminate(normal, {TestName, ClientName}) -> 
-    io:format("Client Shutdown ~s for Erlang Client ~s~n",[TestName, ClientName]),
-    ok;
-
-terminate(shutdown, {TestName, ClientName}) ->
-    io:format("Supervisor Shutdown ~s for Erlang Client ~s~n",[TestName, ClientName]),
+terminate(Reason, _State) -> 
+    ps_bench_utils:log_message("Terminate with reason ~p",[Reason]),
     ok.
 
 code_change(_OldVsn, State, _Extra) -> 
@@ -153,21 +133,9 @@ do_connect(CleanStart, State = #{client_name := ClientName, connected := Connect
         false ->
             % For now, we assume the properties are accepted as requested
             {ok, NewClientPid} = start_client_link(ClientName, CleanStart, MsgHandlers),
-            {ok, Properties} = emqtt:connect(NewClientPid),
-            io:format("Connected with ~p~n", [Properties]),
+            {ok, _Properties} = emqtt:connect(NewClientPid),
             {reply, {ok, new_connection}, State#{client_pid := NewClientPid, connected := true, first_start := false}};
         true ->
             % Already connected, don't do anything
             {reply, {ok, already_connected}, State}
     end.
-
-publish_with_seq(_Props, _Topic, _Data, _PubOpts, _ClientPid, false) ->
-    ok;
-
-publish_with_seq(Properties, Topic, Data, PubOpts, ClientPid, true) ->
-    Seq = ps_bench_store:next_seq(Topic),
-    Tns = erlang:monotonic_time(nanosecond),
-    Payload = <<Seq:64/unsigned, Tns:64/unsigned, Data/binary>>,
-    emqtt:publish(ClientPid, Topic, Properties, Payload, PubOpts),
-    ok.
-

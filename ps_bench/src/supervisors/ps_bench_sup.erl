@@ -6,7 +6,6 @@
 
 -export([start_link/2]).
 -export([init/1]).
--export([start_benchmark/1]).
 
 start_link(NodeName, NodeList) ->
     supervisor:start_link({global, NodeName}, ?MODULE, [{NodeName, NodeList}]).
@@ -36,19 +35,14 @@ init([{NodeName, NodeList}]) ->
         start => {ps_bench_lifecycle, start_link, [NodeList, 5000]},
         restart => permanent, shutdown => 5000, type => worker, modules => [ps_bench_lifecycle]},
 
-    Manager = #{id => ps_bench_manager,
-        start => {ps_bench_manager, start_link, [NodeName]},
-        restart => permanent, shutdown => 5000, type => worker, modules => [ps_bench_manager]},
+    NodeManager = #{id => ps_bench_node_manager,
+        start => {ps_bench_node_manager, start_link, [NodeName]},
+        restart => permanent, shutdown => 5000, type => worker, modules => [ps_bench_node_manager]},
 
-    TestSup = #{id => ps_bench_test_sup,
-        start => {ps_bench_test_sup, start_link, []},
-        restart => permanent, shutdown => 5000, type => supervisor, modules => [ps_bench_test_sup]},
+    ScenarioSup = #{id => ps_bench_scenario_sup,
+        start => {ps_bench_scenario_sup, start_link, []},
+        restart => permanent, shutdown => 5000, type => supervisor, modules => [ps_bench_scenario_sup]},
 
-    Children = [Pg, Store, MetricsListener, MetricsPy, Lifecycle, Manager, TestSup],
+    Children = [Pg, Store, MetricsListener, MetricsPy, Lifecycle, NodeManager, ScenarioSup],
     {ok, {{one_for_one, 5, 60}, Children}}.
-
-
-start_benchmark(NodeName) ->
-  ps_bench_lifecycle:current_step_complete(NodeName),
-  ps_bench_test_sup:start_test().
 

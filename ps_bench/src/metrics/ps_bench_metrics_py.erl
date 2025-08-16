@@ -17,7 +17,7 @@ init(Opts) ->
     {ok, Plugins}  = ps_bench_config_manager:fetch_python_metric_plugins(),
     Listener = proplists:get_value(listener_name, Opts, ps_bench_metrics_listener),
     
-    % Initialize the python interface nad load the plugins
+    % Initialize the python interface and load the plugins
     {ok, Py} = python:start([{python_path, [PyPath]}, {python, "python3"}]),
     ok = python:call(Py, window_engine, start, [Listener, Plugins]),
 

@@ -19,8 +19,7 @@ start(_StartType, _StartArgs) ->
             {ok, NodeList} = ps_bench_config_manager:fetch_node_list(),
             {ok, TopSupPid} = ps_bench_sup:start_link(NodeName, NodeList),
 
-            % Now that the supervision tree is started, tell the benchmark
-            % to initialize itself
+            % Now that the supervision tree is started, tell the benchmark to initialize itself
             ps_bench_node_manager:initialize_benchmark(),
             {ok, TopSupPid};
         {error, Reason} ->

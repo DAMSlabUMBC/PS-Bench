@@ -63,8 +63,15 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 initialize_benchmark() ->
 
+    % Register this node
+    {ok, NodeName} = ps_bench_config_manager:fetch_node_name(),
+    %net_kernel:start(NodeName, #{name_domain => shortnames}),
+
     % Initialize random number generator
     ps_bench_utils:initialize_rng_seed(), % TODO, need to sync across all nodes and allow loading from config
+
+    % Create storage tables
+    ps_bench_store:initialize_node_storage(),
 
     % Now initalize the scenario
     ps_bench_scenario_manager:initialize_scenario(),

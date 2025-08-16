@@ -37,7 +37,7 @@ generate_payload_data(PayloadSizeMean, PayloadSizeVariance, Topic) ->
     %       add processing time for the benchmark to the latency results.
     %       This function intentionally generates a payload 8 bytes too "small" 
     %       to allow for the interface to add the time data
-    Seq = ps_bench_store:next_seq(Topic),
+    Seq = ps_bench_store:get_next_seq_id(Topic),
     Payload = <<Seq:64/unsigned, RandomBytes/binary>>,
     Payload.
 

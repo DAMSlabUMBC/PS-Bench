@@ -15,11 +15,8 @@ initialize_scenario() ->
     ps_bench_utils:log_state_change("Initializing Scenario: ~p", [ScenarioName]),
     
     initialize_clients(),
-    timer:sleep(1000),
     print_clients(),
-    timer:sleep(1000),
     connect_clients(),
-    timer:sleep(1000),
     subscribe_clients(),
     timer:sleep(1000).
 

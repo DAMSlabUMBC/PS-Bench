@@ -23,16 +23,12 @@ init([{NodeName, NodeList}]) ->
         start => {ps_bench_metrics_rollup, start_link, []},
         restart => permanent, shutdown => 5000, type => worker, modules => [ps_bench_metrics_rollup]},
 
-    Store = #{id => ps_bench_store,
-        start => {ps_bench_store, start_link, []},
-        restart => permanent, shutdown => 5000, type => worker, modules => [ps_bench_store]},
-
     %% existing children
     Pg = #{id => pg_srv, start => {pg, start_link, []},
         restart => permanent, shutdown => 5000, type => worker, modules => [pg]},
 
     Lifecycle = #{id => ps_bench_lifecycle,
-        start => {ps_bench_lifecycle, start_link, [NodeList, 5000]},
+        start => {ps_bench_lifecycle, start_link, [NodeList, 100000]},
         restart => permanent, shutdown => 5000, type => worker, modules => [ps_bench_lifecycle]},
 
     NodeManager = #{id => ps_bench_node_manager,
@@ -43,6 +39,6 @@ init([{NodeName, NodeList}]) ->
         start => {ps_bench_scenario_sup, start_link, []},
         restart => permanent, shutdown => 5000, type => supervisor, modules => [ps_bench_scenario_sup]},
 
-    Children = [Pg, Store, MetricsListener, MetricsPy, Lifecycle, NodeManager, ScenarioSup],
+    Children = [Pg, Roll, MetricsListener, MetricsPy, Lifecycle, NodeManager, ScenarioSup],
     {ok, {{one_for_one, 5, 60}, Children}}.
 

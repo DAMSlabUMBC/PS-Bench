@@ -18,6 +18,7 @@ init([]) ->
     {ok, #state{win_ms=WinMs, win_ns=WinNs, run_id=TestName, next_tick_ref=Ref}}.
 
 handle_info(tick, S=#state{win_ms=WinMs, win_ns=_WinNs, run_id=RunId}) ->
+
     Tnow = erlang:monotonic_time(nanosecond),
     %% Drain all events received up to now
     Events = ps_bench_store:take_events_until(Tnow),

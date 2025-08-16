@@ -4,9 +4,6 @@
 -include("ps_bench_config.hrl").
 
 -define(SUBSCRIPTION_ETS_TABLE_NAME, current_subscriptions).
--define(ERLANG_MQTT_MSG_HANDLERS, #{publish => fun handle_publish_event/1, 
-                                        connected => fun handle_connect_event/1,
-                                        disconnected => fun handle_disconnect_event/1}).
 
 % Interface currently needs to:
 % - Accept handlers for recv, disconnect, connect
@@ -32,7 +29,7 @@ start_link(TestName, InterfaceName, ClientName, DeviceType) ->
 init([TestName, InterfaceName, ClientName, DeviceType]) ->
 
     % This function spawns the erlang process defined by the config
-    erlang:spawn_link(list_to_atom(InterfaceName), start_link, [TestName, ClientName]),
+    erlang:spawn_link(list_to_atom(InterfaceName), start_link, [TestName, ClientName, self()]),
     ServerReference = list_to_atom(ClientName),
 
     % Create or fetch the ETS table for subscriptions
@@ -48,15 +45,15 @@ init([TestName, InterfaceName, ClientName, DeviceType]) ->
 
 % For direct commands, we just forward these messages to the actual client
 handle_call(connect, _From, State = #{server_reference := ServerReference}) ->
-    gen_server:call(ServerReference, {connect, ?ERLANG_MQTT_MSG_HANDLERS}),
+    gen_server:call(ServerReference, {connect}),
     {reply, ok, State};
 
 handle_call(connect_clean, _From, State = #{server_reference := ServerReference}) ->
-    gen_server:call(ServerReference, {connect_clean, ?ERLANG_MQTT_MSG_HANDLERS}),
+    gen_server:call(ServerReference, {connect_clean}),
     {reply, ok, State};
 
 handle_call(reconnect, _From, State = #{server_reference := ServerReference}) ->
-    gen_server:call(ServerReference, {reconnect, ?ERLANG_MQTT_MSG_HANDLERS}),
+    gen_server:call(ServerReference, {reconnect}),
     {reply, ok, State};
 
 handle_call({subscribe, Topics}, _From, State = #{server_reference := ServerReference, tid := Tid}) ->
@@ -102,8 +99,28 @@ handle_cast(stop, State = #{server_reference := ServerReference, pub_task := Pub
     gen_server:cast(ServerReference, stop),
     {noreply, State}.
 
+handle_info({?CONNECTED_MSG, {TimeNs}, ClientName}, State) ->
+    ps_bench_store:record_connect(ClientName, TimeNs),
+    {noreply, State};
+
+handle_info({?DISCONNECTED_MSG, {TimeNs, Reason}, ClientName}, State) ->
+    case Reason of 
+        normal ->
+            % This is expected, don't record
+            {noreply, State};
+        _ ->
+            ps_bench_store:record_disconnect(ClientName, TimeNs),
+            {noreply, State}
+    end;
+
+handle_info({?PUBLISH_RECV_MSG, {RecvTimeNs, Topic, Payload}, ClientName}, State) ->
+    % Extracted needed info and store
+    Bytes = byte_size(Payload),
+    {Seq, PubTimeNs, _Rest} = ps_bench_utils:decode_seq_header(Payload),
+    ps_bench_store:record_recv(ClientName, Topic, Seq, PubTimeNs, RecvTimeNs, Bytes),
+    {noreply, State};
+
 handle_info(_Info, State) ->
-    %% no info logic yet, just fulfill behaviour
     {noreply, State}.
 
 do_subscribe(Topics, ServerReference, Tid) ->
@@ -170,7 +187,7 @@ reconnect_loop(ServerReference, ReconnectChance) ->
     % Check to see if we should reconnect
     case ps_bench_utils:evaluate_uniform_chance(ReconnectChance) of
         true ->
-            case gen_server:call(ServerReference, {reconnect, ?ERLANG_MQTT_MSG_HANDLERS}) of
+            case gen_server:call(ServerReference, {reconnect}) of
                 {ok, new_connection} ->
                     % Now resubscribe to the needed topics
                     resub_to_previous_topics(ServerReference);
@@ -182,33 +199,19 @@ reconnect_loop(ServerReference, ReconnectChance) ->
     end.
 
 resub_to_previous_topics(ServerReference) ->
-    Tid = ets:whereis(?SUBSCRIPTION_ETS_TABLE_NAME),
-    case ets:take(Tid, ServerReference) of
-        [] ->
+    case ets:whereis(?SUBSCRIPTION_ETS_TABLE_NAME) of 
+        undefined ->
             ok;
-        [{ServerReference, Topics}] ->
-            do_subscribe(Topics, ServerReference, Tid);
-        _ ->
-            ok
+        Tid ->
+            case ets:take(Tid, ServerReference) of
+                [] ->
+                    ok;
+                [{ServerReference, Topics}] ->
+                    do_subscribe(Topics, ServerReference, Tid);
+                _ ->
+                    ok
+            end
     end.
-
-handle_connect_event(Properties) ->
-    io:format("Recv Connect with ~p~n",[Properties]),
-    ok.
-
-handle_publish_event(_Msg = #{qos := _QoS, properties := _Props, payload := Payload, topic := Topic}) ->
-    % io:format("Recv Publish with ~p~n",[_Msg]),
-    TRecvNs = erlang:monotonic_time(nanosecond),
-    {Seq, TPubNs, _Rest} = ps_bench_utils:decode_seq_header(Payload),
-    Bytes = byte_size(Payload),
-    case Topic of
-        undefined -> ok;
-        _ -> ps_bench_store:record_recv(Topic, Seq, TPubNs, TRecvNs, Bytes)
-    end.
-
-handle_disconnect_event(Arg) ->
-    io:format("Recv Disconnect with ~p~n",[Arg]),
-    ok.
 
 terminate(normal, {TestName, ClientName}) -> % TODO Cleanup
     io:format("Client Shutdown ~s for Erlang Client ~s~n",[TestName, ClientName]),

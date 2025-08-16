@@ -85,3 +85,21 @@
 
 % Payload header (8B seq_id + 8B t_pub_ns)
 -define(PAYLOAD_HDR_BYTES, 16).
+
+% Message Atoms
+-define(CONNECTED_MSG, connected).
+-define(DISCONNECTED_MSG, disconnected).
+-define(PUBLISH_RECV_MSG, publish_recv).
+-define(SUBSCRIBED_MSG, subscribed).
+-define(UNSUBSCRIBED_MSG, unsubscribed).
+
+% Records for metric storage
+-define(CONNECT_EVENT_RECORD_NAME, connect_event).
+-define(DISCONNECT_EVENT_RECORD_NAME, disconnect_event).
+-define(SENT_EVENT_RECORD_NAME, sent_msg_event).
+-define(RECV_EVENT_RECORD_NAME, recv_msg_event).
+
+-record(?CONNECT_EVENT_RECORD_NAME, {node_name, client_name, timestamp}).
+-record(?DISCONNECT_EVENT_RECORD_NAME, {node_name, client_name, timestamp}).
+-record(?SENT_EVENT_RECORD_NAME, {node_name, client_name, topic, seq_id, pub_timestamp, payload_size}).
+-record(?RECV_EVENT_RECORD_NAME, {node_name, client_name, topic, seq_id, pub_timestamp, recv_timestamp, payload_size}).

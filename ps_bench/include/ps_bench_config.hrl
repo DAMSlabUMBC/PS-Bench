@@ -38,9 +38,10 @@
 -define(SCENARIO_INTERFACE_TYPE_PROP, client_interface_type).
 -define(SCENARIO_INTERFACE_NAME_PROP, client_interface_name).
 -define(SCENARIO_DEPLOYMENT_NAME_PROP, deployment_name).
+-define(SCENARIO_HOSTS_PROP, hosts).
 -define(SCENARIO_METRIC_CONFIG_PROP, metric_config).
 % NOTE: We do not require a default type or interface since we fall back to the builtin erlang interface
--define(SCENARIO_REQ_KEY_LIST, [?SCENARIO_NAME_PROP, ?SCENARIO_DURATION_PROP, ?SCENARIO_PROTOCOL_PROP, ?SCENARIO_PROTOCOL_CONFIG_PROP, ?SCENARIO_DEPLOYMENT_NAME_PROP, ?SCENARIO_METRIC_CONFIG_PROP]).
+-define(SCENARIO_REQ_KEY_LIST, [?SCENARIO_NAME_PROP, ?SCENARIO_DURATION_PROP, ?SCENARIO_PROTOCOL_PROP, ?SCENARIO_PROTOCOL_CONFIG_PROP, ?SCENARIO_DEPLOYMENT_NAME_PROP, ?SCENARIO_HOSTS_PROP, ?SCENARIO_METRIC_CONFIG_PROP]).
 
 % Supported protocol types
 -define(MQTT_V5_PROTOCOL, mqttv5).
@@ -85,6 +86,9 @@
 
 % Payload header (8B seq_id + 8B t_pub_ns)
 -define(PAYLOAD_HDR_BYTES, 16).
+
+% Cookie for connections
+-define(BENCHMARK_COOKIE, ps_bench_cookie).
 
 % Message Atoms
 -define(CONNECTED_MSG, connected).

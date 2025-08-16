@@ -14,8 +14,11 @@ init([]) ->
     {ok, TestName} = ps_bench_config_manager:fetch_selected_scenario(),
     {ok, WinMs} = ps_bench_config_manager:fetch_metric_calculation_window(),
     WinNs = WinMs * 1000000,
+    {ok, #state{win_ms=WinMs, win_ns=WinNs, run_id=TestName, next_tick_ref=0}}.
+
+handle_cast(start_loop, S=#state{win_ms=WinMs}) ->
     Ref = erlang:send_after(WinMs, self(), tick),
-    {ok, #state{win_ms=WinMs, win_ns=WinNs, run_id=TestName, next_tick_ref=Ref}}.
+    {noreply, S#state{next_tick_ref=Ref}}.
 
 handle_info(tick, S=#state{win_ms=WinMs, win_ns=_WinNs, run_id=RunId}) ->
 
@@ -39,7 +42,6 @@ handle_info(tick, S=#state{win_ms=WinMs, win_ns=_WinNs, run_id=RunId}) ->
 
 handle_info(_, S) -> {noreply, S}.
 handle_call(_,_,S)->{reply,ok,S}.
-handle_cast(_,S)->{noreply,S}.
 terminate(_,_) -> ok.
 code_change(_,S,_) -> {ok,S}.
 

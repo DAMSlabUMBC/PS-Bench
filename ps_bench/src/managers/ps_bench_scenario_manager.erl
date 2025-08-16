@@ -42,7 +42,7 @@ stop_scenario() ->
     % Stop clients and notify the benchmarking scenario is complete
     stop_clients(),
     destroy_clients(),
-    gen_server:cast(?NODE_MANAGER, local_continue).
+    gen_server:cast(?NODE_MANAGER, global_continue).
 
 initialize_clients() ->
 

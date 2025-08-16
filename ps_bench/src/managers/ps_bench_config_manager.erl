@@ -7,7 +7,7 @@
 
 % Retrieval exports
 -export([fetch_node_name/0, fetch_selected_scenario/0, fetch_scenario_duration/0, fetch_deployment_name/0, fetch_node_list/0,
-    fetch_protocol_type/0, fetch_client_interface_information/0, fetch_devices_for_this_node/0,
+    fetch_host_for_node/1, fetch_protocol_type/0, fetch_client_interface_information/0, fetch_devices_for_this_node/0,
     fetch_device_publication_frequency/1, fetch_device_payload_info/1, fetch_device_disconnect_info/1, 
     fetch_device_reconnect_info/1]).
 
@@ -435,6 +435,14 @@ fetch_node_list() ->
             {error, unknown_deployment};
         _ -> 
             {ok, NodeList}
+    end.
+
+fetch_host_for_node(NodeName) ->
+    {ok, ScenarioName} = fetch_selected_scenario(),
+    {ok, NodeToHostList} = fetch_property_for_scenario(ScenarioName, ?SCENARIO_HOSTS_PROP),
+    case proplists:get_value(NodeName, NodeToHostList) of
+        undefined -> {error, unknown_node};
+        Host -> {ok, Host}
     end.
 
 fetch_metric_calculation_window() ->

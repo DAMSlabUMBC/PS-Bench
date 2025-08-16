@@ -116,7 +116,7 @@ start_client_link(ClientName, CleanStart, OwnerPid) ->
         {host, BrokerIP},
         {port, BrokerPort},
         {clientid, ClientName},
-        {clean_start, true},
+        {clean_start, CleanStart},
         {msg_handler, #{disconnected => fun(Reason) -> disconnect_event(OwnerPid, Reason, ClientName) end,
                         publish => fun(Msg) -> publish_event(OwnerPid, Msg, ClientName) end}}
     ],
@@ -160,7 +160,7 @@ disconnect_event(OwnerPid, Reason, ClientName) ->
     OwnerPid ! {?DISCONNECTED_MSG, {TimeNs, Reason}, ClientName},
     ok.
 
-publish_event(OwnerPid, Msg = #{topic := Topic, payload := Payload}, ClientName) ->
+publish_event(OwnerPid, _Msg = #{topic := Topic, payload := Payload}, ClientName) ->
     % Forward required event information to the adapter
     TimeNs = erlang:monotonic_time(nanosecond),
     OwnerPid ! {?PUBLISH_RECV_MSG, {TimeNs, Topic, Payload}, ClientName},

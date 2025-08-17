@@ -191,9 +191,12 @@ handle_connect_event(Properties) ->
     io:format("Recv Connect with ~p~n",[Properties]),
     ok.
 
-handle_publish_event(_Msg = #{qos := _QoS, properties := _Props, payload := _Payload}) ->
-    io:format("Recv Publish with ~p~n",[_Msg]),
+handle_publish_event(#{topic := TopicBin, payload := Payload} = _Msg) ->
+    TRecvNs = erlang:monotonic_time(nanosecond),
+    Bytes   = byte_size(Payload),
+    ok = ps_bench_store:record_recv(TopicBin, undefined, undefined, TRecvNs, Bytes),
     ok.
+
 
 handle_disconnect_event(Arg) ->
     io:format("Recv Disconnect with ~p~n",[Arg]),

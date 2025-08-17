@@ -9,7 +9,8 @@
 %% rollup helpers
 -export([take_events_until/1, get_last_recv_seq/1, put_last_recv_seq/2]).
 %% window summaries
--export([put_window_summary/3]).
+-export([put_window_summary/3, list_window_summaries/0]).
+
 
 -define(T_PUBSEQ, psb_pub_seq).      %% {pub_topic, TopicBin} -> Seq
 -define(T_RECVSEQ, psb_recv_seq).    %% {recv_topic, TopicBin} -> LastSeqSeen
@@ -68,6 +69,9 @@ put_last_recv_seq(TopicBin, Seq) ->
 put_window_summary(RunId, WinStartMs, Summary) ->
     ets:insert(?T_WINS, {{RunId, WinStartMs}, Summary}), ok.
 
+list_window_summaries() ->
+    lists:sort(ets:tab2list(?T_WINS)).
+    
 %% gen_server boilerplate
 handle_call(_,_,S)->{reply,ok,S}.
 handle_cast(_,S)->{noreply,S}.

@@ -1,4 +1,5 @@
 -module(ps_bench_metrics_py).
+-include("include/ps_bench_config.hrl").
 -behaviour(gen_server).
 -export([start_link/1, ingest_window/3]).
 -export([init/1, handle_cast/2, handle_call/3, terminate/2, code_change/3]).
@@ -12,7 +13,7 @@ ingest_window(RunId, WinStartMs, WinMap) ->
     gen_server:cast(?MODULE, {ingest, RunId, WinStartMs, WinMap}).
 
 init(Opts) ->
-    Listener = maps:get(listener_name, Opts, ps_bench_metrics_listener),
+    Listener = proplists:get_value(listener_name, Opts, ps_bench_metrics_listener),
     PyPath   = case ps_bench_config_manager:fetch_optional(?PYTHON_PATH_PROP) of
                   {ok, P} -> P; _ -> filename:join(code:priv_dir(ps_bench), "py_engine")
                end,

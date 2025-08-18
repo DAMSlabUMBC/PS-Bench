@@ -2,6 +2,8 @@
 -behaviour(gen_server).
 
 -export([start_link/0]).
+%% gen_server callbacks
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 %% seq mgmt
 -export([next_seq/1]).
 %% recv event I/O
@@ -52,7 +54,7 @@ take_events_until_(Key, Cutoff, Acc) when Key =< Cutoff ->
     [{Key, Event}] = ets:lookup(?T_EVENTS, Key),
     ets:delete(?T_EVENTS, Key),
     take_events_until_(ets:next(?T_EVENTS, Key), Cutoff, [Event|Acc]);
-take_events_until_(Key, _Cutoff, Acc) when Key > _Cutoff ->
+take_events_until_(Key, Cutoff, Acc) when Key > Cutoff ->
     lists:reverse(Acc).
 
 get_last_recv_seq(TopicBin) ->

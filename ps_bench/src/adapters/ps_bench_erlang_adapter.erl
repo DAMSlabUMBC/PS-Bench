@@ -70,20 +70,24 @@ handle_call({publish, Topic, Data, PubOpts}, _From, State = #{server_reference :
 handle_call({unsubcribe, Topics}, _From, State = #{server_reference := ServerReference, tid := Tid}) ->
     gen_server:call(ServerReference, {unsubcribe, #{}, Topics}),
 
-    % Update topic list
-    SubTopicList = ets:lookup(Tid, ServerReference),
-    NewTopicList = lists:filter(fun({TopicName, _}) -> lists:keymember(TopicName, 1, Topics) end, SubTopicList),
-    ets:insert(Tid, {ServerReference, NewTopicList}),
-
+    %% Update topic list to REMOVE the given topics
+    case ets:lookup(Tid, ServerReference) of
+        [] -> ok;
+        [{_, SubTopicList}] ->
+            Remaining =
+                lists:filter(
+                  fun({TopicName, _Opts}) ->
+                    %% keep only those NOT in the unsub list
+                    not lists:keymember(TopicName, 1, Topics)
+                end,
+                SubTopicList),
+            ets:insert(Tid, {ServerReference, Remaining})
+    end,
     {reply, ok, State};
 
 handle_call(disconnect, _From, State = #{server_reference := ServerReference}) ->
     gen_server:call(ServerReference, disconnect),
     {reply, ok, State};
-
-handle_call(_, _, State) ->
-    % No other operations supported
-    {noreply, State}.
 
 % Calls to start the actual timer functions
 handle_cast(start_client_loops, State = #{device_type := DeviceType, server_reference := ServerReference}) ->
@@ -96,16 +100,18 @@ handle_cast(stop, State = #{server_reference := ServerReference}) ->
     gen_server:cast(ServerReference, stop),
     {noreply, State}.
 
-handle_info(_Info, State) ->
-    %% no info logic yet, just fulfill behaviour
-    {noreply, State}.
+handle_call(_, _, State) ->
+    {reply, ok, State}.
 
 do_subscribe(Topics, ServerReference, Tid) ->
     ok = gen_server:call(ServerReference, {subscribe, #{}, Topics}),
-    
-    % Update topic list
-    SubTopicList = ets:lookup(Tid, ServerReference),
-    NewTopicList = lists:merge(Topics, SubTopicList),
+    PrevTopics =
+        case ets:lookup(Tid, ServerReference) of
+            []              -> [];
+            [{_, TopicList}]-> TopicList
+        end,
+    %% keep unique topics
+    NewTopicList = lists:usort(Topics ++ PrevTopics),
     ets:insert(Tid, {ServerReference, NewTopicList}).
 
 start_publication_loop(DeviceType, ServerReference) ->
@@ -191,9 +197,11 @@ handle_connect_event(Properties) ->
     io:format("Recv Connect with ~p~n",[Properties]),
     ok.
 
-handle_publish_event(#{topic := TopicBin, payload := Payload} = _Msg) ->
+handle_publish_event(Msg) when is_map(Msg) ->
     TRecvNs = erlang:monotonic_time(nanosecond),
-    Bytes   = byte_size(Payload),
+    Payload = maps:get(payload, Msg, <<>>),
+    TopicBin = maps:get(topic,   Msg, <<"unknown">>),
+    Bytes    = byte_size(Payload),
     ok = ps_bench_store:record_recv(TopicBin, undefined, undefined, TRecvNs, Bytes),
     ok.
 

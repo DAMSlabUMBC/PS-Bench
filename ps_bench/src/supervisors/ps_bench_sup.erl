@@ -44,7 +44,7 @@ init([{NodeName, NodeList}]) ->
         start => {ps_bench_test_sup, start_link, []},
         restart => permanent, shutdown => 5000, type => supervisor, modules => [ps_bench_test_sup]},
 
-    Children = [Pg, Store, MetricsListener, MetricsPy, Lifecycle, Manager, TestSup],
+    Children = [Pg, Store, MetricsListener, MetricsPy, Roll, Lifecycle, Manager, TestSup],
     {ok, {{one_for_one, 5, 60}, Children}}.
 
 

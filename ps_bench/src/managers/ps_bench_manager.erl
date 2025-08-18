@@ -52,6 +52,7 @@ start_next_step(start_calculate_metrics, State = #{node_name := NodeName}) ->
 
 start_next_step(start_clean_up, State = #{node_name := NodeName}) ->
     io:format("~s Starting Cleanup~n", [NodeName]),
+    ps_bench_metrics_rollup:write_csv(),
     {noreply, State}.
 
 terminate(_Reason, _State) -> ok.

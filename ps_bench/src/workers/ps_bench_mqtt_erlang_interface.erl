@@ -11,15 +11,17 @@
          handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
-start_link(ScenarioName, ClientName, OwnerPid) ->
-    gen_server:start_link({local, list_to_atom(ClientName)}, ?MODULE, [{ScenarioName, ClientName, OwnerPid}], []).
+start_link(ScenarioName, ClientName0, OwnerPid) ->
+    RegName = to_reg_name(ClientName0),
+    gen_server:start_link({local, RegName}, ?MODULE, {ScenarioName, RegName, OwnerPid}, []).
 
 %%%===================================================================
 %%% gen_server callbacks
 %%%===================================================================
 
-init([{ScenarioName, ClientName, OwnerPid}]) ->
-    {ok, #{scenario_name => ScenarioName, client_name => ClientName, client_pid => 0, owner_pid => OwnerPid, connected => false, first_start => true}}.
+init({ScenarioName, RegName, OwnerPid}) ->
+    ClientIdBin = to_clientid_bin(RegName),
+    {ok, #{scenario_name => ScenarioName, client_name => ClientIdBin, reg_name => RegName, client_pid => 0, owner_pid => OwnerPid, connected => false, first_start => true}}.
 
 handle_call({connect}, _From, State = #{first_start := FirstStart}) ->
     % If not specifically told, we start clean by default, then preserve old sessions on reconnects
@@ -39,7 +41,7 @@ handle_call({subscribe, Properties, Topics}, _From, State = #{client_pid := Clie
     emqtt:subscribe(ClientPid, Properties, Topics),
     {reply, ok, State};
 
-handle_call({subscribe, _Properties, _Topics}, _From, State = #{connected := Connected}) when Connected == true ->
+handle_call({subscribe, _Properties, _Topics}, _From, State = #{connected := Connected}) when Connected == false ->
     % Do nothing if not connected
     {reply, ok, State};
 
@@ -50,15 +52,11 @@ handle_call({publish, Properties, Topic, Payload, PubOpts}, _From, State = #{cli
             case lists:keysearch(qos, 1, PubOpts) of
                 % QoS >= 1, we need to return PacketId
                 {value, {qos, QoS}} when QoS >= 1  -> 
-                    TimeNs = erlang:monotonic_time(nanosecond),
-                    PayloadWithTime = <<TimeNs:64/unsigned, Payload/binary>>,
-                    emqtt:publish(ClientPid, Topic, Properties, PayloadWithTime, PubOpts),
+                    emqtt:publish(ClientPid, Topic, Properties, Payload, PubOpts),
                     {reply, ok, State};
                 % QoS wasn't specified or was given a value of 0
                 _ ->
-                    TimeNs = erlang:monotonic_time(nanosecond),
-                    PayloadWithTime = <<TimeNs:64/unsigned, Payload/binary>>,
-                    emqtt:publish(ClientPid, Topic, Properties, PayloadWithTime, PubOpts),
+                    emqtt:publish(ClientPid, Topic, Properties, Payload, PubOpts),
                     {reply, ok, State}
             end;
         false ->
@@ -106,6 +104,20 @@ terminate(Reason, _State) ->
 code_change(_OldVsn, State, _Extra) -> 
     {ok, State}.
 
+to_reg_name(Name) ->
+    case Name of
+        A when is_atom(A)   -> A;
+        B when is_binary(B) -> list_to_atom(binary_to_list(B));
+        L when is_list(L)   -> list_to_atom(L)
+    end.
+
+to_clientid_bin(Name) ->
+    case Name of
+        B when is_binary(B) -> B;
+        A when is_atom(A)   -> list_to_binary(atom_to_list(A));
+        L when is_list(L)   -> list_to_binary(L)
+    end.
+
 start_client_link(ClientName, CleanStart, OwnerPid) ->
     
     {ok, BrokerIP, BrokerPort} = ps_bench_config_manager:fetch_mqtt_broker_information(),
@@ -133,18 +145,25 @@ start_client_link(ClientName, CleanStart, OwnerPid) ->
 
 % Helper function to handle clean starts and reconnects
 do_connect(CleanStart, State = #{client_name := ClientName, owner_pid := OwnerPid, connected := Connected}) ->
-    % Connect to the MQTT broker if not already connected
-    case Connected of 
+    case Connected of
         false ->
-            % For now, we assume the properties are accepted as requested
-            {ok, NewClientPid} = start_client_link(ClientName, CleanStart, OwnerPid),
-            {ok, Properties} = emqtt:connect(NewClientPid),
-
-            % Let adapter know there's a new connection
-            connect_event(OwnerPid, Properties, ClientName),
-            {reply, {ok, new_connection}, State#{client_pid := NewClientPid, connected := true, first_start := false}};
+            case start_client_link(ClientName, CleanStart, OwnerPid) of
+                {ok, NewClientPid} ->
+                    case emqtt:connect(NewClientPid) of
+                        {ok, Properties} ->
+                            connect_event(OwnerPid, Properties, ClientName),
+                            {reply, {ok, new_connection},
+                             State#{client_pid := NewClientPid, connected := true, first_start := false}};
+                        {error, Reason} ->
+                            ps_bench_utils:log_message("MQTT connect failed (~p): ~p", [ClientName, Reason]),
+                            % Keep the server alive; report the error upward
+                            {reply, {error, Reason}, State}
+                    end;
+                {error, Reason} ->
+                    ps_bench_utils:log_message("MQTT client start_link failed (~p): ~p", [ClientName, Reason]),
+                    {reply, {error, Reason}, State}
+            end;
         true ->
-            % Already connected, don't do anything
             {reply, {ok, already_connected}, State}
     end.
 

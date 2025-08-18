@@ -88,6 +88,7 @@ handle_next_step_command(start_calculate_metrics) ->
 
 handle_next_step_command(start_clean_up) ->
     ps_bench_utils:log_state_change("Starting Cleanup"),
+    ps_bench_metrics_rollup:write_csv(),
     ps_bench_app:stop_benchmark_application(),
     ok.
 

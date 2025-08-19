@@ -27,26 +27,46 @@ start_link(TestName, InterfaceName, ClientName, DeviceType) ->
 %%%===================================================================
 
 init([TestName, InterfaceName, ClientName, DeviceType]) ->
+    %% Normalize names
+    ServerMod  = normalize_atom(InterfaceName),
+    ServerName = normalize_atom(ClientName),
 
-    % This function spawns the erlang process defined by the config
-    erlang:spawn_link(list_to_atom(InterfaceName), start_link, [TestName, ClientName, self()]),
-    ServerReference = list_to_atom(ClientName),
+    %% Start the interface process and always use the registered name
+    {ok, _Pid} = ServerMod:start_link(TestName, ServerName, self()),
+    ServerRef   = ServerName,
 
-    % Create or fetch the ETS table for subscriptions
+    Tid = ensure_subs_table(),
+    {ok, #{ test_name        => TestName
+          , device_type      => DeviceType
+          , server_reference => ServerRef
+          , pub_task         => 0
+          , discon_task      => 0
+          , recon_task       => 0
+          , tid              => Tid
+          }}.
+
+%% helpers 
+
+ensure_subs_table() ->
     case ets:whereis(?SUBSCRIPTION_ETS_TABLE_NAME) of
-        undefined ->
-            Tid = ets:new(?SUBSCRIPTION_ETS_TABLE_NAME, [set, public, named_table]),
-            {ok, #{test_name => TestName, device_type => DeviceType, server_reference => ServerReference, 
-                pub_task => 0, discon_task => 0, recon_task => 0, tid => Tid}};
-        Tid ->
-            {ok, #{test_name => TestName, device_type => DeviceType, server_reference => ServerReference, 
-                pub_task => 0, discon_task => 0, recon_task => 0, tid => Tid}}
+        undefined -> ets:new(?SUBSCRIPTION_ETS_TABLE_NAME, [set, public, named_table]);
+        Tid       -> Tid
     end.
+
+normalize_atom(A) when is_atom(A)   -> A;
+normalize_atom(S) when is_list(S)   -> list_to_atom(S);
+normalize_atom(B) when is_binary(B) -> list_to_atom(binary_to_list(B)).
 
 % For direct commands, we just forward these messages to the actual client
 handle_call(connect, _From, State = #{server_reference := ServerReference}) ->
-    gen_server:call(ServerReference, {connect}),
-    {reply, ok, State};
+    Reply = catch gen_server:call(ServerReference, {connect}),
+    case Reply of
+        {'EXIT', Reason} ->
+            io:format("adapter: connect -> interface call failed: ~p~n", [Reason]),
+            {reply, ok, State};  % swallow to keep orchestration alive
+        _ ->
+            {reply, ok, State}
+    end;
 
 handle_call(connect_clean, _From, State = #{server_reference := ServerReference}) ->
     gen_server:call(ServerReference, {connect_clean}),
@@ -64,8 +84,8 @@ handle_call({publish, Topic, Data, PubOpts}, _From, State = #{server_reference :
     gen_server:call(ServerReference, {publish, #{}, Topic, Data, PubOpts}),
     {reply, ok, State};
 
-handle_call({unsubcribe, Topics}, _From, State = #{server_reference := ServerReference, tid := Tid}) ->
-    gen_server:call(ServerReference, {unsubcribe, #{}, Topics}),
+handle_call({unsubscribe, Topics}, _From, State = #{server_reference := ServerReference, tid := Tid}) ->
+    gen_server:call(ServerReference, {unsubscribe, #{}, Topics}),
 
     %% Update topic list to REMOVE the given topics
     case ets:lookup(Tid, ServerReference) of
@@ -84,6 +104,9 @@ handle_call({unsubcribe, Topics}, _From, State = #{server_reference := ServerRef
 
 handle_call(disconnect, _From, State = #{server_reference := ServerReference}) ->
     gen_server:call(ServerReference, disconnect),
+    {reply, ok, State};
+
+handle_call(_Msg, _From, State) ->
     {reply, ok, State}.
 
 % Calls to start the actual timer functions
@@ -221,12 +244,12 @@ resub_to_previous_topics(ServerReference) ->
             end
     end.
 
-terminate(normal, {TestName, ClientName}) -> % TODO Cleanup
-    io:format("Client Shutdown ~s for Erlang Client ~s~n",[TestName, ClientName]),
-    ok;
-
-terminate(shutdown, {TestName, ClientName}) -> % TODO Cleanup
-    io:format("Supervisor Shutdown ~s for Erlang Client ~s~n",[TestName, ClientName]),
+terminate(Reason, State) ->
+    %% Optional: log a helpful line; avoid pattern mismatches.
+    Test = maps:get(test_name, State, undefined),
+    Ref  = maps:get(server_reference, State, undefined),
+    io:format("Adapter terminating. reason=~p test=~p server_ref=~p~n",
+              [Reason, Test, Ref]),
     ok.
 
 code_change(_OldVsn, State, _Extra) -> 

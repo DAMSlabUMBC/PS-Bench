@@ -1,0 +1,30 @@
+{"1.2.0",
+[{<<"cowlib">>,{pkg,<<"cowlib">>,<<"2.13.0">>},1},
+ {<<"emqtt">>,
+  {git,"https://github.com/emqx/emqtt",
+       {ref,"5a93b9c74106d10131a4d1d48f872b604aae3cc7"}},
+  0},
+ {<<"erlport">>,
+  {git,"https://github.com/erlport/erlport",
+       {ref,"d01e1dcd4bd4332aedf5821f5ca875848031fe94"}},
+  0},
+ {<<"getopt">>,{pkg,<<"getopt">>,<<"1.0.3">>},1},
+ {<<"gun">>,{pkg,<<"gun">>,<<"2.1.0">>},1},
+ {<<"quicer">>,
+  {git,"https://github.com/emqx/quic.git",
+       {ref,"fc5946302e01148ce4dbd3aebe16ec3446caf31c"}},
+  1},
+ {<<"snabbkaffe">>,
+  {git,"https://github.com/kafka4beam/snabbkaffe.git",
+       {ref,"b59298334ed349556f63405d1353184c63c66534"}},
+  2}]}.
+[
+{pkg_hash,[
+ {<<"cowlib">>, <<"DB8F7505D8332D98EF50A3EF34B34C1AFDDEC7506E4EE4DD4A3A266285D282CA">>},
+ {<<"getopt">>, <<"4F3320C1F6F26B2BEC0F6C6446B943EB927A1E6428EA279A1C6C534906EE79F1">>},
+ {<<"gun">>, <<"B4E4CBBF3026D21981C447E9E7CA856766046EFF693720BA43114D7F5DE36E87">>}]},
+{pkg_hash_ext,[
+ {<<"cowlib">>, <<"E1E1284DC3FC030A64B1AD0D8382AE7E99DA46C3246B815318A4B848873800A4">>},
+ {<<"getopt">>, <<"7E01DE90AC540F21494FF72792B1E3162D399966EBBFC674B4CE52CB8F49324F">>},
+ {<<"gun">>, <<"52FC7FC246BFC3B00E01AEA1C2854C70A366348574AB50C57DFE796D24A0101D">>}]}
+].

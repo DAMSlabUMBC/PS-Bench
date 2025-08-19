@@ -4,8 +4,8 @@
     {protocol, mqttv5},                                      % Format: Erlang atom, must be a supported protocol
     {protocol_config,                                                       % Protocol specific configuration, see README for details on protocol configuration
     [
-        {broker, "192.168.1.212"},
-        {port, 1883},
+        {broker, "broker"},
+        {port, 1884},
         {qos, 
         [
             {default_qos, 0},
@@ -17,7 +17,7 @@
     {deployment_name, test_deployment},                              % Format: Erlang atom, must match the name field in a deployment definition file
     {hosts,
     [
-        {runner1, 'debian-main'}
+        {runner1, 'paladin'}
     ]},
 
     {metric_config,

@@ -1,5 +1,5 @@
-project(default_dds_interface) : dcps {
-	sharedname = default_dds_interface
+project(ps_bench_default_dds_interface) : dcps {
+	sharedname = ps_bench_default_dds_interface
 	libout = $(COMPILE_ROOT)/lib
 	
 	after += DDS_IDL

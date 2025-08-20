@@ -42,14 +42,14 @@ initialize_node_storage() ->
     ok.
 
 %% publisher seq generation (per-topic) 
-get_next_seq_id(TopicBin) when is_binary(TopicBin) ->
-    Key = {pub_topic, TopicBin},
+get_next_seq_id(Topic) ->
+    Key = {pub_topic, Topic},
     ets:update_counter(?T_PUBSEQ, Key, {2,1}, {Key,0}).
 
 %% record a recv event 
 %% EventMap shape:
 %% #{topic=>Topic, seq=>Seq|undefined, t_pub_ns=>TPub|undefined, t_recv_ns=>TRecv, bytes=>Bytes}
-record_recv(ClientName, TopicBin, Seq, TPubNs, TRecvNs, Bytes) ->
+record_recv(_ClientName, TopicBin, Seq, TPubNs, TRecvNs, Bytes) ->
 
     Key = TRecvNs,   %% ordered_set key
     Event = #{topic=>TopicBin, seq=>Seq, t_pub_ns=>TPubNs, t_recv_ns=>TRecvNs, bytes=>Bytes},

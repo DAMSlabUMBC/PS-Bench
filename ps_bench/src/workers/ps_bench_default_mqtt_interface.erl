@@ -1,4 +1,4 @@
--module(ps_bench_mqtt_erlang_interface).
+-module(ps_bench_default_mqtt_interface).
 -behaviour(gen_server).
 
 -include("ps_bench_config.hrl").
@@ -12,7 +12,7 @@
          terminate/2, code_change/3]).
 
 start_link(ScenarioName, ClientName0, OwnerPid) ->
-    RegName = to_reg_name(ClientName0),
+    RegName = ps_bench_utils:convert_to_atom(ClientName0),
     gen_server:start_link({local, RegName}, ?MODULE, {ScenarioName, RegName, OwnerPid}, []).
 
 %%%===================================================================
@@ -20,7 +20,7 @@ start_link(ScenarioName, ClientName0, OwnerPid) ->
 %%%===================================================================
 
 init({ScenarioName, RegName, OwnerPid}) ->
-    ClientIdBin = to_clientid_bin(RegName),
+    ClientIdBin = ps_bench_utils:convert_to_binary(RegName),
     {ok, #{scenario_name => ScenarioName, client_name => ClientIdBin, reg_name => RegName, client_pid => 0, owner_pid => OwnerPid, connected => false, first_start => true}}.
 
 handle_call({connect}, _From, State = #{first_start := FirstStart}) ->
@@ -103,20 +103,6 @@ terminate(Reason, _State) ->
 
 code_change(_OldVsn, State, _Extra) -> 
     {ok, State}.
-
-to_reg_name(Name) ->
-    case Name of
-        A when is_atom(A)   -> A;
-        B when is_binary(B) -> list_to_atom(binary_to_list(B));
-        L when is_list(L)   -> list_to_atom(L)
-    end.
-
-to_clientid_bin(Name) ->
-    case Name of
-        B when is_binary(B) -> B;
-        A when is_atom(A)   -> list_to_binary(atom_to_list(A));
-        L when is_list(L)   -> list_to_binary(L)
-    end.
 
 start_client_link(ClientName, CleanStart, OwnerPid) ->
     

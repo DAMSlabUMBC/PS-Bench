@@ -6,6 +6,9 @@
 -define(ENV_SELECTED_SCENARIO, selected_scenario).
 -define(ENV_REQ_KEY_LIST, [?ENV_NODE_NAME, ?ENV_DEVICE_DEF_DIR, ?ENV_DEPLOYMENT_DEF_DIR, ?ENV_SCENARIO_DEF_DIR, ?ENV_SELECTED_SCENARIO]).
 
+% Cookie for connections
+-define(PS_BENCH_COOKIE, ps_bench_cookie).
+
 % Wildcard string for device file searching
 -define(DEVICE_FILE_EXT, "*.device").
 -define(DEPLOYMENT_FILE_EXT, "*.deployment").
@@ -34,14 +37,12 @@
 -define(SCENARIO_NAME_PROP, name).
 -define(SCENARIO_DURATION_PROP, duration).
 -define(SCENARIO_PROTOCOL_PROP, protocol).
--define(SCENARIO_PROTOCOL_CONFIG_PROP, protocol_config).
--define(SCENARIO_INTERFACE_TYPE_PROP, client_interface_type).
--define(SCENARIO_INTERFACE_NAME_PROP, client_interface_name).
 -define(SCENARIO_DEPLOYMENT_NAME_PROP, deployment_name).
 -define(SCENARIO_HOSTS_PROP, hosts).
+-define(SCENARIO_PROTOCOL_CONFIG_PROP, protocol_config).
 -define(SCENARIO_METRIC_CONFIG_PROP, metric_config).
-% NOTE: We do not require a default type or interface since we fall back to the builtin erlang interface
--define(SCENARIO_REQ_KEY_LIST, [?SCENARIO_NAME_PROP, ?SCENARIO_DURATION_PROP, ?SCENARIO_PROTOCOL_PROP, ?SCENARIO_PROTOCOL_CONFIG_PROP, ?SCENARIO_DEPLOYMENT_NAME_PROP, ?SCENARIO_HOSTS_PROP, ?SCENARIO_METRIC_CONFIG_PROP]).
+-define(SCENARIO_REQ_KEY_LIST, [?SCENARIO_NAME_PROP, ?SCENARIO_DURATION_PROP, ?SCENARIO_PROTOCOL_PROP, ?SCENARIO_DEPLOYMENT_NAME_PROP, 
+                                    ?SCENARIO_HOSTS_PROP, ?SCENARIO_PROTOCOL_CONFIG_PROP, ?SCENARIO_METRIC_CONFIG_PROP]).
 
 % Supported protocol types
 -define(MQTT_V5_PROTOCOL, mqttv5).
@@ -50,22 +51,38 @@
 -define(SUPPORTED_PROTOCOLS, [?MQTT_V5_PROTOCOL, ?MQTT_V311_PROTOCOL, ?DDS_PROTOCOL]).
 
 % MQTT protocol_config fields
+-define(MQTT_CLIENT_INTERFACE_MODULE_PROP, client_interface_module).
 -define(MQTT_BROKER_IP_PROP, broker).
 -define(MQTT_BROKER_PORT_PROP, port).
 -define(MQTT_QOS_PROP, qos).
--define(MQTT_REQ_KEY_LIST, [?MQTT_BROKER_IP_PROP, ?MQTT_BROKER_PORT_PROP, ?MQTT_QOS_PROP]).
+% NOTE: We do not require a client interface module as we fall back to a default one
 % NOTE: We do not require a default MQTT QoS as we fall back to 0
--define(MQTT_DEFAULT_QOS_PROP, default_qos).
+-define(MQTT_REQ_KEY_LIST, [?MQTT_BROKER_IP_PROP, ?MQTT_BROKER_PORT_PROP]).
 
-% MQTT topic constants
+% MQTT constants
+-define(MQTT_DEFAULT_CLIENT_INTERFACE_MODULE, ps_bench_default_mqtt_interface).
+-define(MQTT_DEFAULT_QOS_PROP, default_qos).
 -define(MQTT_TOPIC_PREFIX, <<"ps_bench/device/">>).
 
-% Supported interfaces types
+% DDS protocol_config fields
+-define(DDS_NIF_MODULE_PROP, nif_module).
+-define(DDS_NIF_FULL_PATH_PROP, nif_full_path).
+-define(DDS_DOMAIN_ID_PROP, domain_id).
+-define(DDS_QOS_FILE_PROP, qos_xml_file).
+% NOTE: We do not require a qos_xml_file as DDS defines sensible defaults
+% NOTE: We do not require a nif module as we fall back to the default one
+-define(DDS_REQ_KEY_LIST, [?DDS_DOMAIN_ID_PROP]).
+
+% DDS constants
+-define(DDS_DEFAULT_NIF_MODULE, ps_bench_default_dds_interface).
+-define(DDS_DEFAULT_NIF_FULL_PATH, "priv/dds_cplusplus/lib/libps_bench_default_dds_interface").
+-define(DDS_DEFAULT_QOS_FLAG, use_default).
+-define(DDS_TOPIC, "PS_BENCH_TOPIC").
+
+% Interface types for reference
 -define(PYTHON_INTERFACE, python).
 -define(ERLANG_INTERFACE, erlang).
--define(DEFAULT_INTERFACE_TYPE, ?ERLANG_INTERFACE).
--define(DEFAULT_INTERFACE_NAME, ps_bench_mqtt_erlang_interface).
--define(SUPPORTED_INTERFACES, [?PYTHON_INTERFACE, ?ERLANG_INTERFACE]).
+-define(NIF_INTERFACE, nif).
 
 % metrics and runtime knobs 
 -define(METRIC_STORAGE_CONSTANT, metrics).
@@ -81,14 +98,8 @@
 -define(DEFAULT_ROLLUP_PERIOD_S, 5).
 -define(DEFAULT_PYTHON_ENGINE_PATH, "priv/py_engine").
 
-% TODO: What to do with this
--define(TRANSPORTS_PROP, transports).
-
 % Payload header (8B seq_id + 8B t_pub_ns)
 -define(PAYLOAD_HDR_BYTES, 16).
-
-% Cookie for connections
--define(BENCHMARK_COOKIE, ps_bench_cookie).
 
 % Message Atoms
 -define(CONNECTED_MSG, connected).
@@ -107,3 +118,6 @@
 -record(?DISCONNECT_EVENT_RECORD_NAME, {node_name, client_name, timestamp}).
 -record(?SENT_EVENT_RECORD_NAME, {node_name, client_name, topic, seq_id, pub_timestamp, payload_size}).
 -record(?RECV_EVENT_RECORD_NAME, {node_name, client_name, topic, seq_id, pub_timestamp, recv_timestamp, payload_size}).
+
+% TODO: What to do with this
+-define(TRANSPORTS_PROP, transports).

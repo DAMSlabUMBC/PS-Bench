@@ -3,7 +3,7 @@
 
 -include("ps_bench_config.hrl").
 
--define(SUBSCRIPTION_ETS_TABLE_NAME, current_subscriptions).
+-define(SUBSCRIPTION_ETS_TABLE_NAME, current_mqtt_subscriptions).
 
 % Interface currently needs to:
 % - Accept handlers for recv, disconnect, connect
@@ -28,8 +28,8 @@ start_link(TestName, InterfaceName, ClientName, DeviceType) ->
 
 init([TestName, InterfaceName, ClientName, DeviceType]) ->
     %% Normalize names
-    ServerMod  = normalize_atom(InterfaceName),
-    ServerName = normalize_atom(ClientName),
+    ServerMod  = ps_bench_utils:convert_to_atom(InterfaceName),
+    ServerName = ps_bench_utils:convert_to_atom(ClientName),
 
     %% Start the interface process and always use the registered name
     {ok, _Pid} = ServerMod:start_link(TestName, ServerName, self()),
@@ -52,10 +52,6 @@ ensure_subs_table() ->
         undefined -> ets:new(?SUBSCRIPTION_ETS_TABLE_NAME, [set, public, named_table]);
         Tid       -> Tid
     end.
-
-normalize_atom(A) when is_atom(A)   -> A;
-normalize_atom(S) when is_list(S)   -> list_to_atom(S);
-normalize_atom(B) when is_binary(B) -> list_to_atom(binary_to_list(B)).
 
 % For direct commands, we just forward these messages to the actual client
 handle_call(connect, _From, State = #{server_reference := ServerReference}) ->
@@ -176,7 +172,7 @@ start_publication_loop(DeviceType, ServerReference) ->
     timer:apply_interval(PubFrequencyMs, fun publication_loop/5, [ServerReference, Topic, QoS, PayloadSizeMean, PayloadSizeVariance]).
 
 publication_loop(ServerReference, Topic, QoS, PayloadSizeMean, PayloadSizeVariance) ->
-    Payload = ps_bench_utils:generate_payload_data(PayloadSizeMean, PayloadSizeVariance, Topic),
+    Payload = ps_bench_utils:generate_mqtt_payload_data(PayloadSizeMean, PayloadSizeVariance, Topic),
     gen_server:call(ServerReference, {publish, #{}, Topic, Payload, [{qos, QoS}]}). % TODO, more settings?
 
 start_disconnection_loop(DeviceType, ServerReference) ->

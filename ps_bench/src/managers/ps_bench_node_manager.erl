@@ -105,7 +105,7 @@ setup_benchmark() ->
     % Register this node
     {ok, NodeName} = ps_bench_config_manager:fetch_node_name(),
     _ = ensure_distribution(NodeName),
-    erlang:set_cookie(node(), ?BENCHMARK_COOKIE),
+    erlang:set_cookie(node(), ?PS_BENCH_COOKIE),
 
     % At this point in the call, we're done configuring, so let the lifecycle manager know
     gen_server:cast(?MODULE, local_continue).
@@ -113,7 +113,7 @@ setup_benchmark() ->
 ensure_distribution(NodeName0) ->
     case node() of
         nonode@nohost ->
-            NodeName = normalize_atom(NodeName0),
+            NodeName = ps_bench_utils:convert_to_atom(NodeName0),
             case net_kernel:start([NodeName, shortnames]) of
                 {ok, _Pid}                       -> ok;
                 {error, {already_started, _Pid}} -> ok;
@@ -125,10 +125,6 @@ ensure_distribution(NodeName0) ->
         _DistributedName ->
             ok
     end.
-
-normalize_atom(A) when is_atom(A)   -> A;
-normalize_atom(S) when is_list(S)   -> list_to_atom(S);
-normalize_atom(B) when is_binary(B) -> list_to_atom(binary_to_list(B)).
     
 get_hostname_for_node(NodeName) ->
     {ok, HostName} = ps_bench_config_manager:fetch_host_for_node(NodeName),

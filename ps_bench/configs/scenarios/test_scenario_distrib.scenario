@@ -2,6 +2,13 @@
     {name, test_scenario_distrib},                                % Format: Erlang atom
     {duration, {10, seconds}},
     {protocol, mqttv5},                                      % Format: Erlang atom, must be a supported protocol
+    {deployment_name, test_deployment_distrib},                              % Format: Erlang atom, must match the name field in a deployment definition file
+    {hosts,
+    [
+        {runner1, 'debian-main'},
+        {runner2, 'debian-main'}
+    ]},
+    
     {protocol_config,                                                       % Protocol specific configuration, see README for details on protocol configuration
     [
         {broker, "192.168.1.212"},
@@ -11,14 +18,6 @@
             {default_qos, 0},
             {temperature_sensor, 2}
         ]}
-    ]},
-    {client_interface_type, erlang},                                % Format: Erlang atom, must be a supported type
-    {client_interface_name, "ps_bench_mqtt_erlang_interface"},                        % Format: Quoted string
-    {deployment_name, test_deployment_distrib},                              % Format: Erlang atom, must match the name field in a deployment definition file
-    {hosts,
-    [
-        {runner1, 'debian-main'},
-        {runner2, 'debian-main'}
     ]},
 
     {metric_config,

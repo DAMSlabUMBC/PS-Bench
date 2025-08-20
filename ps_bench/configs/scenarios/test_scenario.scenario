@@ -2,6 +2,12 @@
     {name, test_scenario},                                % Format: Erlang atom
     {duration, {10, seconds}},
     {protocol, mqttv5},                                      % Format: Erlang atom, must be a supported protocol
+    {deployment_name, test_deployment},                             % Format: Erlang atom, must match the name field in a deployment definition file
+    {hosts,
+    [
+        {runner1, 'paladin'}
+    ]},
+
     {protocol_config,                                                       % Protocol specific configuration, see README for details on protocol configuration
     [
         {broker, "broker"},
@@ -10,16 +16,9 @@
         [
             {default_qos, 0},
             {temperature_sensor, 2}
-        ]}
+        ]},
     ]},
-    {client_interface_type, erlang},                                % Format: Erlang atom, must be a supported type
-    {client_interface_name, "ps_bench_mqtt_erlang_interface"},                        % Format: Quoted string
-    {deployment_name, test_deployment},                              % Format: Erlang atom, must match the name field in a deployment definition file
-    {hosts,
-    [
-        {runner1, 'paladin'}
-    ]},
-
+    
     {metric_config,
     [
         {calculation_window_ms, 1000},

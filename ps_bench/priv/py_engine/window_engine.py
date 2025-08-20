@@ -13,6 +13,15 @@ if _PRIV_DIR not in sys.path:
 LISTENER = None
 PLUGINS = []
 OUT_DIR = "/app/out"  
+
+def _to_str(x):
+    # Normalize Erlang terms (Atom, binary, charlist) to a Python str
+    if isinstance(x, (bytes, bytearray, Atom)):
+        return bytes(x).decode("utf-8", "ignore")
+    if isinstance(x, list) and all(isinstance(i, int) for i in x):  # Erlang charlist
+        return bytes(x).decode("utf-8", "ignore")
+    return x if isinstance(x, str) else str(x)
+
 def _atom(name: str):
     return Atom(name.encode())
 
@@ -39,12 +48,17 @@ def _append_json(run_id, win_start_ms, summary):
 def start(listener_atom, plugins, out_dir=None):
     global LISTENER, PLUGINS, OUT_DIR
     LISTENER = listener_atom
-    if out_dir:
-        OUT_DIR = out_dir
+
+    # Ensure OUT_DIR is a real str (not bytes/charlist)
+    if out_dir is not None:
+        OUT_DIR = _to_str(out_dir)
+    else:
+        OUT_DIR = _to_str(OUT_DIR)
+
     os.makedirs(OUT_DIR, exist_ok=True)
 
-    # plugin names come from Erlang as binaries; convert to strings
-    plugins = list(map(lambda p: p.decode("utf-8"), plugins))
+    # Ensure plugin names are str as well
+    plugins = [_to_str(p) for p in plugins]
     PLUGINS = [import_module(f"plugins.{p}") for p in plugins]
 
     # let plugins know where to write files if they define init(out_dir)
@@ -53,24 +67,24 @@ def start(listener_atom, plugins, out_dir=None):
         if callable(init_fn):
             init_fn(OUT_DIR)
 
-    return Atom(b"ok")
+    return _atom("ok")
 
 def ingest_window(run_id, win_start_ms, win_map):
     lat   = win_map.get(Atom(b"lat_ms"), [])
     size  = win_map.get(Atom(b"size_b"), [])
     counts = win_map.get(Atom(b"counts"), {})
 
+    # Add win_start_ms so plugins can log it without guessing key types
+    counts2 = dict(counts)
+    counts2[Atom(b"win_start_ms")] = win_start_ms
+
     summary = {}
     for p in PLUGINS:
         apply_fn = getattr(p, "apply", None)
         if callable(apply_fn):
-            # expect dict back merge into summary
-            summary.update(apply_fn(lat, size, counts))
+            summary.update(apply_fn(lat, size, counts2))
 
-    # 1) send back to Erlang listener (existing behavior)
     erlang.cast(LISTENER, (_atom("win_summary"), run_id, win_start_ms, summary))
-
-    # 2) also write each window’s summary as a JSONL row in OUT_DIR
     _append_json(run_id, win_start_ms, summary)
-
     return Atom(b"ok")
+

@@ -26,11 +26,13 @@ init(NodeName) ->
 handle_call(_Msg, _From, State) ->
     {reply, ok, State}.   
 
-handle_cast(local_continue, State = #{node_name := NodeName}) ->
+handle_cast(local_continue, State = #{node_name := RawNodeName}) ->
+    NodeName = normalize_atom(RawNodeName),
     ps_bench_lifecycle:current_step_complete(NodeName),
     {noreply, State};
 
-handle_cast(global_continue, State = #{node_name := NodeName}) ->
+handle_cast(global_continue, State = #{node_name := RawNodeName}) ->
+    NodeName = normalize_atom(RawNodeName),
     ps_bench_lifecycle:current_step_complete(NodeName),
     rpc:multicall(nodes(), ps_bench_lifecycle, current_step_complete, [NodeName]),
     {noreply, State}.
@@ -63,18 +65,19 @@ handle_next_step_command(start_connections) ->
 handle_next_step_command(start_initialization) ->
     ps_bench_utils:log_state_change("Initializing Benchmark Node"),
 
-    % Initialize random number generator
-    ps_bench_utils:initialize_rng_seed(), % TODO, need to sync across all nodes and allow loading from config
+    ps_bench_utils:log_message(".. seeding RNG", []),
+    ps_bench_utils:initialize_rng_seed(),
 
-    % Create storage tables
+    ps_bench_utils:log_message(".. creating storage", []),
     ps_bench_store:initialize_node_storage(),
 
-    % Now initalize the scenario
+    ps_bench_utils:log_message(".. initializing scenario", []),
     ps_bench_scenario_manager:initialize_scenario(),
 
-    % Ready to start when other nodes are synced
+    ps_bench_utils:log_message(".. init complete", []),
     gen_server:cast(?MODULE, global_continue),
     ok;
+
 
 handle_next_step_command(start_benchmark) ->
     gen_server:cast(ps_bench_metrics_rollup, start_loop),
@@ -131,9 +134,29 @@ normalize_atom(S) when is_list(S)   -> list_to_atom(S);
 normalize_atom(B) when is_binary(B) -> list_to_atom(binary_to_list(B)).
     
 get_hostname_for_node(NodeName) ->
-    {ok, HostName} = ps_bench_config_manager:fetch_host_for_node(NodeName),
-    NodeString = lists:concat([NodeName, "@", HostName]),
-    list_to_atom(NodeString).
+    Host = host_for_cluster(),
+    ensure_full_node(NodeName, Host).
+host_for_cluster() ->
+    case os:getenv("NODE_HOST_OVERRIDE") of
+        false ->
+            case string:tokens(atom_to_list(node()), "@") of
+                [_Name, H] -> H;          % use host part of our running node()
+                _          -> net_adm:localhost()
+            end;
+        V -> V
+    end.
+
+ensure_full_node(NodeName, Host) ->
+    NameStr =
+        case NodeName of
+            A when is_atom(A)   -> atom_to_list(A);
+            B when is_binary(B) -> binary_to_list(B);
+            L when is_list(L)   -> L
+        end,
+    case lists:member($@, NameStr) of
+        true  -> list_to_atom(NameStr);
+        false -> list_to_atom(NameStr ++ "@" ++ Host)
+    end.
 
 wait_for_nodes_to_connect([]) ->
     ok;

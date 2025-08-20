@@ -3,7 +3,6 @@ FROM erlang:24-alpine
 # Install build deps
 RUN apk add --no-cache bash git python3 py3-pip py3-paho-mqtt
 
-
 # Copy and fetch deps
 WORKDIR /app
 COPY . /app

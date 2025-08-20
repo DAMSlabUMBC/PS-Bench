@@ -35,6 +35,9 @@ handle_cast(global_continue, State = #{node_name := RawNodeName}) ->
     NodeName = normalize_atom(RawNodeName),
     ps_bench_lifecycle:current_step_complete(NodeName),
     rpc:multicall(nodes(), ps_bench_lifecycle, current_step_complete, [NodeName]),
+    {noreply, State};
+
+handle_cast(_Other, State) ->
     {noreply, State}.
 
 handle_info({Pid, Command}, State) ->

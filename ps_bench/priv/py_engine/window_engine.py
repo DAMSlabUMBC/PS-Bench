@@ -40,7 +40,7 @@ def start(listener_atom, plugins, out_dir=None):
     global LISTENER, PLUGINS, OUT_DIR
     LISTENER = listener_atom
     if out_dir:
-        OUT_DIR = out_dir
+        OUT_DIR = out_dir.decode("utf-8")
     os.makedirs(OUT_DIR, exist_ok=True)
 
     # plugin names come from Erlang as binaries; convert to strings

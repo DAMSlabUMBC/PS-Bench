@@ -143,7 +143,21 @@ ERL_NIF_TERM create_participant(ErlNifEnv* env, int argc, const ERL_NIF_TERM arg
 		return enif_make_badarg(env);
 	}
 
-	TheServiceParticipant->default_configuration_file(ACE_TEXT("default_dds_interface.ini"));
+	// Get config file path
+	unsigned int configPathLength = 0;
+	if(!enif_get_string_length(env, argv[1], &configPathLength, ERL_NIF_UTF8))
+	{
+		return enif_make_atom(env, "invalid_config_path");
+	}
+
+	char* configPath = (char*)malloc(configPathLength + 1);
+	if(!enif_get_string(env, argv[1], configPath, configPathLength + 1, ERL_NIF_UTF8))
+	{
+		free(configPath);
+		return enif_make_atom(env, "invalid_config_path");
+	}
+
+	TheServiceParticipant->default_configuration_file(ACE_TEXT(configPath));
 	DDS::DomainParticipantFactory_var dpf = TheParticipantFactory;
 
 	// create domain participant
@@ -458,7 +472,7 @@ ERL_NIF_TERM publish_message(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]
 }
 
 static ErlNifFunc nif_funcs[] = {
-    {"create_participant", 1, create_participant},
+    {"create_participant", 2, create_participant},
 	{"create_subscriber_on_topic", 4, create_subscriber_on_topic},
 	{"create_publisher_on_topic", 2, create_publisher_on_topic},
 	{"publish_message", 3, publish_message},
@@ -466,4 +480,4 @@ static ErlNifFunc nif_funcs[] = {
 	{"delete_publisher", 2, delete_publisher}
 };
 
-ERL_NIF_INIT(default_dds_interface, nif_funcs, &load, &reload, &upgrade, &unload);
+ERL_NIF_INIT(ps_bench_default_dds_interface, nif_funcs, &load, &reload, &upgrade, &unload);

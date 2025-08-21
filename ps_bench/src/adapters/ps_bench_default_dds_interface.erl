@@ -1,13 +1,13 @@
 -module(ps_bench_default_dds_interface).
 
--export([init/1, create_participant/1, create_subscriber_on_topic/4, create_publisher_on_topic/2, publish_message/3, delete_subscriber/2, delete_publisher/2]).
+-export([init/1, create_participant/2, create_subscriber_on_topic/4, create_publisher_on_topic/2, publish_message/3, delete_subscriber/2, delete_publisher/2]).
 
--nifs([create_participant/1, create_subscriber_on_topic/4, create_publisher_on_topic/2, publish_message/3, delete_subscriber/2, delete_publisher/2]).
+-nifs([create_participant/2, create_subscriber_on_topic/4, create_publisher_on_topic/2, publish_message/3, delete_subscriber/2, delete_publisher/2]).
 
 init(NifPath) ->
-      erlang:load_nif(NifPath, 0).
+      ok = erlang:load_nif(NifPath, 0).
 
-create_participant(_DomainId) ->
+create_participant(_DomainId, _ConfigPath) ->
       erlang:nif_error("NIF library not loaded").
 
 create_subscriber_on_topic(_TopicName, _ClientName, _Participant,  _ListenerPid) ->

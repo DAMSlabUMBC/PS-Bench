@@ -56,14 +56,14 @@ process_dds_children(ScenarioName) ->
     InterfaceType = ?NIF_INTERFACE,
 
     case InterfaceType of
-        ?NIF_INTERFACE ->
-            
+        ?NIF_INTERFACE ->            
             Template = #{id => client_worker,
                         start => {ps_bench_nif_dds_adapter, start_link, [ScenarioName, NifModule, FullNifPath, DomainId]}, % Two more parameters are added during start_child
                         restart => transient, 
                         shutdown => 5000,
                         type => worker, 
                         modules => [ps_bench_nif_dds_adapter]},
+                        
             % TODO: Tune or allow configuration of the timing and restart parameters
             {ok, {{simple_one_for_one, 10, 60}, [Template]}};
         _ ->

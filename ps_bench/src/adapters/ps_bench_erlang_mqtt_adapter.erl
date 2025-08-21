@@ -55,7 +55,7 @@ ensure_subs_table() ->
 
 % For direct commands, we just forward these messages to the actual client
 handle_call(connect, _From, State = #{server_reference := ServerReference}) ->
-    Reply = catch gen_server:call(ServerReference, {connect}),
+    Reply = catch gen_server:call(ServerReference, connect),
     case Reply of
         {'EXIT', Reason} ->
             io:format("adapter: connect -> interface call failed: ~p~n", [Reason]),
@@ -65,15 +65,15 @@ handle_call(connect, _From, State = #{server_reference := ServerReference}) ->
     end;
 
 handle_call(connect_clean, _From, State = #{server_reference := ServerReference}) ->
-    gen_server:call(ServerReference, {connect_clean}),
+    gen_server:call(ServerReference, connect_clean),
     {reply, ok, State};
 
 handle_call(reconnect, _From, State = #{server_reference := ServerReference}) ->
-    gen_server:call(ServerReference, {reconnect}),
+    gen_server:call(ServerReference, reconnect),
     {reply, ok, State};
 
-handle_call({subscribe, Topics}, _From, State = #{server_reference := ServerReference, tid := Tid}) ->
-    do_subscribe(Topics, ServerReference, Tid),
+handle_call(subscribe, _From, State = #{server_reference := ServerReference, tid := Tid}) ->
+    do_subscribe(#{}, ServerReference, Tid), %TODO FIX
     {reply, ok, State};
 
 handle_call({publish, Topic, Data, PubOpts}, _From, State = #{server_reference := ServerReference}) ->
@@ -129,10 +129,10 @@ handle_info({?CONNECTED_MSG, {TimeNs}, ClientName}, State) ->
 handle_info({?DISCONNECTED_MSG, {TimeNs, Reason}, ClientName}, State) ->
     case Reason of 
         normal ->
-            % This is expected, don't record
+            ps_bench_store:record_disconnect(ClientName, TimeNs, expected),
             {noreply, State};
         _ ->
-            ps_bench_store:record_disconnect(ClientName, TimeNs),
+            ps_bench_store:record_disconnect(ClientName, TimeNs, unexpected),
             {noreply, State}
     end;
 
@@ -140,14 +140,21 @@ handle_info({?PUBLISH_RECV_MSG, {RecvTimeNs, Topic, Payload}, ClientName}, State
     % Extracted needed info and store
     Bytes = byte_size(Payload),
     {Seq, PubTimeNs, _Rest} = ps_bench_utils:decode_seq_header(Payload),
-    io:format("Recv: ~p from ~p~n", [Payload, ClientName]),
+    io:format("Recv MQTT: ~p from ~p~n", [Payload, ClientName]),
     ps_bench_store:record_recv(ClientName, Topic, Seq, PubTimeNs, RecvTimeNs, Bytes),
     {noreply, State};
 
 handle_info(_Info, State) ->
     {noreply, State}.
 
-do_subscribe(Topics, ServerReference, Tid) ->
+do_subscribe(_Topics, ServerReference, Tid) ->
+
+    % Currently only support one topic
+    WildcardBinary = <<"#">>,
+    Topic = <<?MQTT_TOPIC_PREFIX/binary, WildcardBinary/binary>>,
+    QoS = 0, % WHAT TO DO ABOUT THIS??
+    Topics = [{Topic, QoS}],
+
     ok = gen_server:call(ServerReference, {subscribe, #{}, Topics}),
     PrevTopics =
         case ets:lookup(Tid, ServerReference) of
@@ -214,7 +221,7 @@ reconnect_loop(ServerReference, ReconnectChance) ->
     % Check to see if we should reconnect
     case ps_bench_utils:evaluate_uniform_chance(ReconnectChance) of
         true ->
-            case gen_server:call(ServerReference, {reconnect}) of
+            case gen_server:call(ServerReference, reconnect) of
                 {ok, new_connection} ->
                     % Now resubscribe to the needed topics
                     resub_to_previous_topics(ServerReference);

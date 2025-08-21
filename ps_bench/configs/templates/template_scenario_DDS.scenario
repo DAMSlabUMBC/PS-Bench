@@ -13,11 +13,13 @@
         {nif_module, ps_bench_default_dds_interface}
         {nif_full_path, "priv/dds_cplusplus/lib/libps_bench_default_dds_interface"},
         {domain_id, 123},
-        {qos_xml_file, "filepath"}
+        {qos_xml_file, "filepath"},
+        {config_file, "filepath"}
     ]},
 
     {metric_config,                                                         % Metric specific configuration, see README for details on metric configuration
     [
+        {output_dir, REPLACE_OUTPUT_DIR},
         {calculation_window_ms, REPLACE_CALCULATION_WINDOW_MS},                                      
         {rollup_period_s, REPLACE_ROLLUP_PERIOD_S},
         {python_metric_engine_path, REPLACE_PYTHON_PATH}                    % Only required if there are python metric plugins

@@ -15,10 +15,10 @@
 -export([fetch_mqtt_client_module/0, fetch_mqtt_broker_information/0, fetch_mqtt_default_qos/0, fetch_mqtt_qos_for_device/1]).
 
 % DDS exports
--export([fetch_dds_nif_information/0, fetch_dds_domain_id/0, fetch_dds_qos_file_path/0]).
+-export([fetch_dds_nif_information/0, fetch_dds_domain_id/0, fetch_dds_config_file_path/0, fetch_dds_qos_file_path/0]).
 
 % Metric exports
--export([fetch_metric_calculation_window/0, fetch_metric_rollup_period/0, fetch_python_metric_engine_path/0,
+-export([fetch_metrics_output_dir/0, fetch_metric_calculation_window/0, fetch_metric_rollup_period/0, fetch_python_metric_engine_path/0,
     fetch_python_metric_plugins/0]).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -340,8 +340,8 @@ process_dds_config(ProtocolProps, ProtocolName, ScenarioName) ->
     % Validate needed keys are here
     PropListKeys = proplists:get_keys(ProtocolProps),
     NonReqKeys = PropListKeys -- ?DDS_REQ_KEY_LIST,
-    ExtraKeys = NonReqKeys -- [?DDS_NIF_MODULE_PROP, ?DDS_NIF_FULL_PATH_PROP, ?DDS_QOS_FILE_PROP],
-    MissingKeys = ?MQTT_REQ_KEY_LIST -- PropListKeys,
+    ExtraKeys = NonReqKeys -- [?DDS_NIF_MODULE_PROP, ?DDS_NIF_FULL_PATH_PROP, ?DDS_QOS_FILE_PROP, ?DDS_CONFIG_FILE_PATH_PROP],
+    MissingKeys = ?DDS_REQ_KEY_LIST -- PropListKeys,
 
     % Having extra keys is just a warning, disregard return of the case
     case ExtraKeys of
@@ -363,7 +363,7 @@ process_scenario_metric_config(MetricProps, ScenarioName) ->
     % Validate needed keys are here
     PropListKeys = proplists:get_keys(MetricProps),
     NonReqKeys = PropListKeys -- ?METRIC_REQ_KEY_LIST,
-    ExtraKeys =  NonReqKeys -- [?METRIC_WINDOW_MS_PROP, ?METRIC_ROLLUP_PERIOD_S_PROP, ?METRIC_PYTHON_ENGINE_PATH],
+    ExtraKeys =  NonReqKeys -- [?METRIC_WINDOW_MS_PROP, ?METRIC_ROLLUP_PERIOD_S_PROP, ?METRIC_PYTHON_ENGINE_PATH, ?METRIC_RESULTS_DIR_PROP],
     MissingKeys = ?METRIC_REQ_KEY_LIST -- PropListKeys,
 
     % Having extra keys is just a warning, disregard return of the case
@@ -447,6 +447,9 @@ fetch_dds_nif_information() ->
 fetch_dds_domain_id() ->
     fetch_protocol_property(?DDS_DOMAIN_ID_PROP).
 
+fetch_dds_config_file_path() ->
+    fetch_protocol_property(?DDS_CONFIG_FILE_PATH_PROP, ?DDS_DEFAULT_CONFIG_FILE_PATH).
+
 fetch_dds_qos_file_path() ->
     fetch_protocol_property(?DDS_QOS_FILE_PROP, ?DDS_DEFAULT_QOS_FLAG).
 
@@ -473,6 +476,9 @@ fetch_host_for_node(NodeName) ->
         undefined -> {error, unknown_node};
         Host -> {ok, Host}
     end.
+
+fetch_metrics_output_dir() ->
+    fetch_metric_property(?METRIC_RESULTS_DIR_PROP, ?DEFAULT_OUT_DIR).
 
 fetch_metric_calculation_window() ->
     fetch_metric_property(?METRIC_WINDOW_MS_PROP, ?DEFAULT_WINDOW_MS).

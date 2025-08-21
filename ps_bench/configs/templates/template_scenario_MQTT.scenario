@@ -22,6 +22,7 @@
     
     {metric_config,                                                         % Metric specific configuration, see README for details on metric configuration
     [
+        {output_dir, REPLACE_OUTPUT_DIR},
         {calculation_window_ms, REPLACE_CALCULATION_WINDOW_MS},                                      
         {rollup_period_s, REPLACE_ROLLUP_PERIOD_S},
         {python_metric_engine_path, REPLACE_PYTHON_PATH}                    % Only required if there are python metric plugins

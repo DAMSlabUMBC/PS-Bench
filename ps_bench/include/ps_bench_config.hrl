@@ -67,6 +67,7 @@
 % DDS protocol_config fields
 -define(DDS_NIF_MODULE_PROP, nif_module).
 -define(DDS_NIF_FULL_PATH_PROP, nif_full_path).
+-define(DDS_CONFIG_FILE_PATH_PROP, config_file).
 -define(DDS_DOMAIN_ID_PROP, domain_id).
 -define(DDS_QOS_FILE_PROP, qos_xml_file).
 % NOTE: We do not require a qos_xml_file as DDS defines sensible defaults
@@ -76,6 +77,7 @@
 % DDS constants
 -define(DDS_DEFAULT_NIF_MODULE, ps_bench_default_dds_interface).
 -define(DDS_DEFAULT_NIF_FULL_PATH, "priv/dds_cplusplus/lib/libps_bench_default_dds_interface").
+-define(DDS_DEFAULT_CONFIG_FILE_PATH, "configs/dds_configs/ps_bench_default_dds_interface.ini").
 -define(DDS_DEFAULT_QOS_FLAG, use_default).
 -define(DDS_TOPIC, "PS_BENCH_TOPIC").
 
@@ -84,8 +86,9 @@
 -define(ERLANG_INTERFACE, erlang).
 -define(NIF_INTERFACE, nif).
 
-% metrics and runtime knobs 
+% metrics and runtime props 
 -define(METRIC_STORAGE_CONSTANT, metrics).
+-define(METRIC_RESULTS_DIR_PROP, output_dir).
 -define(METRIC_WINDOW_MS_PROP, calculation_window_ms).
 -define(METRIC_ROLLUP_PERIOD_S_PROP, rollup_period_s).
 -define(METRIC_PYTHON_ENGINE_PATH, python_metric_engine_path).
@@ -94,6 +97,7 @@
 -define(METRIC_REQ_KEY_LIST, [?METRIC_PLUGINS_PROP]).
 
 % Set some defaults for metric calculation
+-define(DEFAULT_OUT_DIR, "results").
 -define(DEFAULT_WINDOW_MS, 1000).
 -define(DEFAULT_ROLLUP_PERIOD_S, 5).
 -define(DEFAULT_PYTHON_ENGINE_PATH, "priv/py_engine").

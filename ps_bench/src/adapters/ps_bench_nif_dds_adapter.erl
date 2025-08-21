@@ -20,18 +20,20 @@
          terminate/2, code_change/3]).
 
 start_link(TestName, NifName, FullNifPath, DomainId, ClientName, DeviceType) ->
-    gen_server:start_link({local, ClientName}, ?MODULE, [TestName, NifName, FullNifPath, ClientName, DeviceType, DomainId], []).
+    ClientNameAtom = ps_bench_utils:convert_to_atom(ClientName),
+    gen_server:start_link({local, ClientNameAtom}, ?MODULE, [TestName, NifName, FullNifPath, ClientNameAtom, DeviceType, DomainId], []).
 
 %%%===================================================================
 %%% gen_server callbacks
 %%%===================================================================
 
 init([TestName, NifName, FullNifPath, ClientName, DeviceType, DomainId]) ->
-    
+
     % Initialize the NIF if not already done
     NifModule  = ps_bench_utils:convert_to_atom(NifName),
     ok = initialize_nif(NifModule, FullNifPath),
-    {ok, Participant} = retrieve_or_create_participant(NifModule, DomainId),
+    {ok, ConfigFile} = ps_bench_config_manager:fetch_dds_config_file_path(),
+    {ok, Participant} = retrieve_or_create_participant(NifModule, DomainId, ConfigFile),
 
     Tid = ensure_subs_table(),
     {ok, #{ test_name        => TestName
@@ -68,7 +70,7 @@ handle_call(subscribe, _From, State = #{nif_module := NifModule, participant := 
     case Subscriber of
         undefined ->
             % Create the subscriber for this client
-            {ok, NewSubscriber} = NifModule:create_subscriber_on_topic(?DDS_TOPIC, ClientName, Participant, self()),
+            {ok, NewSubscriber} = NifModule:create_subscriber_on_topic(?DDS_TOPIC, atom_to_list(ClientName), Participant, self()),
 
             % Save the fact we were subscribed to this topic for disconnections
             PrevTopics =
@@ -88,7 +90,7 @@ handle_call(subscribe, _From, State = #{nif_module := NifModule, participant := 
     end;
 
 handle_call({publish, SeqId, Data}, _From, State = #{nif_module := NifModule, publisher := Publisher}) -> 
-    NifModule:publish_message(SeqId, Data, Publisher), % TODO Seq id
+    NifModule:publish_message(SeqId, Data, Publisher),
     {reply, ok, State};
 
 handle_call(unsubscribe, _From, State = #{nif_module := NifModule, participant := Participant, subscriber := Subscriber, client_name := ClientName, tid := Tid}) ->  
@@ -247,7 +249,7 @@ initialize_nif(NifModule, FullNifPath) ->
             persistent_term:put({?MODULE, initialized}, true)
     end.
 
-retrieve_or_create_participant(NifModule, DomainId) ->
+retrieve_or_create_participant(NifModule, DomainId, ConfigFile) ->
 
     % Make sure the participant is created
     case persistent_term:get({?MODULE, participant, DomainId}, undefined) of
@@ -255,14 +257,14 @@ retrieve_or_create_participant(NifModule, DomainId) ->
         creating ->
             receive
             after 500 ->
-                retrieve_or_create_participant(NifModule, DomainId)
+                retrieve_or_create_participant(NifModule, DomainId, ConfigFile)
             end;
         % Create if it doesn't exist
         undefined ->
             ok = persistent_term:put({?MODULE, participant, DomainId}, creating),
 
             % Do creation and update with participant reference
-            {ok, Participant} = NifModule:create_participant(DomainId), % Todo QoS?
+            {ok, Participant} = NifModule:create_participant(DomainId, ConfigFile), % Todo QoS?
             ok = persistent_term:put({?MODULE, participant, DomainId}, Participant),
             {ok, Participant};
         % Retrieve if it already exists
@@ -306,4 +308,4 @@ do_disconnect(NifModule, ClientName, Participant, Publisher, Subscriber) ->
             NifModule:delete_subscriber(Participant, Subscriber)
     end,
     TimeNs = erlang:monotonic_time(nanosecond),
-    ps_bench_store:record_disconnect(ClientName, TimeNs).
+    ps_bench_store:record_disconnect(ClientName, TimeNs, expected).

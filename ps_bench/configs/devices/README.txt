@@ -2,6 +2,7 @@ This file contains information about how the devices's specifications were deriv
 
 --- Smart home scenario ---
 Dataset link: https://iotanalytics.unsw.edu.au/
+Dataset paper: https://ieeexplore.ieee.org/abstract/document/8116438
 Dataset analysis paper: https://ieeexplore.ieee.org/document/9590566
 
 I've used the above paper, which analyzes the characteristics of the devices, to create the device specifications based on the templates that we have.

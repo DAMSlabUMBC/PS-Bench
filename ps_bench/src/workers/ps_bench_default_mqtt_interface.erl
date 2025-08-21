@@ -36,13 +36,15 @@ handle_call(reconnect, _From, State) ->
     % By the MQTT standard, this just starts a clean session if none existed previously
     do_connect(true, State);
 
-handle_call({subscribe, Properties, Topics}, _From, State = #{client_pid := ClientPid, connected := Connected}) when Connected == true ->
+handle_call({subscribe, TopicFilters}, _From,
     % Subscribe with the on Topic with Options
-    emqtt:subscribe(ClientPid, Properties, Topics),
+            State = #{client_pid := ClientPid, connected := true}) ->
+    _ = emqtt:subscribe(ClientPid, TopicFilters),   % e.g. [{Topic, [{qos, 0}]}]
     {reply, ok, State};
 
-handle_call({subscribe, _Properties, _Topics}, _From, State = #{connected := Connected}) when Connected == false ->
+handle_call({subscribe, _TopicFilters}, _From,
     % Do nothing if not connected
+            State = #{connected := false}) ->
     {reply, ok, State};
 
 handle_call({publish, Properties, Topic, Payload, PubOpts}, _From, State = #{client_pid := ClientPid, connected := Connected}) when is_binary(Topic), is_binary(Payload) ->
@@ -141,9 +143,11 @@ start_client_link(ClientName, CleanStart, OwnerPid) ->
     case Protocol of
         ?MQTT_V5_PROTOCOL ->
             FullPropList = PropList ++ [{proto_ver, v5}],
+            ok = ensure_emqtt_started(),
             emqtt:start_link(FullPropList);
         ?MQTT_V311_PROTOCOL ->
             FullPropList = PropList ++ [{proto_ver, v3}],
+            ok = ensure_emqtt_started(),
             emqtt:start_link(FullPropList)
     end.
 
@@ -190,4 +194,11 @@ publish_event(OwnerPid, _Msg = #{topic := Topic, payload := Payload}, ClientName
     TimeNs = erlang:monotonic_time(nanosecond),
     OwnerPid ! {?PUBLISH_RECV_MSG, {TimeNs, Topic, Payload}, ClientName},
     ok.
+
+ensure_emqtt_started() ->
+    case application:ensure_all_started(emqtt) of
+        {ok, _} -> ok;
+        {error, {emqtt, {already_started, _}}} -> ok;
+        {error, Reason} -> exit({emqtt_not_started, Reason})
+    end.
 

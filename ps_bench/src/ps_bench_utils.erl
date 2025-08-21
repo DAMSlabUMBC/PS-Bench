@@ -12,16 +12,55 @@
 
 initialize_rng_seed() ->
     % No seed provided, use the crypto library to generate a 12 digit seed
-    SeedValue = crypto:strong_rand_bytes(12),
-    crypto:rand_seed(SeedValue),
+    Seed = try_crypto_seed(2000),       
+    rand:seed(exsplus, Seed),
+    persistent_term:put({?MODULE, seed}, Seed),
+    ok.
 
-    % Save seed value for reproducibility
-    persistent_term:put({?MODULE, seed}, SeedValue).
-
-initialize_rng_seed(SeedValue) ->
+initialize_rng_seed(SeedArg) ->
     % Just seed and save
-    crypto:rand_seed(SeedValue),
-    persistent_term:put({?MODULE, seed}, SeedValue).
+     Seed =
+        case SeedArg of
+            {A,B,C} when is_integer(A), is_integer(B), is_integer(C) ->
+                {A,B,C};
+            <<A:32,B:32,C:32,_/binary>> ->  %% 12 or 16 bytes
+                {A,B,C};
+            I when is_integer(I) ->
+                mix_seed(I);
+            Bin when is_binary(Bin) ->
+                mix_seed(erlang:phash2(Bin))
+        end,
+    rand:seed(exsplus, Seed),
+    persistent_term:put({?MODULE, seed}, Seed),
+    ok.
+
+try_crypto_seed(TimeoutMs) ->
+    Parent = self(),
+    Ref = make_ref(),
+    _Pid = spawn(fun() ->
+        %% 16 bytes -> 3x32-bit parts (+ 32-bit spare)
+        Bytes = crypto:strong_rand_bytes(16),
+        <<A:32,B:32,C:32,_/binary>> = Bytes,
+        Parent ! {Ref, {A,B,C}}
+    end),
+    receive
+        {Ref, Seed = {_,_,_}} -> Seed
+    after TimeoutMs ->
+        %% Fallback: never block startup
+        make_time_seed()
+    end.
+
+make_time_seed() ->
+    T = erlang:monotonic_time(),
+    U = erlang:unique_integer([positive]),
+    N = erlang:phash2(node()),
+    {T band 16#3fffffff, U band 16#3fffffff, N band 16#3fffffff}.
+
+mix_seed(Extra) ->
+    T = erlang:monotonic_time() bxor Extra,
+    U = erlang:unique_integer([positive]) bxor (Extra bsl 13),
+    N = erlang:phash2(node()) bxor (Extra bsl 7),
+    {T band 16#3fffffff, U band 16#3fffffff, N band 16#3fffffff}.
 
 generate_mqtt_payload_data(PayloadSizeMean, PayloadSizeVariance, Topic) ->
     % Calculate payload size according to a normal distribution

@@ -1,0 +1,10 @@
+[
+    {type, machine_sensor},
+    {publication_frequency_ms, 60000},
+    {payload_bytes_mean, 202},
+    {payload_bytes_variance, 18},
+    {disconnect_check_period_ms, 2000},
+    {disconnect_chance_pct, 0.3},
+    {reconnect_check_period_ms, 62000},
+    {reconnect_chance_pct, 0.8}
+].

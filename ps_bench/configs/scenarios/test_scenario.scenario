@@ -11,7 +11,7 @@
     {protocol_config,                                                       % Protocol specific configuration, see README for details on protocol configuration
     [
         {broker, "broker"},
-        {port, 1884},
+        {port, 1883},
         {qos, 
         [
             {default_qos, 0},

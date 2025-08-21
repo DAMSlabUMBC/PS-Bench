@@ -1,5 +1,5 @@
 [
-    {type, wearable_device},
+    {type, health_sensor},
     {publication_frequency_ms, 300000},
     {payload_bytes_mean, 271},
     {payload_bytes_variance, 40},

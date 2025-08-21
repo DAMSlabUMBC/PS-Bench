@@ -19,6 +19,9 @@
          handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
+%% called by timer
+-export([publication_loop/5, disconnect_loop/2, reconnect_loop/2]).
+
 start_link(TestName, InterfaceName, ClientName, DeviceType) ->
     gen_server:start_link(?MODULE, [TestName, InterfaceName, ClientName, DeviceType], []).
 
@@ -173,7 +176,11 @@ start_publication_loop(DeviceType, ServerReference) ->
 
     % Create task
     {ok, QoS} = ps_bench_config_manager:fetch_mqtt_qos_for_device(DeviceType),
-    timer:apply_interval(PubFrequencyMs, fun publication_loop/5, [ServerReference, Topic, QoS, PayloadSizeMean, PayloadSizeVariance]).
+    {ok, TRef} = timer:apply_interval(
+                    PubFrequencyMs, ?MODULE, publication_loop,
+                    [ServerReference, Topic, QoS, PayloadSizeMean, PayloadSizeVariance]),
+    {ok, TRef}.
+
 
 publication_loop(ServerReference, Topic, QoS, PayloadSizeMean, PayloadSizeVariance) ->
     Payload = ps_bench_utils:generate_payload_data(PayloadSizeMean, PayloadSizeVariance, Topic),
@@ -187,7 +194,10 @@ start_disconnection_loop(DeviceType, ServerReference) ->
     case DisconPeriodMs of 
         Period when Period > 0 ->
             % apply_repeatedly doesn't run a new instance until the previous finished
-            timer:apply_repeatedly(Period, fun disconnect_loop/2, [ServerReference, DisconChance]);
+            {ok, TRef} = timer:apply_interval(
+                            Period, ?MODULE, disconnect_loop,
+                            [ServerReference, DisconChance]),
+            {ok, TRef};
         _ ->
             {ok, 0}
     end.
@@ -208,8 +218,10 @@ start_reconnection_loop(DeviceType, ServerReference) ->
     % Make sure we have a non-zero period
     case ReconPeriodMs of 
         Period when Period > 0 ->
-            % apply_repeatedly doesn't run a new instance until the previous finished
-            timer:apply_repeatedly(Period, fun reconnect_loop/2, [ServerReference, ReconChance]);
+            {ok, TRef} = timer:apply_interval(
+                            Period, ?MODULE, reconnect_loop,
+                            [ServerReference, ReconChance]),
+            {ok, TRef};
         _ ->
             {ok, 0}
     end.

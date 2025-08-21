@@ -66,18 +66,18 @@ handle_next_step_command(start_connections) ->
     end;
 
 handle_next_step_command(start_initialization) ->
-    ps_bench_utils:log_state_change("Initializing Benchmark Node"),
-
-    ps_bench_utils:log_message(".. seeding RNG", []),
+    ps_bench_utils:log_message(">> seeding RNG", []),
     ps_bench_utils:initialize_rng_seed(),
+    ps_bench_utils:log_message("<< seeded RNG", []),
 
-    ps_bench_utils:log_message(".. creating storage", []),
-    ps_bench_store:initialize_node_storage(),
+    ps_bench_utils:log_message(">> init store", []),
+    ok = ps_bench_store:initialize_node_storage(),
+    ps_bench_utils:log_message("<< init store", []),
 
-    ps_bench_utils:log_message(".. initializing scenario", []),
-    ps_bench_scenario_manager:initialize_scenario(),
+    ps_bench_utils:log_message(">> init scenario", []),
+    ok = ps_bench_scenario_manager:initialize_scenario(),
+    ps_bench_utils:log_message("<< init scenario", []),
 
-    ps_bench_utils:log_message(".. init complete", []),
     gen_server:cast(?MODULE, global_continue),
     ok;
 

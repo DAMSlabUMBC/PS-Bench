@@ -6,6 +6,7 @@ Dataset paper: https://ieeexplore.ieee.org/abstract/document/8116438
 Dataset analysis paper: https://ieeexplore.ieee.org/document/9590566
 
 I've used the above paper, which analyzes the characteristics of the devices, to create the device specifications based on the templates that we have.
+For the deployment, I used the same setup which the paper presented.
 
 
 --- Smart meter dataset (for the smart city scenario) ---
@@ -232,6 +233,8 @@ The payload size of each sensor is based on the following format:
 
 --- Wearable IoT dataset (for the smart healthcare scenario) --- 
 Dataset link: https://www.kaggle.com/datasets/dcsavinod/iot-in-healthcare-and-well-being?select=Wearable+IoT+Health+Dataset.csv
+Hospital statistics (France): https://tradingeconomics.com/france/hospital-beds
+
 The dataset includes 10 devices which seem to be sending data at 5 minutes intervals. 
 I assumed here that a single device would record multiple parameters (e.g., a smart watch). Based on the provided data, we assume that the payload looks like the following:
 {
@@ -248,16 +251,48 @@ I assumed here that a single device would record multiple parameters (e.g., a sm
 "calories_burned": 13.18
 }
 
---- Smart manufaturing dataset (for the smart factory scenario) ---
-Dataset link: https://www.kaggle.com/datasets/programmer3/smart-manufacturing-process-data
-The dataset contains reading at 1-minute intervals from an industrial machine.
+To create the smart healthcare scenario, I considered the average number of hospital beds in a hospital in France, and assumed that ~20% of beds would require constant monitoring (e.g., in ICUs). I then assumed that we would have 5 hospitals in a given region that would be connected to a local healthcare system for remotely monitoring patients.
 
+
+
+--- Smart manufaturing dataset (for the smart factory scenario) ---
+Smart manufacturing dataset link: https://www.kaggle.com/datasets/programmer3/smart-manufacturing-process-data
+Robot dataset: https://github.com/fraunhoferhhi/ai4mobile-industrial?tab=readme-ov-file
+The smart manufacturing dataset contains reading at 1-minute intervals from an industrial machine. This is not explicitly stated but I assumed that the machine is equiped with several sensors, each one providing one parameter.
+
+* Temperature sensor:
 {
-"device_id": "Device_5",
+"sensor_id": "Device_5",
 "timestamp": "2025-04-01 08:00:00",
-"temperature": 78.92,
-"speed": 1461,
-"production_quality_score": 8.49,
-"vibration_level": 0.07,
-"energy_consumption": 1.97,
+"temperature": 78.92
 }
+
+* Speed sensor:
+{
+"sensor_id": "Device_5",
+"timestamp": "2025-04-01 08:00:00",
+"speed": 1461
+}
+
+* Production quality sensor:
+{
+"sensor_id": "Device_5",
+"timestamp": "2025-04-01 08:00:00",
+"production_quality": 8.49
+}
+
+* Vibration level:
+{
+"sensor_id": "Device_5",
+"timestamp": "2025-04-01 08:00:00",
+"vibration_level": 0.07
+}
+
+* Energy consumption:
+{
+"sensor_id": "Device_5",
+"timestamp": "2025-04-01 08:00:00",
+"energy_consumption": 1.97
+}
+
+To construct the smart factory scenario, I relied on the smart factory setup presented in (https://www.uni-trier.de/index.php?id=69689) to decide the number of machines and robots in a single factory floor. I then assumed that we would have 3 factory floors in a small/medium factory, but we can scale the setup as needed. 

@@ -36,15 +36,12 @@ handle_call(reconnect, _From, State) ->
     % By the MQTT standard, this just starts a clean session if none existed previously
     do_connect(true, State);
 
-handle_call({subscribe, TopicFilters}, _From,
-    % Subscribe with the on Topic with Options
-            State = #{client_pid := ClientPid, connected := true}) ->
-    _ = emqtt:subscribe(ClientPid, TopicFilters),   % e.g. [{Topic, [{qos, 0}]}]
+handle_call({subscribe, Properties, Topics}, _From, State = #{client_pid := ClientPid, connected := Connected}) when Connected == true ->
+    _ = emqtt:subscribe(ClientPid, Properties, Topics),
     {reply, ok, State};
 
-handle_call({subscribe, _TopicFilters}, _From,
+handle_call({subscribe, _Properties, _Topics}, _From, State = #{connected := Connected}) when Connected == false ->
     % Do nothing if not connected
-            State = #{connected := false}) ->
     {reply, ok, State};
 
 handle_call({publish, Properties, Topic, Payload, PubOpts}, _From, State = #{client_pid := ClientPid, connected := Connected}) when is_binary(Topic), is_binary(Payload) ->

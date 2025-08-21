@@ -46,7 +46,11 @@ code_change(_,S,_) -> {ok,S}.
 
 %% Helpers
 %% file output
-write_csv() -> write_csv("metrics_out.csv").
+write_csv() -> 
+    
+    {ok, BasePath} = ps_bench_config_manager:fetch_metrics_output_dir(),
+    FullPath = filename:join(BasePath, "metrics_out.csv"),
+    write_csv(FullPath).
 
 write_csv(Path) ->
     {ok, F} = file:open(Path, [write]),

@@ -19,9 +19,6 @@
          handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
-%% called by timer
--export([publication_loop/5, disconnect_loop/2, reconnect_loop/2]).
-
 start_link(TestName, InterfaceName, ClientName, DeviceType) ->
     gen_server:start_link(?MODULE, [TestName, InterfaceName, ClientName, DeviceType], []).
 
@@ -76,7 +73,7 @@ handle_call(reconnect, _From, State = #{server_reference := ServerReference}) ->
     {reply, ok, State};
 
 handle_call(subscribe, _From, State = #{server_reference := ServerReference, tid := Tid}) ->
-    do_subscribe(#{}, ServerReference, Tid), %TODO FIX
+    do_subscribe([], ServerReference, Tid), %TODO FIX
     {reply, ok, State};
 
 handle_call({publish, Topic, Data, PubOpts}, _From, State = #{server_reference := ServerReference}) ->
@@ -156,16 +153,16 @@ do_subscribe(_Topics, ServerReference, Tid) ->
     WildcardBinary = <<"#">>,
     Topic = <<?MQTT_TOPIC_PREFIX/binary, WildcardBinary/binary>>,
     QoS = 0, % WHAT TO DO ABOUT THIS??
-    Topics = [{Topic, QoS}],
+    NewTopics = [{Topic, [{qos, QoS}]}],
 
-    ok = gen_server:call(ServerReference, {subscribe, #{}, Topics}),
+    ok = gen_server:call(ServerReference, {subscribe, #{}, NewTopics}),
     PrevTopics =
         case ets:lookup(Tid, ServerReference) of
             []              -> [];
             [{_, TopicList}]-> TopicList
         end,
     %% keep unique topics
-    NewTopicList = lists:usort(Topics ++ PrevTopics),
+    NewTopicList = lists:usort(NewTopics ++ PrevTopics),
     ets:insert(Tid, {ServerReference, NewTopicList}).
 
 start_publication_loop(DeviceType, ServerReference) ->
@@ -179,9 +176,7 @@ start_publication_loop(DeviceType, ServerReference) ->
 
     % Create task
     {ok, QoS} = ps_bench_config_manager:fetch_mqtt_qos_for_device(DeviceType),
-    {ok, TRef} = timer:apply_interval(
-                    PubFrequencyMs, ?MODULE, publication_loop,
-                    [ServerReference, Topic, QoS, PayloadSizeMean, PayloadSizeVariance]),
+    {ok, TRef} = timer:apply_interval(PubFrequencyMs, fun publication_loop/5, [ServerReference, Topic, QoS, PayloadSizeMean, PayloadSizeVariance]),
     {ok, TRef}.
 
 
@@ -197,9 +192,7 @@ start_disconnection_loop(DeviceType, ServerReference) ->
     case DisconPeriodMs of 
         Period when Period > 0 ->
             % apply_repeatedly doesn't run a new instance until the previous finished
-            {ok, TRef} = timer:apply_interval(
-                            Period, ?MODULE, disconnect_loop,
-                            [ServerReference, DisconChance]),
+            {ok, TRef} = timer:apply_repeatedly(Period, fun disconnect_loop/2, [ServerReference, DisconChance]),
             {ok, TRef};
         _ ->
             {ok, 0}
@@ -221,9 +214,7 @@ start_reconnection_loop(DeviceType, ServerReference) ->
     % Make sure we have a non-zero period
     case ReconPeriodMs of 
         Period when Period > 0 ->
-            {ok, TRef} = timer:apply_interval(
-                            Period, ?MODULE, reconnect_loop,
-                            [ServerReference, ReconChance]),
+            {ok, TRef} = timer:apply_repeatedly(Period, fun reconnect_loop/2, [ServerReference, ReconChance]),
             {ok, TRef};
         _ ->
             {ok, 0}

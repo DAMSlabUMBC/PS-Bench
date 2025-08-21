@@ -65,7 +65,7 @@ record_recv(_ClientName, TopicBin, Seq, TPubNs, TRecvNs, Bytes) ->
 record_connect(_ClientName, _TimeNs) ->
     ok.
 
-record_disconnect(_ClientName, _TimeNs, Type) ->
+record_disconnect(_ClientName, _TimeNs, _Type) ->
     ok.
 
 %% Drain all events with t_recv_ns <= CutoffNs and delete them

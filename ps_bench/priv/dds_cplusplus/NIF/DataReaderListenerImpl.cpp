@@ -67,8 +67,9 @@ void
 			ERL_NIF_TERM seqId = enif_make_uint64(_env, message->seq_id);
 			
 			ERL_NIF_TERM data_tuple = enif_make_tuple6(_env, _name, _topicName, seqId, pubTimeNs, recvTimeNs, payloadSize);
+			ERL_NIF_TERM send_tuple = enif_make_tuple2(_env, _recv_atom, data_tuple);
 
-			enif_send(NULL, _listenerPid, NULL, data_tuple);
+			enif_send(NULL, _listenerPid, NULL, send_tuple);
 		}
 	} else {
 		ACE_ERROR((LM_ERROR,

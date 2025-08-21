@@ -17,17 +17,22 @@ get_out_dir() ->
     end.
 
 init(Opts) ->
-    {ok, PyPath}  = ps_bench_config_manager:fetch_python_metric_engine_path(),
+    %% Build an absolute path to priv/py_engine that works in dev & release
+    PrivDir = code:priv_dir(ps_bench),
+    PyPath  = filename:join(PrivDir, "py_engine"),
+
     {ok, Plugins} = ps_bench_config_manager:fetch_python_metric_plugins(),
+    {ok, OutDir} = ps_bench_config_manager:fetch_metrics_output_dir(),
     Listener = proplists:get_value(listener_name, Opts, ps_bench_metrics_listener),
 
-    OutDir = get_out_dir(),
-    ok = filelib:ensure_dir(filename:join(OutDir, "dummy")),
+    BinaryOutDir  = unicode:characters_to_binary(OutDir),   %% send a binary, not a list
+    ok = filelib:ensure_dir(OutDir),
 
-    {ok, Py} = python:start([{python_path, [PyPath]}, {python, "python3"}]),
-    ok = python:call(Py, window_engine, start, [Listener, Plugins, OutDir]),  % <-- third arg
+    {ok, Py} = python:start_link([{python_path, [PyPath]},
+                                {python, "python3"}]),
+    ok = python:call(Py, window_engine, start, [Listener, Plugins, OutDir]),
+
     {ok, #{py => Py}}.
-
 
 
 handle_cast({ingest, RunId, WinStartMs, WinMap}, State = #{py := Py}) ->

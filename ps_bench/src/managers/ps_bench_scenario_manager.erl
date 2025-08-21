@@ -90,12 +90,8 @@ connect_clients() ->
     lists:foreach(ConnectFunction, ClientList).
 
 subscribe_clients() ->
-    WildcardBinary = <<"#">>,
-    subscribe_clients_to_topic(<<?MQTT_TOPIC_PREFIX/binary, WildcardBinary/binary>>, 0).
-
-subscribe_clients_to_topic(Topic, QoS) ->
     ClientList = persistent_term:get(?MODULE),
-    SubscribeFunction = fun({_ClientName, ClientPid}) -> gen_server:call(ClientPid, {subscribe, [{Topic, [{qos, QoS}]}]}) end,
+    SubscribeFunction = fun({_ClientName, ClientPid}) -> gen_server:call(ClientPid, subscribe) end,
     lists:foreach(SubscribeFunction, ClientList).
 
 start_client_loops() ->

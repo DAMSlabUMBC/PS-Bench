@@ -7,15 +7,18 @@
 
 % Retrieval exports
 -export([fetch_node_name/0, fetch_selected_scenario/0, fetch_scenario_duration/0, fetch_deployment_name/0, fetch_node_list/0,
-    fetch_host_for_node/1, fetch_protocol_type/0, fetch_client_interface_information/0, fetch_devices_for_this_node/0,
+    fetch_host_for_node/1, fetch_protocol_type/0, fetch_devices_for_this_node/0,
     fetch_device_publication_frequency/1, fetch_device_payload_info/1, fetch_device_disconnect_info/1, 
     fetch_device_reconnect_info/1]).
 
 % MQTT exports
--export([fetch_mqtt_broker_information/0, fetch_mqtt_default_qos/0, fetch_mqtt_qos_for_device/1]).
+-export([fetch_mqtt_client_module/0, fetch_mqtt_broker_information/0, fetch_mqtt_default_qos/0, fetch_mqtt_qos_for_device/1]).
+
+% DDS exports
+-export([fetch_dds_nif_information/0, fetch_dds_domain_id/0, fetch_dds_config_file_path/0, fetch_dds_qos_file_path/0]).
 
 % Metric exports
--export([fetch_metric_calculation_window/0, fetch_metric_rollup_period/0, fetch_python_metric_engine_path/0,
+-export([fetch_metrics_output_dir/0, fetch_metric_calculation_window/0, fetch_metric_rollup_period/0, fetch_python_metric_engine_path/0,
     fetch_python_metric_plugins/0]).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -261,8 +264,7 @@ process_scenario_definition(Def) ->
     % First process top level properties
     % Validate needed keys are here
     PropListKeys = proplists:get_keys(Def),
-    NonReqKeys = PropListKeys -- ?SCENARIO_REQ_KEY_LIST,
-    ExtraKeys =  NonReqKeys -- [?SCENARIO_INTERFACE_NAME_PROP, ?SCENARIO_INTERFACE_TYPE_PROP],
+    ExtraKeys = PropListKeys -- ?SCENARIO_REQ_KEY_LIST,
     MissingKeys = ?SCENARIO_REQ_KEY_LIST -- PropListKeys,
     
     % Having extra keys is just a warning, disregard return of the case
@@ -304,40 +306,18 @@ process_scenario_protocol_config(ProtocolProps, ProtocolName, ScenarioName) ->
             ?MQTT_V311_PROTOCOL ->
                 process_mqtt_config(ProtocolProps, ProtocolName, ScenarioName);
             ?DDS_PROTOCOL ->
-                process_dds_config(ProtocolProps, ScenarioName)
+                process_dds_config(ProtocolProps, ProtocolName, ScenarioName)
         end;
     false ->
         Reason = io_lib:format("Unsupported protocol ~p requested.", [ProtocolName]),
         {error, Reason}
 end.
 
-process_scenario_metric_config(MetricProps, ScenarioName) ->
-    % Validate needed keys are here
-    PropListKeys = proplists:get_keys(MetricProps),
-    NonReqKeys = PropListKeys -- ?METRIC_REQ_KEY_LIST,
-    ExtraKeys =  NonReqKeys -- [?METRIC_WINDOW_MS_PROP, ?METRIC_ROLLUP_PERIOD_S_PROP, ?METRIC_PYTHON_ENGINE_PATH],
-    MissingKeys = ?METRIC_REQ_KEY_LIST -- PropListKeys,
-
-    % Having extra keys is just a warning, disregard return of the case
-    case ExtraKeys of
-        [] -> ok;
-        _ -> ps_bench_utils:log_message("\tWarning: Unknown key(s) ~p found in metric properties. Ignoring...", [ExtraKeys])
-    end,
-
-    % Missing keys is fatal
-    case MissingKeys of
-        [] ->
-            % Store proplist in persistent_term since it won't be edited 
-            persistent_term:put({?MODULE, ScenarioName, ?METRIC_STORAGE_CONSTANT}, MetricProps);
-        _ ->
-            Reason = io_lib:format("Missings key(s) ~p in metric properties.", [MissingKeys]),
-            {error, Reason}
-    end.
-
 process_mqtt_config(ProtocolProps, ProtocolVersion, ScenarioName) ->
     % Validate needed keys are here
     PropListKeys = proplists:get_keys(ProtocolProps),
-    ExtraKeys = PropListKeys -- ?MQTT_REQ_KEY_LIST,
+    NonReqKeys = PropListKeys -- ?MQTT_REQ_KEY_LIST,
+    ExtraKeys = NonReqKeys -- [?MQTT_CLIENT_INTERFACE_MODULE_PROP, ?MQTT_QOS_PROP],
     MissingKeys = ?MQTT_REQ_KEY_LIST -- PropListKeys,
 
     % Having extra keys is just a warning, disregard return of the case
@@ -356,9 +336,51 @@ process_mqtt_config(ProtocolProps, ProtocolVersion, ScenarioName) ->
             {error, Reason}
     end.
 
-process_dds_config(_ProtocolProps, _ScenarioName) ->
-    Reason = io_lib:format("DDS not currently supported.", []),
-    {error, Reason}.
+process_dds_config(ProtocolProps, ProtocolName, ScenarioName) ->
+    % Validate needed keys are here
+    PropListKeys = proplists:get_keys(ProtocolProps),
+    NonReqKeys = PropListKeys -- ?DDS_REQ_KEY_LIST,
+    ExtraKeys = NonReqKeys -- [?DDS_NIF_MODULE_PROP, ?DDS_NIF_FULL_PATH_PROP, ?DDS_QOS_FILE_PROP, ?DDS_CONFIG_FILE_PATH_PROP],
+    MissingKeys = ?DDS_REQ_KEY_LIST -- PropListKeys,
+
+    % Having extra keys is just a warning, disregard return of the case
+    case ExtraKeys of
+        [] -> ok;
+        _ -> ps_bench_utils:log_message("\tWarning: Unknown key(s) ~p found in DDS properties. Ignoring...", [ExtraKeys])
+    end,
+
+    % Missing keys is fatal
+    case MissingKeys of
+        [] ->
+            % Store proplist in persistent_term since it won't be edited 
+            persistent_term:put({?MODULE, ScenarioName, ProtocolName}, ProtocolProps);
+        _ ->
+            Reason = io_lib:format("Missings key(s) ~p in DDS properties.", [MissingKeys]),
+            {error, Reason}
+    end.
+
+process_scenario_metric_config(MetricProps, ScenarioName) ->
+    % Validate needed keys are here
+    PropListKeys = proplists:get_keys(MetricProps),
+    NonReqKeys = PropListKeys -- ?METRIC_REQ_KEY_LIST,
+    ExtraKeys =  NonReqKeys -- [?METRIC_WINDOW_MS_PROP, ?METRIC_ROLLUP_PERIOD_S_PROP, ?METRIC_PYTHON_ENGINE_PATH, ?METRIC_RESULTS_DIR_PROP],
+    MissingKeys = ?METRIC_REQ_KEY_LIST -- PropListKeys,
+
+    % Having extra keys is just a warning, disregard return of the case
+    case ExtraKeys of
+        [] -> ok;
+        _ -> ps_bench_utils:log_message("\tWarning: Unknown key(s) ~p found in metric properties. Ignoring...", [ExtraKeys])
+    end,
+
+    % Missing keys is fatal
+    case MissingKeys of
+        [] ->
+            % Store proplist in persistent_term since it won't be edited 
+            persistent_term:put({?MODULE, ScenarioName, ?METRIC_STORAGE_CONSTANT}, MetricProps);
+        _ ->
+            Reason = io_lib:format("Missings key(s) ~p in metric properties.", [MissingKeys]),
+            {error, Reason}
+    end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Retrival functions
@@ -398,12 +420,8 @@ fetch_protocol_type() ->
     {ok, ScenarioName} = fetch_selected_scenario(),
     fetch_property_for_scenario(ScenarioName, ?SCENARIO_PROTOCOL_PROP).
 
-fetch_client_interface_information() ->
-    % This may not exist so we specify a default value
-    {ok, ScenarioName} = fetch_selected_scenario(),
-    {ok, InterfaceType} = fetch_property_for_scenario(ScenarioName, ?SCENARIO_INTERFACE_TYPE_PROP, ?DEFAULT_INTERFACE_TYPE),
-    {ok, InterfaceName} = fetch_property_for_scenario(ScenarioName, ?SCENARIO_INTERFACE_NAME_PROP, ?DEFAULT_INTERFACE_NAME),
-    {ok, InterfaceType, InterfaceName}.
+fetch_mqtt_client_module() ->
+    fetch_protocol_property(?MQTT_CLIENT_INTERFACE_MODULE_PROP, ?MQTT_DEFAULT_CLIENT_INTERFACE_MODULE).
 
 fetch_mqtt_broker_information() ->
     {ok, BrokerIP} = fetch_protocol_property(?MQTT_BROKER_IP_PROP),
@@ -420,6 +438,20 @@ fetch_mqtt_qos_for_device(DeviceType) ->
     {ok, QoSList} = fetch_protocol_property(?MQTT_QOS_PROP),
     Value = proplists:get_value(DeviceType, QoSList, DefaultQoS),
     {ok, Value}.
+
+fetch_dds_nif_information() ->
+    {ok, NifModule} = fetch_protocol_property(?DDS_NIF_MODULE_PROP, ?DDS_DEFAULT_NIF_MODULE),
+    {ok, NifFullPath} = fetch_protocol_property(?DDS_NIF_FULL_PATH_PROP, ?DDS_DEFAULT_NIF_FULL_PATH),
+    {ok, NifModule, NifFullPath}.
+
+fetch_dds_domain_id() ->
+    fetch_protocol_property(?DDS_DOMAIN_ID_PROP).
+
+fetch_dds_config_file_path() ->
+    fetch_protocol_property(?DDS_CONFIG_FILE_PATH_PROP, ?DDS_DEFAULT_CONFIG_FILE_PATH).
+
+fetch_dds_qos_file_path() ->
+    fetch_protocol_property(?DDS_QOS_FILE_PROP, ?DDS_DEFAULT_QOS_FLAG).
 
 fetch_deployment_name() ->
     {ok, ScenarioName} = fetch_selected_scenario(),
@@ -444,6 +476,9 @@ fetch_host_for_node(NodeName) ->
         undefined -> {error, unknown_node};
         Host -> {ok, Host}
     end.
+
+fetch_metrics_output_dir() ->
+    fetch_metric_property(?METRIC_RESULTS_DIR_PROP, ?DEFAULT_OUT_DIR).
 
 fetch_metric_calculation_window() ->
     fetch_metric_property(?METRIC_WINDOW_MS_PROP, ?DEFAULT_WINDOW_MS).
@@ -514,10 +549,13 @@ fetch_property_for_scenario(ScenarioName, PropName, DefaultValue) ->
     end.
 
 fetch_protocol_property(Key) ->
+    fetch_protocol_property(Key, undefined).
+
+fetch_protocol_property(Key, DefaultValue) ->
     {ok, ScenarioName} = fetch_selected_scenario(),
     {ok, Protocol} = fetch_protocol_type(),
     ProtocolProps = persistent_term:get({?MODULE, ScenarioName, Protocol}),
-    case proplists:get_value(Key, ProtocolProps) of
+    case proplists:get_value(Key, ProtocolProps, DefaultValue) of
         undefined -> 
             {error, unknown_property};
         Value ->

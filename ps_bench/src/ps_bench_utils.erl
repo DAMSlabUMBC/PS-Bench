@@ -3,25 +3,66 @@
 -include("ps_bench_config.hrl").
 
 %% public
--export([initialize_rng_seed/0, initialize_rng_seed/1, generate_payload_data/3,
-         evaluate_uniform_chance/1, decode_seq_header/1]).
+-export([initialize_rng_seed/0, initialize_rng_seed/1, generate_mqtt_payload_data/3,
+         generate_dds_datatype_data/2, evaluate_uniform_chance/1, decode_seq_header/1]).
+
+-export([convert_to_atom/1, convert_to_binary/1]).
 
 -export([log_message/1, log_message/2, log_state_change/1, log_state_change/2]).
 
 initialize_rng_seed() ->
     % No seed provided, use the crypto library to generate a 12 digit seed
-    SeedValue = crypto:strong_rand_bytes(12),
-    crypto:rand_seed(SeedValue),
+    Seed = try_crypto_seed(2000),       
+    rand:seed(exsplus, Seed),
+    persistent_term:put({?MODULE, seed}, Seed),
+    ok.
 
-    % Save seed value for reproducibility
-    persistent_term:put({?MODULE, seed}, SeedValue).
-
-initialize_rng_seed(SeedValue) ->
+initialize_rng_seed(SeedArg) ->
     % Just seed and save
-    crypto:rand_seed(SeedValue),
-    persistent_term:put({?MODULE, seed}, SeedValue).
+     Seed =
+        case SeedArg of
+            {A,B,C} when is_integer(A), is_integer(B), is_integer(C) ->
+                {A,B,C};
+            <<A:32,B:32,C:32,_/binary>> ->  %% 12 or 16 bytes
+                {A,B,C};
+            I when is_integer(I) ->
+                mix_seed(I);
+            Bin when is_binary(Bin) ->
+                mix_seed(erlang:phash2(Bin))
+        end,
+    rand:seed(exsplus, Seed),
+    persistent_term:put({?MODULE, seed}, Seed),
+    ok.
 
-generate_payload_data(PayloadSizeMean, PayloadSizeVariance, Topic) ->
+try_crypto_seed(TimeoutMs) ->
+    Parent = self(),
+    Ref = make_ref(),
+    _Pid = spawn(fun() ->
+        %% 16 bytes -> 3x32-bit parts (+ 32-bit spare)
+        Bytes = crypto:strong_rand_bytes(16),
+        <<A:32,B:32,C:32,_/binary>> = Bytes,
+        Parent ! {Ref, {A,B,C}}
+    end),
+    receive
+        {Ref, Seed = {_,_,_}} -> Seed
+    after TimeoutMs ->
+        %% Fallback: never block startup
+        make_time_seed()
+    end.
+
+make_time_seed() ->
+    T = erlang:monotonic_time(),
+    U = erlang:unique_integer([positive]),
+    N = erlang:phash2(node()),
+    {T band 16#3fffffff, U band 16#3fffffff, N band 16#3fffffff}.
+
+mix_seed(Extra) ->
+    T = erlang:monotonic_time() bxor Extra,
+    U = erlang:unique_integer([positive]) bxor (Extra bsl 13),
+    N = erlang:phash2(node()) bxor (Extra bsl 7),
+    {T band 16#3fffffff, U band 16#3fffffff, N band 16#3fffffff}.
+
+generate_mqtt_payload_data(PayloadSizeMean, PayloadSizeVariance, Topic) ->
     % Calculate payload size according to a normal distribution
     FloatSize = rand:normal(PayloadSizeMean, PayloadSizeVariance),
     IntSize = erlang:round(FloatSize),
@@ -41,6 +82,18 @@ generate_payload_data(PayloadSizeMean, PayloadSizeVariance, Topic) ->
     Payload = <<Seq:64/unsigned, RandomBytes/binary>>,
     Payload.
 
+generate_dds_datatype_data(PayloadSizeMean, PayloadSizeVariance) ->
+    % Calculate payload size according to a normal distribution
+    FloatSize = rand:normal(PayloadSizeMean, PayloadSizeVariance),
+    IntSize = erlang:round(FloatSize),
+
+    % For DDS, the payload is standalone as we can encode the data we need in the IDL types
+    RandomBytes = crypto:strong_rand_bytes(IntSize),
+
+    % Calculate sequence number.
+    Seq = ps_bench_store:get_next_seq_id(?DDS_TOPIC),
+    {Seq, RandomBytes}.
+
 evaluate_uniform_chance(ChanceOfEvent) when 0.0 =< ChanceOfEvent, ChanceOfEvent =< 1.0 ->
     % Get a random value N, 0.0 <= N < 1.0
     RandVal = rand:uniform(),
@@ -55,6 +108,20 @@ decode_seq_header(<<TimeNs:64/unsigned, Seq:64/unsigned, Rest/binary>>) ->
 
 decode_seq_header(Bin) ->
     {undefined, undefined, Bin}.
+
+convert_to_atom(Name) ->
+    case Name of
+        A when is_atom(A)   -> A;
+        B when is_binary(B) -> list_to_atom(binary_to_list(B));
+        L when is_list(L)   -> list_to_atom(L)
+    end.
+
+convert_to_binary(Name) ->
+    case Name of
+        B when is_binary(B) -> B;
+        A when is_atom(A)   -> list_to_binary(atom_to_list(A));
+        L when is_list(L)   -> list_to_binary(L)
+    end.
 
 % Logging functions, may move these to a better logger class in the future
 log_message(Message) ->

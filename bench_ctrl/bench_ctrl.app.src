@@ -10,7 +10,8 @@
              clock_sync,
              dynamic_sup,
              node_agent,
-             metric_agg_srv]},
+             metric_agg_srv,
+             python_sup]},
   {licenses, ["Apache-2.0"]},
   {links, []}
  ]}.

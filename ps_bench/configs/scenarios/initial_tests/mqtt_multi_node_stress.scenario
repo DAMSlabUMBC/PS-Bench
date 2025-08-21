@@ -1,27 +1,29 @@
 [
-    {name, test_scenario_distrib},                                % Format: Erlang atom
-    {duration, {10, seconds}},
+    {name, mqtt_multi_node_stress},                                % Format: Erlang atom
+    {duration, {300, seconds}},
     {protocol, mqttv5},                                      % Format: Erlang atom, must be a supported protocol
-    {deployment_name, test_deployment_distrib},                              % Format: Erlang atom, must match the name field in a deployment definition file
+    {deployment_name, multi_node_stress},                             % Format: Erlang atom, must match the name field in a deployment definition file
     {hosts,
     [
-        {runner1, 'debian-main'},
-        {runner2, 'debian-main'}
+        {runner1, 'REPLACE_HOSTNAME'},
+        {runner2, 'REPLACE_HOSTNAME'},
+        {runner3, 'REPLACE_HOSTNAME'}
     ]},
-    
+
     {protocol_config,                                                       % Protocol specific configuration, see README for details on protocol configuration
     [
-        {broker, "192.168.1.212"},
+        {broker, "REPLACE_BROKER_IP"},
         {port, 1883},
         {qos, 
         [
             {default_qos, 0},
-            {temperature_sensor, 2}
+            {temperature_sensor, 0}
         ]}
     ]},
-
+    
     {metric_config,
     [
+        {output_dir, "results"},
         {calculation_window_ms, 1000},
         {rollup_period_s, 5},
         {metric_plugins, 

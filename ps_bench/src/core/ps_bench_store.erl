@@ -6,7 +6,7 @@
 %% seq mgmt
 -export([get_next_seq_id/1]).
 %% recv event I/O
--export([record_recv/6, record_connect/2, record_disconnect/2]).
+-export([record_recv/6, record_connect/2, record_disconnect/3]).
 %% rollup helpers
 -export([take_events_until/1, get_last_recv_seq/1, put_last_recv_seq/2]).
 %% window summaries
@@ -42,14 +42,14 @@ initialize_node_storage() ->
     ok.
 
 %% publisher seq generation (per-topic) 
-get_next_seq_id(TopicBin) when is_binary(TopicBin) ->
-    Key = {pub_topic, TopicBin},
+get_next_seq_id(Topic) ->
+    Key = {pub_topic, Topic},
     ets:update_counter(?T_PUBSEQ, Key, {2,1}, {Key,0}).
 
 %% record a recv event 
 %% EventMap shape:
 %% #{topic=>Topic, seq=>Seq|undefined, t_pub_ns=>TPub|undefined, t_recv_ns=>TRecv, bytes=>Bytes}
-record_recv(ClientName, TopicBin, Seq, TPubNs, TRecvNs, Bytes) ->
+record_recv(_ClientName, TopicBin, Seq, TPubNs, TRecvNs, Bytes) ->
 
     Key = TRecvNs,   %% ordered_set key
     Event = #{topic=>TopicBin, seq=>Seq, t_pub_ns=>TPubNs, t_recv_ns=>TRecvNs, bytes=>Bytes},
@@ -65,7 +65,7 @@ record_recv(ClientName, TopicBin, Seq, TPubNs, TRecvNs, Bytes) ->
 record_connect(_ClientName, _TimeNs) ->
     ok.
 
-record_disconnect(_ClientName, _TimeNs) ->
+record_disconnect(_ClientName, _TimeNs, _Type) ->
     ok.
 
 %% Drain all events with t_recv_ns <= CutoffNs and delete them

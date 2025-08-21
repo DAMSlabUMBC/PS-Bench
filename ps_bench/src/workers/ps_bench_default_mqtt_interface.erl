@@ -1,4 +1,4 @@
--module(ps_bench_mqtt_erlang_interface).
+-module(ps_bench_default_mqtt_interface).
 -behaviour(gen_server).
 
 -include("ps_bench_config.hrl").
@@ -12,7 +12,7 @@
          terminate/2, code_change/3]).
 
 start_link(ScenarioName, ClientName0, OwnerPid) ->
-    RegName = to_reg_name(ClientName0),
+    RegName = ps_bench_utils:convert_to_atom(ClientName0),
     gen_server:start_link({local, RegName}, ?MODULE, {ScenarioName, RegName, OwnerPid}, []).
 
 %%%===================================================================
@@ -20,25 +20,24 @@ start_link(ScenarioName, ClientName0, OwnerPid) ->
 %%%===================================================================
 
 init({ScenarioName, RegName, OwnerPid}) ->
-    ClientIdBin = to_clientid_bin(RegName),
+    ClientIdBin = ps_bench_utils:convert_to_binary(RegName),
     {ok, #{scenario_name => ScenarioName, client_name => ClientIdBin, reg_name => RegName, client_pid => 0, owner_pid => OwnerPid, connected => false, first_start => true}}.
 
-handle_call({connect}, _From, State = #{first_start := FirstStart}) ->
+handle_call(connect, _From, State = #{first_start := FirstStart}) ->
     % If not specifically told, we start clean by default, then preserve old sessions on reconnects
     do_connect(FirstStart, State);
 
-handle_call({connect_clean}, _From, State) ->
+handle_call(connect_clean, _From, State) ->
     % Force clean connect
     do_connect(false, State);
 
-handle_call({reconnect}, _From, State) ->
+handle_call(reconnect, _From, State) ->
     % Force restablishment of session
     % By the MQTT standard, this just starts a clean session if none existed previously
     do_connect(true, State);
 
 handle_call({subscribe, Properties, Topics}, _From, State = #{client_pid := ClientPid, connected := Connected}) when Connected == true ->
-    % Subscribe with the on Topic with Options
-    emqtt:subscribe(ClientPid, Properties, Topics),
+    _ = emqtt:subscribe(ClientPid, Properties, Topics),
     {reply, ok, State};
 
 handle_call({subscribe, _Properties, _Topics}, _From, State = #{connected := Connected}) when Connected == false ->
@@ -93,30 +92,33 @@ handle_cast(_, State) ->
     {noreply, State}.
     
 handle_info(Info, State) ->
-    io:format("Info: ~p~n", [Info]),
-    %% no info logic yet, just fulfill behaviour
-    {noreply, State}.
 
-terminate(Reason, _State) -> 
-    ps_bench_utils:log_message("Terminate with reason ~p",[Reason]),
+    case Info of
+        {'EXIT', _Pid, Reason} ->
+            handle_exception(Reason, State);
+        _ ->
+            ps_bench_utils:log_message("Recieved unknown info: ~p", [Info]),
+            {noreply, State}
+    end.
+
+handle_exception(Reason, State) ->
+    case Reason of
+        {shutdown, econnrefused} ->
+            ps_bench_utils:log_message("ERROR: MQTT Broker refused connection. Ensure connection parameters are correct"),
+            {kill, Reason};
+        normal ->
+            % Do nothing
+            {noreply, State};
+        _ ->
+            ps_bench_utils:log_message("ERROR: Recieved termination signal: ~p", [Reason]),
+            {noreply, State}
+    end.
+
+terminate(_Reason, _State) -> 
     ok.
 
 code_change(_OldVsn, State, _Extra) -> 
     {ok, State}.
-
-to_reg_name(Name) ->
-    case Name of
-        A when is_atom(A)   -> A;
-        B when is_binary(B) -> list_to_atom(binary_to_list(B));
-        L when is_list(L)   -> list_to_atom(L)
-    end.
-
-to_clientid_bin(Name) ->
-    case Name of
-        B when is_binary(B) -> B;
-        A when is_atom(A)   -> list_to_binary(atom_to_list(A));
-        L when is_list(L)   -> list_to_binary(L)
-    end.
 
 start_client_link(ClientName, CleanStart, OwnerPid) ->
     
@@ -133,13 +135,16 @@ start_client_link(ClientName, CleanStart, OwnerPid) ->
                         publish => fun(Msg) -> publish_event(OwnerPid, Msg, ClientName) end}}
     ],
 
-    % Start the client process
+    % Start the client process  
+    process_flag(trap_exit, true),
     case Protocol of
         ?MQTT_V5_PROTOCOL ->
             FullPropList = PropList ++ [{proto_ver, v5}],
+            ok = ensure_emqtt_started(),
             emqtt:start_link(FullPropList);
         ?MQTT_V311_PROTOCOL ->
             FullPropList = PropList ++ [{proto_ver, v3}],
+            ok = ensure_emqtt_started(),
             emqtt:start_link(FullPropList)
     end.
 
@@ -155,13 +160,15 @@ do_connect(CleanStart, State = #{client_name := ClientName, owner_pid := OwnerPi
                             {reply, {ok, new_connection},
                              State#{client_pid := NewClientPid, connected := true, first_start := false}};
                         {error, Reason} ->
-                            ps_bench_utils:log_message("MQTT connect failed (~p): ~p", [ClientName, Reason]),
+                            ps_bench_utils:log_message("MQTT connect failed for ~s with reason ~p", [ClientName, Reason]),
                             % Keep the server alive; report the error upward
                             {reply, {error, Reason}, State}
                     end;
                 {error, Reason} ->
                     ps_bench_utils:log_message("MQTT client start_link failed (~p): ~p", [ClientName, Reason]),
-                    {reply, {error, Reason}, State}
+                    {reply, {error, Reason}, State};
+                Res ->
+                    ps_bench_utils:log_message("Error ~p", [Res])
             end;
         true ->
             {reply, {ok, already_connected}, State}
@@ -184,4 +191,11 @@ publish_event(OwnerPid, _Msg = #{topic := Topic, payload := Payload}, ClientName
     TimeNs = erlang:monotonic_time(nanosecond),
     OwnerPid ! {?PUBLISH_RECV_MSG, {TimeNs, Topic, Payload}, ClientName},
     ok.
+
+ensure_emqtt_started() ->
+    case application:ensure_all_started(emqtt) of
+        {ok, _} -> ok;
+        {error, {emqtt, {already_started, _}}} -> ok;
+        {error, Reason} -> exit({emqtt_not_started, Reason})
+    end.
 

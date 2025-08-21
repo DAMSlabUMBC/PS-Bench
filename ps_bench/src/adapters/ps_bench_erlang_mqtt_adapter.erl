@@ -3,7 +3,7 @@
 
 -include("ps_bench_config.hrl").
 
--define(SUBSCRIPTION_ETS_TABLE_NAME, current_subscriptions).
+-define(SUBSCRIPTION_ETS_TABLE_NAME, current_mqtt_subscriptions).
 
 % Interface currently needs to:
 % - Accept handlers for recv, disconnect, connect
@@ -28,8 +28,8 @@ start_link(TestName, InterfaceName, ClientName, DeviceType) ->
 
 init([TestName, InterfaceName, ClientName, DeviceType]) ->
     %% Normalize names
-    ServerMod  = normalize_atom(InterfaceName),
-    ServerName = normalize_atom(ClientName),
+    ServerMod  = ps_bench_utils:convert_to_atom(InterfaceName),
+    ServerName = ps_bench_utils:convert_to_atom(ClientName),
 
     %% Start the interface process and always use the registered name
     {ok, _Pid} = ServerMod:start_link(TestName, ServerName, self()),
@@ -53,13 +53,9 @@ ensure_subs_table() ->
         Tid       -> Tid
     end.
 
-normalize_atom(A) when is_atom(A)   -> A;
-normalize_atom(S) when is_list(S)   -> list_to_atom(S);
-normalize_atom(B) when is_binary(B) -> list_to_atom(binary_to_list(B)).
-
 % For direct commands, we just forward these messages to the actual client
 handle_call(connect, _From, State = #{server_reference := ServerReference}) ->
-    Reply = catch gen_server:call(ServerReference, {connect}),
+    Reply = catch gen_server:call(ServerReference, connect),
     case Reply of
         {'EXIT', Reason} ->
             io:format("adapter: connect -> interface call failed: ~p~n", [Reason]),
@@ -69,15 +65,15 @@ handle_call(connect, _From, State = #{server_reference := ServerReference}) ->
     end;
 
 handle_call(connect_clean, _From, State = #{server_reference := ServerReference}) ->
-    gen_server:call(ServerReference, {connect_clean}),
+    gen_server:call(ServerReference, connect_clean),
     {reply, ok, State};
 
 handle_call(reconnect, _From, State = #{server_reference := ServerReference}) ->
-    gen_server:call(ServerReference, {reconnect}),
+    gen_server:call(ServerReference, reconnect),
     {reply, ok, State};
 
-handle_call({subscribe, Topics}, _From, State = #{server_reference := ServerReference, tid := Tid}) ->
-    do_subscribe(Topics, ServerReference, Tid),
+handle_call(subscribe, _From, State = #{server_reference := ServerReference, tid := Tid}) ->
+    do_subscribe([], ServerReference, Tid), %TODO FIX
     {reply, ok, State};
 
 handle_call({publish, Topic, Data, PubOpts}, _From, State = #{server_reference := ServerReference}) ->
@@ -133,10 +129,10 @@ handle_info({?CONNECTED_MSG, {TimeNs}, ClientName}, State) ->
 handle_info({?DISCONNECTED_MSG, {TimeNs, Reason}, ClientName}, State) ->
     case Reason of 
         normal ->
-            % This is expected, don't record
+            ps_bench_store:record_disconnect(ClientName, TimeNs, expected),
             {noreply, State};
         _ ->
-            ps_bench_store:record_disconnect(ClientName, TimeNs),
+            ps_bench_store:record_disconnect(ClientName, TimeNs, unexpected),
             {noreply, State}
     end;
 
@@ -144,22 +140,28 @@ handle_info({?PUBLISH_RECV_MSG, {RecvTimeNs, Topic, Payload}, ClientName}, State
     % Extracted needed info and store
     Bytes = byte_size(Payload),
     {Seq, PubTimeNs, _Rest} = ps_bench_utils:decode_seq_header(Payload),
-    io:format("Recv: ~p from ~p~n", [Payload, ClientName]),
     ps_bench_store:record_recv(ClientName, Topic, Seq, PubTimeNs, RecvTimeNs, Bytes),
     {noreply, State};
 
 handle_info(_Info, State) ->
     {noreply, State}.
 
-do_subscribe(Topics, ServerReference, Tid) ->
-    ok = gen_server:call(ServerReference, {subscribe, #{}, Topics}),
+do_subscribe(_Topics, ServerReference, Tid) ->
+
+    % Currently only support one topic
+    WildcardBinary = <<"#">>,
+    Topic = <<?MQTT_TOPIC_PREFIX/binary, WildcardBinary/binary>>,
+    QoS = 0, % WHAT TO DO ABOUT THIS??
+    NewTopics = [{Topic, [{qos, QoS}]}],
+
+    ok = gen_server:call(ServerReference, {subscribe, #{}, NewTopics}),
     PrevTopics =
         case ets:lookup(Tid, ServerReference) of
             []              -> [];
             [{_, TopicList}]-> TopicList
         end,
     %% keep unique topics
-    NewTopicList = lists:usort(Topics ++ PrevTopics),
+    NewTopicList = lists:usort(NewTopics ++ PrevTopics),
     ets:insert(Tid, {ServerReference, NewTopicList}).
 
 start_publication_loop(DeviceType, ServerReference) ->
@@ -173,10 +175,12 @@ start_publication_loop(DeviceType, ServerReference) ->
 
     % Create task
     {ok, QoS} = ps_bench_config_manager:fetch_mqtt_qos_for_device(DeviceType),
-    timer:apply_interval(PubFrequencyMs, fun publication_loop/5, [ServerReference, Topic, QoS, PayloadSizeMean, PayloadSizeVariance]).
+    {ok, TRef} = timer:apply_interval(PubFrequencyMs, fun publication_loop/5, [ServerReference, Topic, QoS, PayloadSizeMean, PayloadSizeVariance]),
+    {ok, TRef}.
+
 
 publication_loop(ServerReference, Topic, QoS, PayloadSizeMean, PayloadSizeVariance) ->
-    Payload = ps_bench_utils:generate_payload_data(PayloadSizeMean, PayloadSizeVariance, Topic),
+    Payload = ps_bench_utils:generate_mqtt_payload_data(PayloadSizeMean, PayloadSizeVariance, Topic),
     gen_server:call(ServerReference, {publish, #{}, Topic, Payload, [{qos, QoS}]}). % TODO, more settings?
 
 start_disconnection_loop(DeviceType, ServerReference) ->
@@ -187,7 +191,8 @@ start_disconnection_loop(DeviceType, ServerReference) ->
     case DisconPeriodMs of 
         Period when Period > 0 ->
             % apply_repeatedly doesn't run a new instance until the previous finished
-            timer:apply_repeatedly(Period, fun disconnect_loop/2, [ServerReference, DisconChance]);
+            {ok, TRef} = timer:apply_repeatedly(Period, fun disconnect_loop/2, [ServerReference, DisconChance]),
+            {ok, TRef};
         _ ->
             {ok, 0}
     end.
@@ -208,8 +213,8 @@ start_reconnection_loop(DeviceType, ServerReference) ->
     % Make sure we have a non-zero period
     case ReconPeriodMs of 
         Period when Period > 0 ->
-            % apply_repeatedly doesn't run a new instance until the previous finished
-            timer:apply_repeatedly(Period, fun reconnect_loop/2, [ServerReference, ReconChance]);
+            {ok, TRef} = timer:apply_repeatedly(Period, fun reconnect_loop/2, [ServerReference, ReconChance]),
+            {ok, TRef};
         _ ->
             {ok, 0}
     end.
@@ -218,7 +223,7 @@ reconnect_loop(ServerReference, ReconnectChance) ->
     % Check to see if we should reconnect
     case ps_bench_utils:evaluate_uniform_chance(ReconnectChance) of
         true ->
-            case gen_server:call(ServerReference, {reconnect}) of
+            case gen_server:call(ServerReference, reconnect) of
                 {ok, new_connection} ->
                     % Now resubscribe to the needed topics
                     resub_to_previous_topics(ServerReference);

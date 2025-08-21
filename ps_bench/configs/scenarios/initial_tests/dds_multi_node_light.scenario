@@ -1,0 +1,31 @@
+[
+    {name, dds_multi_node_light},                                % Format: Erlang atom
+    {duration, {60, seconds}},
+    {protocol, dds},                                      % Format: Erlang atom, must be a supported protocol
+    {deployment_name, multi_node_light},                             % Format: Erlang atom, must match the name field in a deployment definition file
+    {hosts,
+    [
+        {runner1, 'REPLACE_HOSTNAME'},
+        {runner2, 'REPLACE_HOSTNAME'},
+        {runner3, 'REPLACE_HOSTNAME'}
+    ]},
+
+    {protocol_config,                                                       % Protocol specific configuration, see README for details on protocol configuration
+    [
+        {domain_id, 1}
+    ]},
+    
+    {metric_config,
+    [
+        {output_dir, "results"},
+        {calculation_window_ms, 1000},
+        {rollup_period_s, 5},
+        {metric_plugins, 
+        [
+            {percentiles, python},
+            {throughput, python},
+            {drops, python}
+        ]},
+        {python_metric_engine_path, "priv/py_engine"}
+    ]}
+].

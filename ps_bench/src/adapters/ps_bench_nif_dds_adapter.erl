@@ -146,7 +146,6 @@ handle_cast(stop, State = #{nif_module := NifModule, pub_task := PubTaskRef, dis
 
 handle_info({?PUBLISH_RECV_MSG, {ClientName, Topic, SeqId, PubTimeNs, RecvTimeNs, Bytes}}, State) ->
     % Extracted needed info and store
-    io:format("Recv DDS seq id ~p from ~p~n", [SeqId, ClientName]),
     ps_bench_store:record_recv(ClientName, Topic, SeqId, PubTimeNs, RecvTimeNs, Bytes),
     {noreply, State};
 

@@ -140,7 +140,6 @@ handle_info({?PUBLISH_RECV_MSG, {RecvTimeNs, Topic, Payload}, ClientName}, State
     % Extracted needed info and store
     Bytes = byte_size(Payload),
     {Seq, PubTimeNs, _Rest} = ps_bench_utils:decode_seq_header(Payload),
-    io:format("Recv MQTT: ~p from ~p~n", [Payload, ClientName]),
     ps_bench_store:record_recv(ClientName, Topic, Seq, PubTimeNs, RecvTimeNs, Bytes),
     {noreply, State};
 

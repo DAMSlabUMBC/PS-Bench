@@ -19,6 +19,8 @@
          handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
+-export([publication_loop/5, disconnect_loop/2, reconnect_loop/2]).
+
 start_link(TestName, InterfaceName, ClientName, DeviceType) ->
     gen_server:start_link(?MODULE, [TestName, InterfaceName, ClientName, DeviceType], []).
 
@@ -36,6 +38,7 @@ init([TestName, InterfaceName, ClientName, DeviceType]) ->
     ServerRef   = ServerName,
 
     Tid = ensure_subs_table(),
+    ok = ps_bench_store:initialize_node_storage(),
     {ok, #{ test_name        => TestName
           , device_type      => DeviceType
           , server_reference => ServerRef
@@ -114,9 +117,16 @@ handle_cast(start_client_loops, State = #{device_type := DeviceType, server_refe
 
 handle_cast(stop, State = #{server_reference := ServerReference, pub_task := PubTaskRef, discon_task := DisconLoopTaskRef, recon_task := ReconLoopTaskRef}) ->
     % Stop all loops
-    timer:cancel(PubTaskRef),
-    timer:cancel(DisconLoopTaskRef),
-    timer:cancel(ReconLoopTaskRef),
+    Cancel = fun
+        (undefined) -> ok;
+        (0)         -> ok;
+        ({interval, R}) when is_reference(R) -> timer:cancel(R);
+        (R) when is_reference(R) -> timer:cancel(R);
+        (_) -> ok
+    end,
+    Cancel(PubTaskRef),
+    Cancel(DisconLoopTaskRef),
+    Cancel(ReconLoopTaskRef),
 
     % Tell interface to stop
     gen_server:cast(ServerReference, stop),
@@ -176,7 +186,11 @@ start_publication_loop(DeviceType, ServerReference) ->
 
     % Create task
     {ok, QoS} = ps_bench_config_manager:fetch_mqtt_qos_for_device(DeviceType),
-    {ok, TRef} = timer:apply_interval(PubFrequencyMs, fun publication_loop/5, [ServerReference, Topic, QoS, PayloadSizeMean, PayloadSizeVariance]),
+    {ok, TRef} =
+    timer:apply_interval(
+      PubFrequencyMs,
+      ?MODULE, publication_loop,
+      [ServerReference, Topic, QoS, PayloadSizeMean, PayloadSizeVariance]),
     {ok, TRef}.
 
 
@@ -192,7 +206,11 @@ start_disconnection_loop(DeviceType, ServerReference) ->
     case DisconPeriodMs of 
         Period when Period > 0 ->
             % apply_repeatedly doesn't run a new instance until the previous finished
-            {ok, TRef} = timer:apply_repeatedly(Period, fun disconnect_loop/2, [ServerReference, DisconChance]),
+            {ok, TRef} =
+                timer:apply_interval(
+                    Period,
+                    ?MODULE, disconnect_loop,
+                    [ServerReference, DisconChance]),
             {ok, TRef};
         _ ->
             {ok, 0}
@@ -214,7 +232,11 @@ start_reconnection_loop(DeviceType, ServerReference) ->
     % Make sure we have a non-zero period
     case ReconPeriodMs of 
         Period when Period > 0 ->
-            {ok, TRef} = timer:apply_repeatedly(Period, fun reconnect_loop/2, [ServerReference, ReconChance]),
+            {ok, TRef} =
+                timer:apply_interval(
+                    Period,
+                    ?MODULE, reconnect_loop,
+                    [ServerReference, ReconChance]),
             {ok, TRef};
         _ ->
             {ok, 0}

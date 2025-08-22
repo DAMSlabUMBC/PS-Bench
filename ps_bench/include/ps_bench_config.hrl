@@ -10,9 +10,9 @@
 -define(PS_BENCH_COOKIE, ps_bench_cookie).
 
 % Wildcard string for device file searching
--define(DEVICE_FILE_EXT, "*.device").
--define(DEPLOYMENT_FILE_EXT, "*.deployment").
--define(SCENARIO_FILE_EXT, "*.scenario").
+-define(DEVICE_FILE_EXT, "**/*.device").
+-define(DEPLOYMENT_FILE_EXT, "**/*.deployment").
+-define(SCENARIO_FILE_EXT, "**/*.scenario").
 
 % Device file fields
 -define(DEVICE_TYPE_PROP, type).

@@ -10,12 +10,6 @@ start_link(Opts) ->
 ingest_window(RunId, WinStartMs, WinMap) ->
     gen_server:cast(?MODULE, {ingest, RunId, WinStartMs, WinMap}).
 
-get_out_dir() ->
-    case os:getenv("METRICS_DIR") of
-        false -> ?DEFAULT_OUT_DIR;
-        Dir   -> Dir
-    end.
-
 init(Opts) ->
     %% Build an absolute path to priv/py_engine that works in dev & release
     PrivDir = code:priv_dir(ps_bench),
@@ -30,7 +24,7 @@ init(Opts) ->
 
     {ok, Py} = python:start_link([{python_path, [PyPath]},
                                 {python, "python3"}]),
-    ok = python:call(Py, window_engine, start, [Listener, Plugins, OutDir]),
+    ok = python:call(Py, window_engine, start, [Listener, Plugins, BinaryOutDir]),
 
     {ok, #{py => Py}}.
 

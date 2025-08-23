@@ -41,6 +41,7 @@ stop_scenario() ->
 
     % Stop clients and notify the benchmarking scenario is complete
     stop_clients(),
+    timer:sleep(1000),
     destroy_clients(),
     gen_server:cast(?NODE_MANAGER, global_continue).
 
@@ -101,7 +102,7 @@ start_client_loops() ->
 
 stop_clients() ->
     ClientList = persistent_term:get(?MODULE),
-    StopFunction = fun({_ClientName, ClientPid}) -> gen_server:cast(ClientPid, stop) end,
+    StopFunction = fun({_ClientName, ClientPid}) -> gen_server:call(ClientPid, stop) end,
     lists:foreach(StopFunction, ClientList).
 
 destroy_clients() ->

@@ -129,7 +129,7 @@ handle_cast(stop, State = #{server_reference := ServerReference, pub_task := Pub
     Cancel(ReconLoopTaskRef),
 
     % Tell interface to stop
-    gen_server:cast(ServerReference, stop),
+    gen_server:call(ServerReference, stop),
     {noreply, State}.
 
 handle_info({?CONNECTED_MSG, {TimeNs}, ClientName}, State) ->
@@ -158,11 +158,16 @@ handle_info(_Info, State) ->
 
 do_subscribe(_Topics, ServerReference, Tid) ->
 
-    % Currently only support one topic
+    % Currently only support wildcarded topic
+    % We will subscribe to a topic for each QoS to support multi QoS deployments
     WildcardBinary = <<"#">>,
-    Topic = <<?MQTT_TOPIC_PREFIX/binary, WildcardBinary/binary>>,
-    QoS = 0, % WHAT TO DO ABOUT THIS??
-    NewTopics = [{Topic, [{qos, QoS}]}],
+    QoS0End = ps_bench_utils:convert_to_binary("qos_0/#"),
+    QoS1End = ps_bench_utils:convert_to_binary("qos_1/#"),
+    QoS2End = ps_bench_utils:convert_to_binary("qos_2/#"),
+    QoS0Topic = <<?MQTT_TOPIC_PREFIX/binary, QoS0End/binary>>,
+    QoS1Topic = <<?MQTT_TOPIC_PREFIX/binary, QoS1End/binary>>,
+    QoS2Topic = <<?MQTT_TOPIC_PREFIX/binary, QoS2End/binary>>,
+    NewTopics = [{QoS0Topic, [{qos, 0}]}, {QoS1Topic, [{qos, 1}]}, {QoS2Topic, [{qos, 2}]}],
 
     ok = gen_server:call(ServerReference, {subscribe, #{}, NewTopics}),
     PrevTopics =
@@ -180,11 +185,13 @@ start_publication_loop(DeviceType, ServerReference) ->
     {ok, PayloadSizeMean, PayloadSizeVariance} = ps_bench_config_manager:fetch_device_payload_info(DeviceType),
 
     % Construct topic
+    {ok, QoS} = ps_bench_config_manager:fetch_mqtt_qos_for_device(DeviceType),
+    QoSPart = lists:flatten(io_lib:format("qos_~p/", [QoS])),
+    QoSPartBinary = ps_bench_utils:convert_to_binary(QoSPart),
     DeviceTypeBinary = atom_to_binary(DeviceType, latin1),
-    Topic = <<?MQTT_TOPIC_PREFIX/binary, DeviceTypeBinary/binary>>,
+    Topic = <<?MQTT_TOPIC_PREFIX/binary, QoSPartBinary/binary, DeviceTypeBinary/binary>>,
 
     % Create task
-    {ok, QoS} = ps_bench_config_manager:fetch_mqtt_qos_for_device(DeviceType),
     {ok, TRef} =
     timer:apply_interval(
       PubFrequencyMs,

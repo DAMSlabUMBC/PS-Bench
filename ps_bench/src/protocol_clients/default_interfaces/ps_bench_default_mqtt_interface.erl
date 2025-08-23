@@ -60,8 +60,6 @@ handle_call({publish, Properties, Topic, Payload, PubOpts},
             {reply, ok, State}
     end;
 
-    
-
 handle_call({unsubscribe, Properties, Topics}, _From, State = #{client_pid := ClientPid}) ->
     % Subscribe with the on Topic with Options
     {ok, _Props, _ReasonCodes} = emqtt:unsubscribe(ClientPid, Properties, Topics),
@@ -79,13 +77,12 @@ handle_call(disconnect, _From, State = #{client_pid := ClientPid, connected := C
             {reply, ok, State}
     end;
 
+handle_call(stop, _From, State) ->
+    % Do nothing
+    {reply, ok, State};
+
 handle_call(_, _, State) ->
     {reply, ok, State}.
-
-handle_cast(stop, State = #{client_pid := ClientPid}) ->
-    % Shutdown the client
-    _ = emqtt:stop(ClientPid),
-    {noreply, State};
 
 handle_cast(_, State) ->
     {noreply, State}.

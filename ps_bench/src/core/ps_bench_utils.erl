@@ -130,7 +130,8 @@ convert_to_binary(Name) ->
     case Name of
         B when is_binary(B) -> B;
         A when is_atom(A)   -> list_to_binary(atom_to_list(A));
-        L when is_list(L)   -> list_to_binary(L)
+        L when is_list(L)   -> list_to_binary(L);
+        I when is_integer(I) -> integer_to_binary(I)
     end.
 
 convert_to_list(Name) ->

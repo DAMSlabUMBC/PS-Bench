@@ -1,8 +1,0 @@
-=INFO REPORT==== 22-Aug-2025::06:29:55.889229 ===
-SIGTERM received - shutting down
-
-=INFO REPORT==== 22-Aug-2025::06:32:40.430417 ===
-    application: ps_bench
-    exited: stopped
-    type: permanent
-

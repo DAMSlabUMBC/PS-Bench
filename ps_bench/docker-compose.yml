@@ -1,23 +1,54 @@
+networks:
+  benchnet:
+
 services:
-  broker:
-    image: eclipse-mosquitto:2.0
+  mosquitto:
+    image: eclipse-mosquitto:2
+    profiles: ["mosq"]
+    networks:
+      benchnet:
+        aliases: ["mosquitto", "mqtt", "broker", "mqtt-broker"]
     ports:
-      - "1883:1883"
+      - "${MOSQUITTO_PORT:-1883}:1883"
     volumes:
       - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
-    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 1883"]
+      interval: 2s
+      timeout: 1s
+      retries: 20
+      
+  emqx:
+    image: emqx/emqx:latest
+    profiles: ["emqx"]
+    networks:
+      benchnet:
+        aliases: ["emqx", "mqtt", "broker", "mqtt-broker"]
+    ports:
+      - "${EMQX_PORT:-2883}:1883"
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 1883"]
+      interval: 2s
+      timeout: 1s
+      retries: 20
 
-  ps_bench:
+  runner:
+    profiles: ["bench"]
     build: .
-    depends_on: [broker]
+    networks: [benchnet]
     environment:
-      RELX_REPLACE_OS_VARS: "true"
-      NODE_SHORT: "runner1"         
-      COOKIE: "ps_bench_cookie"
-      INET_MIN: "15000"
-      INET_MAX: "15010"
-      METRICS_DIR: "/app/out"
+      SCENARIO: ${SCENARIO:-mqtt_multi_node_light}
+      SELECTED_SCENARIO: ${SCENARIO:-mqtt_multi_node_light}
+
+      # Force MQTT host/port used by scenarios at runtime
+      BROKER_HOST: ${BROKER_HOST:-mqtt}
+      BROKER_PORT: ${BROKER_PORT:-${MOSQUITTO_PORT:-1883}}
+
+      # Metrics
+      RUN_TAG: ${RUN_TAG:-run1}
+      ADD_NODE_TO_SUFFIX: ${ADD_NODE_TO_SUFFIX:-true}
+
+      # Erlang distribution 
+      RELEASE_COOKIE: ${RELEASE_COOKIE:-ps_bench_cookie}
     volumes:
-      - ./configs:/app/configs:ro
       - ./out:/app/out
-    restart: unless-stopped

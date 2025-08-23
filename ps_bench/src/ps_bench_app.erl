@@ -16,7 +16,7 @@ start(_StartType, _StartArgs) ->
         ok ->   
             % Fetch required information then start the supervisor
             {ok, NodeName} = ps_bench_config_manager:fetch_node_name(),
-            {ok, NodeList} = ps_bench_config_manager:fetch_node_list(),
+            {ok, NodeList} = ps_bench_config_manager:fetch_node_name_list(),
             {ok, TopSupPid} = ps_bench_sup:start_link(NodeName, NodeList),
 
             % Now that the supervision tree is started, tell the benchmark to initialize itself

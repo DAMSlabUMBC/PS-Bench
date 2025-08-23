@@ -4,9 +4,9 @@
 
 %% public
 -export([initialize_rng_seed/0, initialize_rng_seed/1, generate_mqtt_payload_data/3,
-         generate_dds_datatype_data/2, evaluate_uniform_chance/1, decode_seq_header/1]).
+         generate_dds_datatype_data/2, evaluate_uniform_chance/1, decode_seq_header/1, fetch_rng_seed/0]).
 
--export([convert_to_atom/1, convert_to_binary/1]).
+-export([convert_to_atom/1, convert_to_binary/1, convert_to_list/1]).
 
 -export([log_message/1, log_message/2, log_state_change/1, log_state_change/2]).
 
@@ -15,7 +15,7 @@ initialize_rng_seed() ->
     Seed = try_crypto_seed(2000),       
     rand:seed(exsplus, Seed),
     persistent_term:put({?MODULE, seed}, Seed),
-    ok.
+    Seed.
 
 initialize_rng_seed(SeedArg) ->
     % Just seed and save
@@ -32,7 +32,17 @@ initialize_rng_seed(SeedArg) ->
         end,
     rand:seed(exsplus, Seed),
     persistent_term:put({?MODULE, seed}, Seed),
-    ok.
+    Seed.
+
+fetch_rng_seed() ->
+    Seed = persistent_term:get({?MODULE, seed}, undefined),
+    case Seed of 
+        undefined -> 
+            % Create new seed if not already existing
+            initialize_rng_seed();
+        _ -> 
+            Seed
+    end.
 
 try_crypto_seed(TimeoutMs) ->
     Parent = self(),
@@ -121,6 +131,13 @@ convert_to_binary(Name) ->
         B when is_binary(B) -> B;
         A when is_atom(A)   -> list_to_binary(atom_to_list(A));
         L when is_list(L)   -> list_to_binary(L)
+    end.
+
+convert_to_list(Name) ->
+    case Name of
+        A when is_atom(A)   -> atom_to_list(A);
+        B when is_binary(B) -> binary_to_list(B);
+        L when is_list(L)   -> L
     end.
 
 % Logging functions, may move these to a better logger class in the future

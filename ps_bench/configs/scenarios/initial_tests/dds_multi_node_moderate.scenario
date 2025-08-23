@@ -5,9 +5,18 @@
     {deployment_name, multi_node_moderate},                             % Format: Erlang atom, must match the name field in a deployment definition file
     {hosts,
     [
-        {runner1, 'REPLACE_HOSTNAME'},
-        {runner2, 'REPLACE_HOSTNAME'},
-        {runner3, 'REPLACE_HOSTNAME'}
+        {runner1, 
+        [
+            {hostname, 'REPLACE_HOSTNAME'}
+        ]},
+        {runner2, 
+        [
+            {hostname, 'REPLACE_HOSTNAME'}
+        ]},
+        {runner3, 
+        [
+            {hostname, 'REPLACE_HOSTNAME'}
+        ]}
     ]},
 
     {protocol_config,                                                       % Protocol specific configuration, see README for details on protocol configuration

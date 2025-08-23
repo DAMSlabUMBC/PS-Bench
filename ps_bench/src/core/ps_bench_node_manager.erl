@@ -12,6 +12,7 @@
          terminate/2, code_change/3]).
 
 -export([setup_benchmark/0]).
+-export([is_primary_node/0]).
 
 start_link(NodeName) ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, NodeName, []).
@@ -33,8 +34,8 @@ handle_cast(local_continue, State = #{node_name := RawNodeName}) ->
 
 handle_cast(global_continue, State = #{node_name := RawNodeName}) ->
     NodeName = ps_bench_utils:convert_to_atom(RawNodeName),
-    ps_bench_lifecycle:current_step_complete(NodeName),
-    rpc:multicall(nodes(), ps_bench_lifecycle, current_step_complete, [NodeName]),
+    {ok, Nodes} = ps_bench_config_manager:fetch_node_list(),
+    rpc:multicall(Nodes, ps_bench_lifecycle, current_step_complete, [NodeName]),
     {noreply, State};
 
 handle_cast(_Other, State) ->
@@ -56,9 +57,10 @@ handle_next_step_command(start_connections) ->
     ps_bench_utils:log_state_change("Establishing Connections"),
 
     % Find all other nodes
+    % {ok, NodeList} = ps_bench_config_manager:fetch_node_name_list(),
+    % NodeHostList = lists:map(fun(X) -> get_hostname_for_node(X) end, NodeList),
     {ok, NodeList} = ps_bench_config_manager:fetch_node_list(),
-    NodeHostList = lists:map(fun(X) -> get_hostname_for_node(X) end, NodeList),
-    case wait_for_nodes_to_connect(NodeHostList) of
+    case wait_for_nodes_to_connect(NodeList) of
         ok ->
             gen_server:cast(?MODULE, local_continue);
         {error, Reason} ->
@@ -69,7 +71,9 @@ handle_next_step_command(start_initialization) ->
     ps_bench_utils:log_state_change("Initializing Benchmark Node"),
 
     % Initialize random number generator
-    ps_bench_utils:initialize_rng_seed(), % TODO, need to sync across all nodes and allow loading from config
+    Seed = initialize_rng_seed(),
+
+    ps_bench_utils:log_message("SEED: ~p", [Seed]),
 
     % Create storage tables
     ok = ps_bench_store:initialize_node_storage(),
@@ -103,6 +107,11 @@ terminate(_Reason, _State) -> ok.
 code_change(_OldVsn, State, _Extra) -> 
     {ok, State}.
 
+is_primary_node() ->
+    % We call ourselves primary if we're the first in the scenario config list
+    {ok, [PrimaryNode | _]} = ps_bench_config_manager:fetch_node_list(),
+    (PrimaryNode =:= node()).
+
 %%%===================================================================
 %%% Lifecycle Managment calls
 %%%===================================================================
@@ -130,31 +139,6 @@ ensure_distribution(NodeName0) ->
             end;
         _DistributedName ->
             ok
-    end.
-    
-get_hostname_for_node(NodeName) ->
-    Host = host_for_cluster(),
-    ensure_full_node(NodeName, Host).
-host_for_cluster() ->
-    case os:getenv("NODE_HOST_OVERRIDE") of
-        false ->
-            case string:tokens(atom_to_list(node()), "@") of
-                [_Name, H] -> H;          % use host part of our running node()
-                _          -> net_adm:localhost()
-            end;
-        V -> V
-    end.
-
-ensure_full_node(NodeName, Host) ->
-    NameStr =
-        case NodeName of
-            A when is_atom(A)   -> atom_to_list(A);
-            B when is_binary(B) -> binary_to_list(B);
-            L when is_list(L)   -> L
-        end,
-    case lists:member($@, NameStr) of
-        true  -> list_to_atom(NameStr);
-        false -> list_to_atom(NameStr ++ "@" ++ Host)
     end.
 
 wait_for_nodes_to_connect([]) ->
@@ -184,4 +168,16 @@ wait_for_node_to_connect(Node, RetryCount) ->
                 after (1000) -> wait_for_node_to_connect(Node, RetryCount - 1)
                 end
             end
+    end.
+
+initialize_rng_seed() ->
+    % Need to check if we have one in config or if we need to make a new one
+    {ok, NodeName} = ps_bench_config_manager:fetch_node_name(),
+    case ps_bench_config_manager:fetch_rng_seed_for_node(NodeName) of
+        {ok, Seed} ->
+            % Use configured seed
+            ps_bench_utils:initialize_rng_seed(Seed);
+        {error, unknown_property} ->
+            % Generate a new seed
+            ps_bench_utils:initialize_rng_seed()
     end.

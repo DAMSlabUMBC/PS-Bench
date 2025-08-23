@@ -6,8 +6,8 @@
 -export([load_config_from_env_vars/0]).
 
 % Retrieval exports
--export([fetch_node_name/0, fetch_selected_scenario/0, fetch_scenario_duration/0, fetch_deployment_name/0, fetch_node_list/0,
-    fetch_host_for_node/1, fetch_protocol_type/0, fetch_devices_for_this_node/0,
+-export([fetch_node_name/0, fetch_selected_scenario/0, fetch_scenario_duration/0, fetch_deployment_name/0, fetch_node_name_list/0,
+    fetch_host_for_node_name/1, fetch_host_for_node_name/2, fetch_rng_seed_for_node/1, fetch_node_list/0, fetch_protocol_type/0, fetch_devices_for_this_node/0,
     fetch_device_publication_frequency/1, fetch_device_payload_info/1, fetch_device_disconnect_info/1, 
     fetch_device_reconnect_info/1]).
 
@@ -206,7 +206,7 @@ process_deployment_nodes(Def, DeploymentName) ->
 
             % Store list of nodes for the deployment
             NodeNames = proplists:get_keys(Def),
-            persistent_term:put({?MODULE, DeploymentName}, NodeNames),
+            persistent_term:put({?MODULE, DeploymentName, node_names}, NodeNames),
 
             % Process nodes one at a time 
             lists:foreach(fun({NodeName, Props}) -> process_deployment_node(Props, NodeName, DeploymentName) end, Def),
@@ -457,11 +457,11 @@ fetch_deployment_name() ->
     {ok, ScenarioName} = fetch_selected_scenario(),
     fetch_property_for_scenario(ScenarioName, ?SCENARIO_DEPLOYMENT_NAME_PROP).
 
-fetch_node_list() ->
+fetch_node_name_list() ->
     {ok, DeploymentName} = fetch_deployment_name(),
    
     % Node list is saved directly under the deployment name, no properties needed
-    NodeList = persistent_term:get({?MODULE, DeploymentName}, unknown_deployment),
+    NodeList = persistent_term:get({?MODULE, DeploymentName, node_names}, unknown_deployment),
     case NodeList of 
         unknown_deployment -> 
             {error, unknown_deployment};
@@ -469,13 +469,49 @@ fetch_node_list() ->
             {ok, NodeList}
     end.
 
-fetch_host_for_node(NodeName) ->
+fetch_host_for_node_name(NodeName) ->
+    fetch_host_for_node_name(NodeName, undefined).
+
+fetch_host_for_node_name(NodeName, DefaultHost) ->
+    fetch_property_for_node(NodeName, ?SCENARIO_HOST_HOSTNAME_PROP, DefaultHost).
+
+fetch_rng_seed_for_node(NodeName) ->
+    fetch_property_for_node(NodeName, ?SCENARIO_HOST_RNG_SEED_PROP).
+
+fetch_property_for_node(NodeName, PropName) ->
+    fetch_property_for_node(NodeName, PropName, undefined).
+
+fetch_property_for_node(NodeName, PropName, DefaultValue) ->
     {ok, ScenarioName} = fetch_selected_scenario(),
-    {ok, NodeToHostList} = fetch_property_for_scenario(ScenarioName, ?SCENARIO_HOSTS_PROP),
-    case proplists:get_value(NodeName, NodeToHostList) of
-        undefined -> {error, unknown_node};
-        Host -> {ok, Host}
+    {ok, AllNodePropLists} = fetch_property_for_scenario(ScenarioName, ?SCENARIO_HOSTS_PROP),
+    
+    case proplists:get_value(NodeName, AllNodePropLists) of
+        undefined -> 
+            {error, unknown_node};
+        NodeProps ->
+            case proplists:get_value(PropName, NodeProps, DefaultValue) of
+                undefined -> 
+                    {error, unknown_property};
+                Value ->
+                    {ok, Value}
+            end
     end.
+
+fetch_node_list() ->
+    % Check to see if we've already made this
+    case persistent_term:get({?MODULE, node_list}, undefined) of
+        undefined ->
+            {ok, NodeNames} = ps_bench_config_manager:fetch_node_name_list(),
+            NodeList = lists:map(fun(X) -> fetch_full_node_from_name(X) end, NodeNames),
+            persistent_term:put({?MODULE, node_list}, NodeList),
+            {ok, NodeList};
+        NodeList ->
+            {ok, NodeList}
+    end.
+
+fetch_full_node_from_name(NodeName) ->
+    {ok, Host} = fetch_host_for_node_name(NodeName, net_adm:localhost()),
+    list_to_atom(ps_bench_utils:convert_to_list(NodeName) ++ "@" ++ ps_bench_utils:convert_to_list(Host)).
 
 fetch_metrics_output_dir() ->
     fetch_metric_property(?METRIC_RESULTS_DIR_PROP, ?DEFAULT_OUT_DIR).

@@ -5,7 +5,10 @@
     {deployment_name, test_deployment},                             % Format: Erlang atom, must match the name field in a deployment definition file
     {hosts,
     [
-        {runner1, 'paladin'}
+        {runner1, 
+        [
+            {hostname, 'paladin'}
+        ]}
     ]},
 
     {protocol_config,                                                       % Protocol specific configuration, see README for details on protocol configuration

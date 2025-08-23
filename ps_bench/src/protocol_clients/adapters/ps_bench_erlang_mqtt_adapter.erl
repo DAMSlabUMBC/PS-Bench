@@ -206,7 +206,7 @@ start_disconnection_loop(DeviceType, ServerReference) ->
         Period when Period > 0 ->
             % apply_repeatedly doesn't run a new instance until the previous finished
             {ok, TRef} =
-                timer:apply_interval(
+                timer:apply_repeatedly(
                     Period,
                     ?MODULE, disconnect_loop,
                     [ServerReference, DisconChance]),
@@ -232,7 +232,7 @@ start_reconnection_loop(DeviceType, ServerReference) ->
     case ReconPeriodMs of 
         Period when Period > 0 ->
             {ok, TRef} =
-                timer:apply_interval(
+                timer:apply_repeatedly(
                     Period,
                     ?MODULE, reconnect_loop,
                     [ServerReference, ReconChance]),

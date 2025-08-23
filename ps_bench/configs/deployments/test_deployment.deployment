@@ -6,7 +6,8 @@
         [
             {devices,                                                           % Format: List of 2-tuples in the form {DEVICE_TYPE, DEVICE_COUNT}                                                                           
             [                                                                   %         (DEVICE_TYPE must match the type field in a device definition file)
-                {occupancy_sensor, 1}
+                {occupancy_sensor, 1},
+                {temperature_sensor, 3}
             ]}
         ]}
     ]}

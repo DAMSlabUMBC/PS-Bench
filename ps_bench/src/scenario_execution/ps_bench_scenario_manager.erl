@@ -33,7 +33,7 @@ run_scenario() ->
     ps_bench_utils:log_message("Starting at ~s and running for ~pms", [TimeStr, DurationMs]),
 
     start_client_loops(),
-    timer:apply_after(DurationMs, fun stop_scenario/0).
+    _Ref = timer:apply_after(DurationMs, ?MODULE, stop_scenario, []).
 
 stop_scenario() ->
     {ok, ScenarioName} = ps_bench_config_manager:fetch_selected_scenario(),

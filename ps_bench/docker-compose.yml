@@ -2,7 +2,7 @@ services:
   broker:
     image: eclipse-mosquitto:2.0
     ports:
-      - "1884:1883"         # only publish the broker
+      - "1883:1883"
     volumes:
       - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
     restart: unless-stopped
@@ -11,13 +11,13 @@ services:
     build: .
     depends_on: [broker]
     environment:
-      ERL_AFLAGS: "-sname runner1 -setcookie ps_bench_cookie -kernel inet_dist_listen_min 15000 inet_dist_listen_max 15010"
+      RELX_REPLACE_OS_VARS: "true"
+      NODE_SHORT: "runner1"         
+      COOKIE: "ps_bench_cookie"
+      INET_MIN: "15000"
+      INET_MAX: "15010"
       METRICS_DIR: "/app/out"
     volumes:
-      - ./configs:/app/configs:ro  # so ps_bench.config is available
-      - ./out:/app/out             # metrics will show up on your host here
-    # Do NOT publish 4369/15000-15010 to the host; container-to-container is enough
-    expose:
-      - "4369"
-      - "15000-15010"
+      - ./configs:/app/configs:ro
+      - ./out:/app/out
     restart: unless-stopped

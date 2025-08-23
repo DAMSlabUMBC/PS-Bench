@@ -44,23 +44,22 @@ handle_call({subscribe, _Properties, _Topics}, _From, State = #{connected := Con
     % Do nothing if not connected
     {reply, ok, State};
 
-handle_call({publish, Properties, Topic, Payload, PubOpts}, _From, State = #{client_pid := ClientPid, connected := Connected}) when is_binary(Topic), is_binary(Payload) ->
-    % Need to check QoS
+handle_call({publish, Properties, Topic, Payload, PubOpts},
+            _From,
+            State = #{client_pid := ClientPid, connected := Connected})
+  when is_binary(Topic), is_binary(Payload) ->
     case Connected of
         true ->
-            case lists:keysearch(qos, 1, PubOpts) of
-                % QoS >= 1, we need to return PacketId
-                {value, {qos, QoS}} when QoS >= 1  -> 
-                    emqtt:publish(ClientPid, Topic, Properties, Payload, PubOpts),
-                    {reply, ok, State};
-                % QoS wasn't specified or was given a value of 0
-                _ ->
-                    emqtt:publish(ClientPid, Topic, Properties, Payload, PubOpts),
-                    {reply, ok, State}
-            end;
+            %% Prepend monotonic time so payload matches decode_seq_header/1
+            TimeNs = erlang:monotonic_time(nanosecond),
+            Payload1 = <<TimeNs:64/unsigned, Payload/binary>>,
+            _ = emqtt:publish(ClientPid, Topic, Properties, Payload1, PubOpts),
+            {reply, ok, State};
         false ->
+            %% Not connected; swallow to keep orchestration alive
             {reply, ok, State}
     end;
+
     
 
 handle_call({unsubscribe, Properties, Topics}, _From, State = #{client_pid := ClientPid}) ->

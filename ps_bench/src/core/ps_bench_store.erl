@@ -23,34 +23,62 @@
 -define(T_WINS, psb_windows).        %% {{RunId, WinStartMs}} -> SummaryMap
 
 initialize_node_storage() ->
-    ets:new(?T_PUBSEQ, [named_table, public, set, {read_concurrency,true},{write_concurrency,true}]),
-    ets:new(?T_RECVSEQ,[named_table, public, set, {read_concurrency,true},{write_concurrency,true}]),
-    %% keep events ordered by receive timestamp (ns)
-    ets:new(?T_CONNECT_EVENTS, [named_table, public, ordered_set, {write_concurrency,true}]),
-    ets:new(?T_DISCONNECT_EVENTS, [named_table, public, ordered_set, {write_concurrency,true}]),
-    ets:new(?T_PUBLISH_EVENTS, [named_table, public, ordered_set, {write_concurrency,true}]),
-    ets:new(?T_RECV_EVENTS, [named_table, public, ordered_set, {write_concurrency,true}]),
-    ets:new(?T_WINS,   [named_table, public, set, {write_concurrency,true}]),
-
-    % Setup mnesia DB
-    % io:format("STARTING"),
-    % application:start(mnesia),
-    % mnesia:create_table(?RECV_EVENT_RECORD_NAME, [{attributes, record_info(fields, ?RECV_EVENT_RECORD_NAME)},
-    %                                                 {type, bag},
-    %                                                 {index, #?RECV_EVENT_RECORD_NAME.topic}]),
-    % io:format("AFTER"),
+    ensure_tables(),
     ok.
 
 %% publisher seq generation (per-topic) 
 get_next_seq_id(Topic) ->
+    ensure_tables(),
     Key = {pub_topic, Topic},
     ets:update_counter(?T_PUBSEQ, Key, {2,1}, {Key,0}).
+
+%% Create ETS tables if they don't already exist (safe to call many times)
+ensure_tables() ->
+    %% per-topic pub seq
+    case ets:info(?T_PUBSEQ) of
+        undefined -> ets:new(?T_PUBSEQ, [named_table, public, set,
+                                         {read_concurrency,true},{write_concurrency,true}]);
+        _ -> ok
+    end,
+    %% last recv seq per topic
+    case ets:info(?T_RECVSEQ) of
+        undefined -> ets:new(?T_RECVSEQ,[named_table, public, set,
+                                         {read_concurrency,true},{write_concurrency,true}]);
+        _ -> ok
+    end,
+    %% events (ordered by recv timestamp)
+    case ets:info(?T_CONNECT_EVENTS) of
+        undefined -> ets:new(?T_CONNECT_EVENTS, [named_table, public, ordered_set,
+                                                 {write_concurrency,true}]);
+        _ -> ok
+    end,
+    case ets:info(?T_DISCONNECT_EVENTS) of
+        undefined -> ets:new(?T_DISCONNECT_EVENTS, [named_table, public, ordered_set,
+                                                    {write_concurrency,true}]);
+        _ -> ok
+    end,
+    case ets:info(?T_PUBLISH_EVENTS) of
+        undefined -> ets:new(?T_PUBLISH_EVENTS, [named_table, public, ordered_set,
+                                                 {write_concurrency,true}]);
+        _ -> ok
+    end,
+    case ets:info(?T_RECV_EVENTS) of
+        undefined -> ets:new(?T_RECV_EVENTS, [named_table, public, ordered_set,
+                                              {write_concurrency,true}]);
+        _ -> ok
+    end,
+    case ets:info(?T_WINS) of
+        undefined -> ets:new(?T_WINS, [named_table, public, set,
+                                       {write_concurrency,true}]);
+        _ -> ok
+    end,
+    ok.
 
 %% record a recv event 
 %% EventMap shape:
 %% #{topic=>Topic, seq=>Seq|undefined, t_pub_ns=>TPub|undefined, t_recv_ns=>TRecv, bytes=>Bytes}
 record_recv(_ClientName, TopicBin, Seq, TPubNs, TRecvNs, Bytes) ->
-
+    ensure_tables(),
     Key = TRecvNs,   %% ordered_set key
     Event = #{topic=>TopicBin, seq=>Seq, t_pub_ns=>TPubNs, t_recv_ns=>TRecvNs, bytes=>Bytes},
 
@@ -88,11 +116,13 @@ get_last_recv_seq(TopicBin) ->
     end.
 
 put_last_recv_seq(TopicBin, Seq) ->
+    ensure_tables(),
     ets:insert(?T_RECVSEQ, {{recv_topic, TopicBin}, Seq}),
     ok.
 
 %% window summaries 
 put_window_summary(RunId, WinStartMs, Summary) ->
+    ensure_tables(),
     % ps_bench_utils:log_message("Results: ~p~n", [Summary]),
     ets:insert(?T_WINS, {{RunId, WinStartMs}, Summary}), ok.
 

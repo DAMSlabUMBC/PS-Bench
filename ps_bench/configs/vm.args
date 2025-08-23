@@ -1,0 +1,5 @@
+-sname ${NODE_SHORT}
+-setcookie ${COOKIE}
+-kernel inet_dist_listen_min ${INET_MIN}
+-kernel inet_dist_listen_max ${INET_MAX}
++Bd

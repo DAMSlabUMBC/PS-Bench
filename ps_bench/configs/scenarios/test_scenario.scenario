@@ -24,7 +24,7 @@
     
     {metric_config,
     [
-        {output_dir, "/app/out"},
+        {output_dir, "out"},
         {calculation_window_ms, 1000},
         {rollup_period_s, 5},
         {metric_plugins, 

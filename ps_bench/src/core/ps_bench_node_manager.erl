@@ -73,8 +73,6 @@ handle_next_step_command(start_initialization) ->
     % Initialize random number generator
     Seed = initialize_rng_seed(),
 
-    ps_bench_utils:log_message("SEED: ~p", [Seed]),
-
     % Create storage tables
     ok = ps_bench_store:initialize_node_storage(),
 

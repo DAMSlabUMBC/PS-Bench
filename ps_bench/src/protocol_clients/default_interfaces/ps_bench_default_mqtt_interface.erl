@@ -84,7 +84,7 @@ handle_call(_, _, State) ->
 
 handle_cast(stop, State = #{client_pid := ClientPid}) ->
     % Shutdown the client
-    ok = emqtt:stop(ClientPid),
+    _ = emqtt:stop(ClientPid),
     {noreply, State};
 
 handle_cast(_, State) ->

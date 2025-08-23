@@ -473,7 +473,21 @@ fetch_host_for_node_name(NodeName) ->
     fetch_host_for_node_name(NodeName, undefined).
 
 fetch_host_for_node_name(NodeName, DefaultHost) ->
-    fetch_property_for_node(NodeName, ?SCENARIO_HOST_HOSTNAME_PROP, DefaultHost).
+    {ok, ThisNode} = fetch_node_name(),
+    case NodeName of
+        Value when Value =:= ThisNode ->
+            case lookup_env_var("NODE_HOST_OVERRIDE") of
+               undefined ->
+                    case string:tokens(atom_to_list(node()), "@") of
+                        [_Name, H] -> {ok, H};
+                        _  -> {ok, DefaultHost}
+                    end;
+                {ok, Override} ->
+                    {ok, Override}
+            end;
+        _ ->
+            fetch_property_for_node(NodeName, ?SCENARIO_HOST_HOSTNAME_PROP, DefaultHost)
+    end.
 
 fetch_rng_seed_for_node(NodeName) ->
     fetch_property_for_node(NodeName, ?SCENARIO_HOST_RNG_SEED_PROP).

@@ -160,7 +160,6 @@ do_subscribe(_Topics, ServerReference, Tid) ->
 
     % Currently only support wildcarded topic
     % We will subscribe to a topic for each QoS to support multi QoS deployments
-    WildcardBinary = <<"#">>,
     QoS0End = ps_bench_utils:convert_to_binary("qos_0/#"),
     QoS1End = ps_bench_utils:convert_to_binary("qos_1/#"),
     QoS2End = ps_bench_utils:convert_to_binary("qos_2/#"),

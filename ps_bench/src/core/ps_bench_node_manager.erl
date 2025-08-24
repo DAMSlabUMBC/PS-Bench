@@ -35,6 +35,7 @@ handle_cast(local_continue, State = #{node_name := RawNodeName}) ->
 handle_cast(global_continue, State = #{node_name := RawNodeName}) ->
     NodeName = ps_bench_utils:convert_to_atom(RawNodeName),
     {ok, Nodes} = ps_bench_config_manager:fetch_node_list(),
+    ps_bench_utils:log_message("Nodes: ~p", [Nodes]),
     rpc:multicall(Nodes, ps_bench_lifecycle, current_step_complete, [NodeName]),
     {noreply, State};
 
@@ -71,7 +72,7 @@ handle_next_step_command(start_initialization) ->
     ps_bench_utils:log_state_change("Initializing Benchmark Node"),
 
     % Initialize random number generator
-    Seed = initialize_rng_seed(),
+    initialize_rng_seed(),
 
     % Create storage tables
     ok = ps_bench_store:initialize_node_storage(),

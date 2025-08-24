@@ -70,7 +70,8 @@ handle_call(subscribe, _From, State = #{nif_module := NifModule, participant := 
     case Subscriber of
         undefined ->
             % Create the subscriber for this client
-            {ok, NewSubscriber} = NifModule:create_subscriber_on_topic(?DDS_TOPIC, atom_to_list(ClientName), Participant, self()),
+            {ok, QoSProfile} = ps_bench_config_manager:fetch_dds_qos_profile(),
+            {ok, NewSubscriber} = NifModule:create_subscriber_on_topic(?DDS_TOPIC, atom_to_list(ClientName), Participant, self(), QoSProfile),
 
             % Save the fact we were subscribed to this topic for disconnections
             PrevTopics =
@@ -262,10 +263,17 @@ retrieve_or_create_participant(NifModule, DomainId, ConfigFile) ->
         undefined ->
             ok = persistent_term:put({?MODULE, participant, DomainId}, creating),
 
+            {ok, QoSProfile} = ps_bench_config_manager:fetch_dds_qos_profile(),
+
             % Do creation and update with participant reference
-            {ok, Participant} = NifModule:create_participant(DomainId, ConfigFile), % Todo QoS?
-            ok = persistent_term:put({?MODULE, participant, DomainId}, Participant),
-            {ok, Participant};
+            case NifModule:create_participant(DomainId, ConfigFile, QoSProfile) of 
+                {ok, Participant} ->
+                    ok = persistent_term:put({?MODULE, participant, DomainId}, Participant),
+                    {ok, Participant};
+                Error ->
+                    ps_bench_utils:log_message("ERROR: Failed to create DDS participant with error ~p", [Error]),
+                    Error
+            end;
         % Retrieve if it already exists
         Participant ->
             {ok, Participant}
@@ -277,7 +285,8 @@ do_connect(NifModule, ClientName, Participant, Publisher, State) ->
     case Publisher of
         undefined ->
             % Create the publisher for this client
-            {ok, NewPublisher} = NifModule:create_publisher_on_topic(?DDS_TOPIC, Participant),
+            {ok, QoSProfile} = ps_bench_config_manager:fetch_dds_qos_profile(),
+            {ok, NewPublisher} = NifModule:create_publisher_on_topic(?DDS_TOPIC, Participant, QoSProfile),
 
             % We've connected at this point, save data
             TimeNs = erlang:monotonic_time(nanosecond),

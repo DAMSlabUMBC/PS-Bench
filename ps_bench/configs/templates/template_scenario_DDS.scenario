@@ -13,7 +13,7 @@
         {nif_module, ps_bench_default_dds_interface}
         {nif_full_path, "priv/dds_cplusplus/lib/libps_bench_default_dds_interface"},
         {domain_id, 123},
-        {qos_xml_file, "filepath"},
+        {qos_profile, "configs/dds_configs/qos#PsBenchProfile"},
         {config_file, "filepath"}
     ]},
 

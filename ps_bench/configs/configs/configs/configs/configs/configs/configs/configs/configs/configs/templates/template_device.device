@@ -1,0 +1,10 @@
+[
+    {type, REPLACE_SNAKECASED_DEVICE_NAME},                                         % Format: Erlang atom
+    {publication_frequency_ms, REPLACE_INTEGER_PUB_FREQUENCY},                      % Unit: Milliseconds
+    {payload_bytes_mean, REPLACE_FLOAT_MEAN_BYTE_COUNT_FOR_PAYLOAD},                % Unit: Byte
+    {payload_bytes_variance, REPLACE_FLOAT_MEAN_BYTE_VARIANCE_FOR_PAYLOAD},         % Unit: Byte
+    {disconnect_check_period_ms, REPLACE_INTEGER_DISCONNECT_CHANCE_PERIODICITY},    % Unit: Milliseconds
+    {disconnect_chance_pct, REPLACE_FLOAT_DISCONNECT_CHANCE},                       % Unit: Percentage as float [0.0 - 1.0]
+    {reconnect_check_period_ms, REPLACE_INTEGER_RECONNECT_CHANCE_PERIODICITY},      % Unit: Milliseconds
+    {reconnect_chance_pct, REPLACE_FLOAT_RECONNECT_CHANCE}                          % Unit: Percentage as float [0.0 - 1.0]
+].

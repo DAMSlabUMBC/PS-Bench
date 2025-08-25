@@ -1,5 +1,13 @@
 networks:
-  benchnet:
+  benchnet: {}
+
+x-runner-env: &runner-env
+  SELECTED_SCENARIO: ${SCENARIO}
+  BROKER_HOST: mqtt
+  BROKER_PORT: ${MOSQUITTO_PORT:-1883}
+  RUN_TAG: ${RUN_TAG:-run1}
+  ADD_NODE_TO_SUFFIX: ${ADD_NODE_TO_SUFFIX:-true}
+  RELEASE_COOKIE: ${RELEASE_COOKIE:-ps_bench_cookie}
 
 services:
   mosquitto:
@@ -8,8 +16,7 @@ services:
     networks:
       benchnet:
         aliases: ["mosquitto", "mqtt", "broker", "mqtt-broker"]
-    ports:
-      - "${MOSQUITTO_PORT:-1883}:1883"
+    ports: ["${MOSQUITTO_PORT:-1883}:1883"]
     volumes:
       - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
     healthcheck:
@@ -17,38 +24,56 @@ services:
       interval: 2s
       timeout: 1s
       retries: 20
-      
+
   emqx:
     image: emqx/emqx:latest
     profiles: ["emqx"]
     networks:
       benchnet:
         aliases: ["emqx", "mqtt", "broker", "mqtt-broker"]
-    ports:
-      - "${EMQX_PORT:-2883}:1883"
+    ports: ["${EMQX_PORT:-2883}:1883"]
     healthcheck:
       test: ["CMD-SHELL", "nc -z 127.0.0.1 1883"]
       interval: 2s
       timeout: 1s
       retries: 20
 
-  runner:
+  runner01:
+    image: ps_bench-runner:latest
     profiles: ["bench"]
-    build: .
     networks: [benchnet]
-    environment:
-      SCENARIO: ${SCENARIO:-mqtt_multi_node_light}
-      SELECTED_SCENARIO: ${SCENARIO:-mqtt_multi_node_light}
-
-      # Force MQTT host/port used by scenarios at runtime
-      BROKER_HOST: ${BROKER_HOST:-mqtt}
-      BROKER_PORT: ${BROKER_PORT:-${MOSQUITTO_PORT:-1883}}
-
-      # Metrics
-      RUN_TAG: ${RUN_TAG:-run1}
-      ADD_NODE_TO_SUFFIX: ${ADD_NODE_TO_SUFFIX:-true}
-
-      # Erlang distribution 
-      RELEASE_COOKIE: ${RELEASE_COOKIE:-ps_bench_cookie}
+    environment: *runner-env
     volumes:
-      - ./out:/app/out
+      - ./out/runner01:/app/out
+
+  runner02:
+    image: ps_bench-runner:latest
+    profiles: ["bench"]
+    networks: [benchnet]
+    environment: *runner-env
+    volumes:
+      - ./out/runner02:/app/out
+
+  runner03:
+    image: ps_bench-runner:latest
+    profiles: ["bench"]
+    networks: [benchnet]
+    environment: *runner-env
+    volumes:
+      - ./out/runner04:/app/out
+
+  runner04:
+    image: ps_bench-runner:latest
+    profiles: ["bench"]
+    networks: [benchnet]
+    environment: *runner-env
+    volumes:
+      - ./out/runner04:/app/out
+
+  runner05:
+    image: ps_bench-runner:latest
+    profiles: ["bench"]
+    networks: [benchnet]
+    environment: *runner-env
+    volumes:
+      - ./out/runner05:/app/out

@@ -1,0 +1,10 @@
+[
+    {type, robot_lidar},
+    {publication_frequency_ms, 100},
+    {payload_bytes_mean, 1200000},
+    {payload_bytes_variance, 1000000},
+    {disconnect_check_period_ms, 2000},
+    {disconnect_chance_pct, 0.3},
+    {reconnect_check_period_ms, 62000},
+    {reconnect_chance_pct, 0.8}
+].

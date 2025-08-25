@@ -1,0 +1,57 @@
+[
+    {name, smart_home_distrib},                                 % Format: Erlang atom
+    {nodes,                                                                     % Format: List of nodes which contain node specific deployment info
+    [
+        {runner1,
+        [
+            {devices,                                                           % Format: List of 2-tuples in the form {DEVICE_TYPE, DEVICE_COUNT}                                                                           
+            [                                                                   %         (DEVICE_TYPE must match the type field in a device definition file)
+                {smoke_sensor, 1},
+                {bp_sensor, 1},
+                {weather_sensor, 1},
+                {sleep_sensor, 1},
+                {scale_device, 1}
+
+            ]}
+        ]},
+        {runner2,
+        [
+            {devices,                                                          
+            [                                                                  
+                {amazon_echo, 1},
+                {smart_things, 1}
+            ]}
+        ]},
+        {runner3,
+        [
+            {devices,                                                           
+            [                                                                  
+                {light_bulb, 1},
+                {power_plug, 1},
+                {tplink_plug, 1},
+                {motion_sensor, 1},
+                {belkin_switch, 1}
+            ]}
+        ]},
+        {runner4,
+        [
+            {devices,                                                           
+            [                                                                   
+                {photo_sensor, 1},
+                {printer_device, 1},
+                {speaker_device, 1}
+            ]}
+        ]},
+        {runner5,
+        [
+            {devices,                                                           
+            [                                                                   
+                {samsung_camera, 1},
+                {netatmo_camera, 1},
+                {tplink_camera, 1},
+                {child_monitor, 1},
+                {dropcam_camera, 1}
+            ]}
+        ]}
+    ]}
+].

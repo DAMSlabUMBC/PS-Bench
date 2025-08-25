@@ -1,0 +1,10 @@
+[
+    {type, robot_imu},
+    {publication_frequency_ms, 10},
+    {payload_bytes_mean, 312},
+    {payload_bytes_variance, 20},
+    {disconnect_check_period_ms, 2000},
+    {disconnect_chance_pct, 0.3},
+    {reconnect_check_period_ms, 62000},
+    {reconnect_chance_pct, 0.8}
+].

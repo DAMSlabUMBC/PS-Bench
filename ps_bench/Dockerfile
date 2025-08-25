@@ -3,7 +3,8 @@ FROM erlang:26-alpine
 # build deps + python for metrics (erlport)
 RUN apk add --no-cache \
       bash git build-base cmake perl curl \
-      python3 py3-pip linux-headers numactl-dev openssl-dev pkgconf
+      python3 py3-pip linux-headers numactl-dev openssl-dev pkgconf \
+      netcat-openbsd
 
 # isolate python packages 
 RUN python3 -m venv /opt/venv
@@ -21,8 +22,8 @@ RUN rebar3 release
 
 # make configs/out visible to the release
 RUN set -eux; rel="/app/_build/default/rel/ps_bench"; \
-    ln -s /app/configs "$rel/configs"; \
-    ln -s /app/out     "$rel/out"
+    ln -s /app/configs "$rel/configs" || true; \
+    ln -s /app/out     "$rel/out"     || true
 
 # ports for epmd + distribution 
 EXPOSE 4369 15000-15010

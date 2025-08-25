@@ -1,0 +1,10 @@
+[
+    {type, amazon_echo},
+    {publication_frequency_ms, 698},
+    {payload_bytes_mean, 208.4},
+    {payload_bytes_variance, 31},
+    {disconnect_check_period_ms, 15.73},
+    {disconnect_chance_pct, 0.3},
+    {reconnect_check_period_ms, 2000},
+    {reconnect_chance_pct, 0.8}
+].

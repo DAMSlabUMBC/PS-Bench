@@ -1,0 +1,10 @@
+[
+    {type, speaker_device},
+    {publication_frequency_ms, 87},
+    {payload_bytes_mean, 54.54},
+    {payload_bytes_variance, 8},
+    {disconnect_check_period_ms, 13.7},
+    {disconnect_chance_pct, 0.3},
+    {reconnect_check_period_ms, 2000},
+    {reconnect_chance_pct, 0.8}
+].

@@ -1,0 +1,355 @@
+=ERROR REPORT==== 25-Aug-2025::05:25:14.230566 ===
+Invalid -sname given to erl, 
+=ERROR REPORT==== 25-Aug-2025::05:25:16.321179 ===
+** Generic server runner1_temperature_sensor_1 terminating 
+** Last message in was {publish,#{},<<"ps_bench/device/temperature_sensor">>,
+                                <<0,0,0,0,0,0,0,1,128,136,87,160,52,245,87,94,
+                                  22,188,217,246,225,129,74,61,101,86,119,32,
+                                  60,219,210,22,26,123,117,63,220,243,137,182,
+                                  88,30,107,112,181,12,224,216,148,127,177,247,
+                                  85,198,40,220,212,4,124,166,5,150,127,79,241,
+                                  53,164,254,252,214,116,16,209,173,95,97,152,
+                                  249,101,95,23,237,157,143,239,184,230,0,142,
+                                  135,94,221,194,169,171,129,54,160,144,38,108,
+                                  51,19,160,249,255,186,172,114,172,202,2,229,
+                                  106,85,98,153,195,161,92,87,115,89>>,
+                                [{qos,2}]}
+** When Server state == #{connected => true,
+                          reg_name => runner1_temperature_sensor_1,
+                          client_pid => <0.745.0>,
+                          client_name => <<"runner1_temperature_sensor_1">>,
+                          first_start => false,owner_pid => <0.720.0>,
+                          scenario_name => test_scenario}
+** Reason for termination ==
+** {noproc,
+       [{emqtt,publish_via,3,
+            [{file,"/app/_build/default/lib/emqtt/src/emqtt.erl"},{line,565}]},
+        {ps_bench_default_mqtt_interface,handle_call,3,
+            [{file,
+                 "/app/src/protocol_clients/default_interfaces/ps_bench_default_mqtt_interface.erl"},
+             {line,56}]},
+        {gen_server,try_handle_call,4,[{file,"gen_server.erl"},{line,1131}]},
+        {gen_server,handle_msg,6,[{file,"gen_server.erl"},{line,1160}]},
+        {proc_lib,init_p_do_apply,3,[{file,"proc_lib.erl"},{line,241}]}]}
+** Client <0.761.0> stacktrace
+** [{gen,do_call,4,[{file,"gen.erl"},{line,259}]},
+    {gen_server,call,2,[{file,"gen_server.erl"},{line,400}]}]
+
+=ERROR REPORT==== 25-Aug-2025::05:25:16.321839 ===
+** Generic server runner1_temperature_sensor_2 terminating 
+** Last message in was {publish,#{},<<"ps_bench/device/temperature_sensor">>,
+                                <<0,0,0,0,0,0,0,2,12,154,245,169,37,23,209,62,
+                                  140,184,161,186,233,131,142,91,184,175,49,
+                                  154,120,81,160,215,212,31,206,202,109,201,24,
+                                  252,243,46,56,123,243,240,218,39,213,102,64,
+                                  132,65,108,122,206,163,2,196,53,197,134,36,
+                                  84,176,92,29,163,107,161,227,87,55,25,30,106,
+                                  7,219,214,107,47,138,158,109,58,104,163,31,
+                                  136,77,251,110,231,125,233,144,252,119,185,
+                                  248,73,97,129,0,33,46,68,73,26,216,162,16,
+                                  255,39,179,220,197,196,87,72,78,244,182>>,
+                                [{qos,2}]}
+** When Server state == #{connected => true,
+                          reg_name => runner1_temperature_sensor_2,
+                          client_pid => <0.746.0>,
+                          client_name => <<"runner1_temperature_sensor_2">>,
+                          first_start => false,owner_pid => <0.726.0>,
+                          scenario_name => test_scenario}
+** Reason for termination ==
+** {noproc,
+       [{emqtt,publish_via,3,
+            [{file,"/app/_build/default/lib/emqtt/src/emqtt.erl"},{line,565}]},
+        {ps_bench_default_mqtt_interface,handle_call,3,
+            [{file,
+                 "/app/src/protocol_clients/default_interfaces/ps_bench_default_mqtt_interface.erl"},
+             {line,56}]},
+        {gen_server,try_handle_call,4,[{file,"gen_server.erl"},{line,1131}]},
+        {gen_server,handle_msg,6,[{file,"gen_server.erl"},{line,1160}]},
+        {proc_lib,init_p_do_apply,3,[{file,"proc_lib.erl"},{line,241}]}]}
+** Client <0.762.0> stacktrace
+** [{gen,do_call,4,[{file,"gen.erl"},{line,259}]},
+    {gen_server,call,2,[{file,"gen_server.erl"},{line,400}]}]
+
+=ERROR REPORT==== 25-Aug-2025::05:25:16.322804 ===
+** Generic server runner1_temperature_sensor_3 terminating 
+** Last message in was {publish,#{},<<"ps_bench/device/temperature_sensor">>,
+                                <<0,0,0,0,0,0,0,3,189,129,65,217,3,161,90,8,
+                                  116,98,80,4,135,98,126,251,101,216,143,18,76,
+                                  62,255,55,161,29,52,144,45,12,81,127,3,4,221,
+                                  35,156,32,15,73,223,169,247,16,113,121,173,
+                                  229,251,158,76,16,23,167,248,31,78,82,113,52,
+                                  46,136,15,161,198,167,173,97,64,222,60,19,
+                                  175,172,36,63,171,79,63,93,214,13,81,172,10,
+                                  174,140,3,14,98,168,204,224,33,203,9,175,147,
+                                  239,179,109,242,254,164,65,100,242,60,80,40,
+                                  90,10,56,207,60,161,110>>,
+                                [{qos,2}]}
+** When Server state == #{connected => true,
+                          reg_name => runner1_temperature_sensor_3,
+                          client_pid => <0.747.0>,
+                          client_name => <<"runner1_temperature_sensor_3">>,
+                          first_start => false,owner_pid => <0.729.0>,
+                          scenario_name => test_scenario}
+** Reason for termination ==
+** {noproc,
+       [{emqtt,publish_via,3,
+            [{file,"/app/_build/default/lib/emqtt/src/emqtt.erl"},{line,565}]},
+        {ps_bench_default_mqtt_interface,handle_call,3,
+            [{file,
+                 "/app/src/protocol_clients/default_interfaces/ps_bench_default_mqtt_interface.erl"},
+             {line,56}]},
+        {gen_server,try_handle_call,4,[{file,"gen_server.erl"},{line,1131}]},
+        {gen_server,handle_msg,6,[{file,"gen_server.erl"},{line,1160}]},
+        {proc_lib,init_p_do_apply,3,[{file,"proc_lib.erl"},{line,241}]}]}
+** Client <0.763.0> stacktrace
+** [{gen,do_call,4,[{file,"gen.erl"},{line,259}]},
+    {gen_server,call,2,[{file,"gen_server.erl"},{line,400}]}]
+
+=CRASH REPORT==== 25-Aug-2025::05:25:16.324008 ===
+  crasher:
+    initial call: ps_bench_default_mqtt_interface:init/1
+    pid: <0.727.0>
+    registered_name: runner1_temperature_sensor_2
+    exception exit: noproc
+      in function  emqtt:publish_via/3 (/app/_build/default/lib/emqtt/src/emqtt.erl, line 565)
+      in call from ps_bench_default_mqtt_interface:handle_call/3 (/app/src/protocol_clients/default_interfaces/ps_bench_default_mqtt_interface.erl, line 56)
+      in call from gen_server:try_handle_call/4 (gen_server.erl, line 1131)
+      in call from gen_server:handle_msg/6 (gen_server.erl, line 1160)
+    ancestors: [<0.726.0>,ps_bench_client_sup,ps_bench_scenario_sup,
+                  <0.685.0>,<0.604.0>]
+    message_queue_len: 0
+    messages: []
+    links: [<0.726.0>]
+    dictionary: []
+    trap_exit: true
+    status: running
+    heap_size: 2586
+    stack_size: 28
+    reductions: 14813
+  neighbours:
+    neighbour:
+      pid: <0.726.0>
+      registered_name: []
+      initial call: ps_bench_erlang_mqtt_adapter:init/1
+      current_function: {gen_server,loop,7}
+      ancestors: [ps_bench_client_sup,ps_bench_scenario_sup,<0.685.0>,
+                  <0.604.0>]
+      message_queue_len: 0
+      links: [<0.694.0>,<0.727.0>]
+      trap_exit: false
+      status: waiting
+      heap_size: 610
+      stack_size: 12
+      reductions: 500
+      current_stacktrace: [{gen_server,loop,7,[{file,"gen_server.erl"},{line,1001}]},
+                  {proc_lib,init_p_do_apply,3,
+                            [{file,"proc_lib.erl"},{line,241}]}]
+=CRASH REPORT==== 25-Aug-2025::05:25:16.324508 ===
+  crasher:
+    initial call: ps_bench_default_mqtt_interface:init/1
+    pid: <0.731.0>
+    registered_name: runner1_temperature_sensor_3
+    exception exit: noproc
+      in function  emqtt:publish_via/3 (/app/_build/default/lib/emqtt/src/emqtt.erl, line 565)
+      in call from ps_bench_default_mqtt_interface:handle_call/3 (/app/src/protocol_clients/default_interfaces/ps_bench_default_mqtt_interface.erl, line 56)
+      in call from gen_server:try_handle_call/4 (gen_server.erl, line 1131)
+      in call from gen_server:handle_msg/6 (gen_server.erl, line 1160)
+    ancestors: [<0.729.0>,ps_bench_client_sup,ps_bench_scenario_sup,
+                  <0.685.0>,<0.604.0>]
+    message_queue_len: 0
+    messages: []
+    links: [<0.729.0>]
+    dictionary: []
+    trap_exit: true
+    status: running
+    heap_size: 2586
+    stack_size: 28
+    reductions: 14810
+  neighbours:
+    neighbour:
+      pid: <0.729.0>
+      registered_name: []
+      initial call: ps_bench_erlang_mqtt_adapter:init/1
+      current_function: {gen_server,loop,7}
+      ancestors: [ps_bench_client_sup,ps_bench_scenario_sup,<0.685.0>,
+                  <0.604.0>]
+      message_queue_len: 0
+      links: [<0.694.0>,<0.731.0>]
+      trap_exit: false
+      status: waiting
+      heap_size: 610
+      stack_size: 12
+      reductions: 500
+      current_stacktrace: [{gen_server,loop,7,[{file,"gen_server.erl"},{line,1001}]},
+                  {proc_lib,init_p_do_apply,3,
+                            [{file,"proc_lib.erl"},{line,241}]}]
+=SUPERVISOR REPORT==== 25-Aug-2025::05:25:16.325849 ===
+    supervisor: {local,ps_bench_client_sup}
+    errorContext: child_terminated
+    reason: noproc
+    offender: [{pid,<0.726.0>},
+               {id,client_worker},
+               {mfargs,
+                   {ps_bench_erlang_mqtt_adapter,start_link,
+                       [test_scenario,ps_bench_default_mqtt_interface,
+                        "runner1_temperature_sensor_2",temperature_sensor]}},
+               {restart_type,transient},
+               {significant,false},
+               {shutdown,5000},
+               {child_type,worker}]
+
+=CRASH REPORT==== 25-Aug-2025::05:25:16.324154 ===
+  crasher:
+    initial call: ps_bench_default_mqtt_interface:init/1
+    pid: <0.721.0>
+    registered_name: runner1_temperature_sensor_1
+    exception exit: noproc
+      in function  emqtt:publish_via/3 (/app/_build/default/lib/emqtt/src/emqtt.erl, line 565)
+      in call from ps_bench_default_mqtt_interface:handle_call/3 (/app/src/protocol_clients/default_interfaces/ps_bench_default_mqtt_interface.erl, line 56)
+      in call from gen_server:try_handle_call/4 (gen_server.erl, line 1131)
+      in call from gen_server:handle_msg/6 (gen_server.erl, line 1160)
+    ancestors: [<0.720.0>,ps_bench_client_sup,ps_bench_scenario_sup,
+                  <0.685.0>,<0.604.0>]
+    message_queue_len: 0
+    messages: []
+    links: [<0.720.0>]
+    dictionary: []
+    trap_exit: true
+    status: running
+    heap_size: 6772
+    stack_size: 28
+    reductions: 15099
+  neighbours:
+    neighbour:
+      pid: <0.720.0>
+      registered_name: []
+      initial call: ps_bench_erlang_mqtt_adapter:init/1
+      current_function: {gen_server,loop,7}
+      ancestors: [ps_bench_client_sup,ps_bench_scenario_sup,<0.685.0>,
+                  <0.604.0>]
+      message_queue_len: 0
+      links: [<0.694.0>,<0.721.0>]
+      trap_exit: false
+      status: waiting
+      heap_size: 610
+      stack_size: 12
+      reductions: 492
+      current_stacktrace: [{gen_server,loop,7,[{file,"gen_server.erl"},{line,1001}]},
+                  {proc_lib,init_p_do_apply,3,
+                            [{file,"proc_lib.erl"},{line,241}]}]
+=SUPERVISOR REPORT==== 25-Aug-2025::05:25:16.326416 ===
+    supervisor: {local,ps_bench_client_sup}
+    errorContext: child_terminated
+    reason: noproc
+    offender: [{pid,<0.729.0>},
+               {id,client_worker},
+               {mfargs,
+                   {ps_bench_erlang_mqtt_adapter,start_link,
+                       [test_scenario,ps_bench_default_mqtt_interface,
+                        "runner1_temperature_sensor_3",temperature_sensor]}},
+               {restart_type,transient},
+               {significant,false},
+               {shutdown,5000},
+               {child_type,worker}]
+
+=SUPERVISOR REPORT==== 25-Aug-2025::05:25:16.326534 ===
+    supervisor: {local,ps_bench_client_sup}
+    errorContext: child_terminated
+    reason: noproc
+    offender: [{pid,<0.720.0>},
+               {id,client_worker},
+               {mfargs,
+                   {ps_bench_erlang_mqtt_adapter,start_link,
+                       [test_scenario,ps_bench_default_mqtt_interface,
+                        "runner1_temperature_sensor_1",temperature_sensor]}},
+               {restart_type,transient},
+               {significant,false},
+               {shutdown,5000},
+               {child_type,worker}]
+
+=ERROR REPORT==== 25-Aug-2025::05:25:16.620706 ===
+** Generic server runner1_occupancy_sensor_1 terminating 
+** Last message in was {publish,#{},<<"ps_bench/device/occupancy_sensor">>,
+                                <<0,0,0,0,0,0,0,1,135,196,121,188,25,123,139,
+                                  156,188,117,240,229,161,232,19,148,57,173>>,
+                                [{qos,0}]}
+** When Server state == #{connected => true,
+                          reg_name => runner1_occupancy_sensor_1,
+                          client_pid => <0.742.0>,
+                          client_name => <<"runner1_occupancy_sensor_1">>,
+                          first_start => false,owner_pid => <0.716.0>,
+                          scenario_name => test_scenario}
+** Reason for termination ==
+** {noproc,
+       [{emqtt,publish_via,3,
+            [{file,"/app/_build/default/lib/emqtt/src/emqtt.erl"},{line,565}]},
+        {ps_bench_default_mqtt_interface,handle_call,3,
+            [{file,
+                 "/app/src/protocol_clients/default_interfaces/ps_bench_default_mqtt_interface.erl"},
+             {line,56}]},
+        {gen_server,try_handle_call,4,[{file,"gen_server.erl"},{line,1131}]},
+        {gen_server,handle_msg,6,[{file,"gen_server.erl"},{line,1160}]},
+        {proc_lib,init_p_do_apply,3,[{file,"proc_lib.erl"},{line,241}]}]}
+** Client <0.770.0> stacktrace
+** [{gen,do_call,4,[{file,"gen.erl"},{line,259}]},
+    {gen_server,call,2,[{file,"gen_server.erl"},{line,400}]}]
+
+=CRASH REPORT==== 25-Aug-2025::05:25:16.621256 ===
+  crasher:
+    initial call: ps_bench_default_mqtt_interface:init/1
+    pid: <0.717.0>
+    registered_name: runner1_occupancy_sensor_1
+    exception exit: noproc
+      in function  emqtt:publish_via/3 (/app/_build/default/lib/emqtt/src/emqtt.erl, line 565)
+      in call from ps_bench_default_mqtt_interface:handle_call/3 (/app/src/protocol_clients/default_interfaces/ps_bench_default_mqtt_interface.erl, line 56)
+      in call from gen_server:try_handle_call/4 (gen_server.erl, line 1131)
+      in call from gen_server:handle_msg/6 (gen_server.erl, line 1160)
+    ancestors: [<0.716.0>,ps_bench_client_sup,ps_bench_scenario_sup,
+                  <0.685.0>,<0.604.0>]
+    message_queue_len: 0
+    messages: []
+    links: [<0.716.0>]
+    dictionary: []
+    trap_exit: true
+    status: running
+    heap_size: 6772
+    stack_size: 28
+    reductions: 12786
+  neighbours:
+    neighbour:
+      pid: <0.716.0>
+      registered_name: []
+      initial call: ps_bench_erlang_mqtt_adapter:init/1
+      current_function: {gen_server,loop,7}
+      ancestors: [ps_bench_client_sup,ps_bench_scenario_sup,<0.685.0>,
+                  <0.604.0>]
+      message_queue_len: 0
+      links: [<0.694.0>,<0.717.0>]
+      trap_exit: false
+      status: waiting
+      heap_size: 610
+      stack_size: 12
+      reductions: 489
+      current_stacktrace: [{gen_server,loop,7,[{file,"gen_server.erl"},{line,1001}]},
+                  {proc_lib,init_p_do_apply,3,
+                            [{file,"proc_lib.erl"},{line,241}]}]
+=SUPERVISOR REPORT==== 25-Aug-2025::05:25:16.621824 ===
+    supervisor: {local,ps_bench_client_sup}
+    errorContext: child_terminated
+    reason: noproc
+    offender: [{pid,<0.716.0>},
+               {id,client_worker},
+               {mfargs,
+                   {ps_bench_erlang_mqtt_adapter,start_link,
+                       [test_scenario,ps_bench_default_mqtt_interface,
+                        "runner1_occupancy_sensor_1",occupancy_sensor]}},
+               {restart_type,transient},
+               {significant,false},
+               {shutdown,5000},
+               {child_type,worker}]
+
+=INFO REPORT==== 25-Aug-2025::05:25:26.124236 ===
+    application: ps_bench
+    exited: stopped
+    type: permanent
+

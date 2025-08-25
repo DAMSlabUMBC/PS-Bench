@@ -1,0 +1,10 @@
+[
+    {type, motion_sensor},
+    {publication_frequency_ms, 1041},
+    {payload_bytes_mean, 173.96},
+    {payload_bytes_variance, 26},
+    {disconnect_check_period_ms, 19.16},
+    {disconnect_chance_pct, 0.3},
+    {reconnect_check_period_ms, 2000},
+    {reconnect_chance_pct, 0.8}
+].

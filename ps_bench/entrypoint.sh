@@ -1,120 +1,253 @@
-#!/bin/sh
+#!/usr/bin/env sh
 set -eu
 
-# Config (overridable via env)
+cd /app 2>/dev/null || true
+
+RUN_TAG="${RUN_TAG:-$(hostname | tr -cd 'a-zA-Z0-9' | tail -c 8)}"
+RUN_TS="${RUN_TS:-$(date +%Y%m%d_%H%M%S)}"
+
 OUT_DIR="${OUT_DIR:-/app/out}"
+OUT_DIR="${OUT_DIR%/}/${RUN_TAG}_${RUN_TS}"
+export RUN_TAG RUN_TS OUT_DIR
+
 SCEN_DIR="${SCEN_DIR:-/app/configs/scenarios}"
 CONFIG_EXS="${CONFIG_EXS:-/app/configs/config.exs}"
-
-BROKER_HOST="${BROKER_HOST:-mosq1}"
+BROKER_HOST="${BROKER_HOST:-mqtt}"
 BROKER_PORT="${BROKER_PORT:-1883}"
-SELECTED_SCENARIO="${SELECTED_SCENARIO:-test_scenario}"
 
-# 8-char container id suffix for uniqueness
-CID_SUFFIX="${CLIENT_ID_SUFFIX:-$(hostname | tr -cd 'A-Za-z0-9' | cut -c1-8)}"
-NODE_SNAME="runner_${CID_SUFFIX}"
+DEFAULT_SCEN="mqtt_multi_node_light"
+if [ -n "${SELECTED_SCENARIO:-}" ]
+then
+  SCEN_CHOSEN="$SELECTED_SCENARIO"
+else
+  if [ -n "${SCENARIO:-}" ]
+  then
+    SCEN_CHOSEN="$SCENARIO"
+  else
+    SCEN_CHOSEN="$DEFAULT_SCEN"
+  fi
+fi
 
-# Erlang release paths
+NODE_BASE="${NODE_BASE:-runner1}"
+# Unique, valid short name
+_node_base_default="runner_${RUN_TAG:-$(hostname | tr -cd 'a-zA-Z0-9' | tail -c 8)}"
+NODE_BASE="${NODE_BASE:-${_node_base_default}}"
+# sanitize for erl
+NODE_BASE="$(printf '%s' "$NODE_BASE" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9_]/_/g')"
+case "$NODE_BASE" in
+  [a-z]* ) : ;;
+  * ) NODE_BASE="r_${NODE_BASE}" ;;
+esac
+
+RELEASE_COOKIE="${RELEASE_COOKIE:-ps_bench_cookie}"
+export NODE_BASE RELEASE_COOKIE
+
 REL_ROOT="$(ls -d /app/_build/*/rel/ps_bench 2>/dev/null | head -n1 || true)"
-[ -z "${REL_ROOT}" ] && REL_ROOT="/app/_build/default/rel/ps_bench"
-BIN="${REL_ROOT}/bin/ps_bench"
+if [ -z "$REL_ROOT" ]
+then
+  REL_ROOT="/app/_build/default/rel/ps_bench"
+fi
+BIN="$REL_ROOT/bin/ps_bench"
 
-mkdir -p "${OUT_DIR}"
-
-log() { printf '%s %s\n' "[entrypoint]" "$*"; }
-
-
-# Force a unique Erlang node name across containers
-force_unique_sname() {
-  if [ -d "${REL_ROOT}/releases" ]; then
-    find "${REL_ROOT}/releases" -type f -name 'vm.args' | while read -r f; do
-      sed -i -r '/^[[:space:]]*-[sn]name[[:space:]]+.*/d' "$f" || true
-      printf '%s\n' "-sname ${NODE_SNAME}" >> "$f"
-      log "vm.args patched: $f => -sname ${NODE_SNAME}"
-    done
-  else
-    log "WARNING: releases dir not found at ${REL_ROOT}/releases; cannot patch vm.args"
-  fi
-
-  # Ensure our -sname is appended at the end of erl args
-  if [ -n "${ERL_ZFLAGS:-}" ]; then
-    export ERL_ZFLAGS="${ERL_ZFLAGS} -sname ${NODE_SNAME}"
-  else
-    export ERL_ZFLAGS="-sname ${NODE_SNAME}"
-  fi
-  log "ERL_ZFLAGS set to append -sname ${NODE_SNAME}"
+# log helper
+log() {
+  printf '[entrypoint] %s\n' "$*"
 }
 
+# escape for sed replacement
+esc_sed_repl() {
+  printf '%s' "$1" | sed 's/[\/&|]/\\&/g'
+}
 
-# Patch broker host/port inside scenario files (BusyBox-safe sed)
+strip_name_flags() {
+  printf '%s' "${1:-}" | sed -E 's/(^|[[:space:]])-(sname|name)[[:space:]]+[^[:space:]]+//g'
+}
+
+# ensure exactly one -sname in vm.args and export cookie
+force_sname() {
+  if [ -d "$REL_ROOT/releases" ]; then
+    # Remove any existing -name/-sname from *all* vm.args files and append ours
+    find "$REL_ROOT/releases" -type f -name vm.args | while read -r f; do
+      sed -i -r '/^[[:space:]]*-[sn]name([[:space:]]+|$).*/d' "$f" || true
+      printf '%s\n' "-sname ${NODE_BASE}" >> "$f"
+      log "vm.args patched: $f => -sname ${NODE_BASE}"
+    done
+  else
+    log "WARNING: ${REL_ROOT}/releases not found"
+  fi
+
+  # Make sure modern Mix releases derive consistent args (if they use these)
+  export RELEASE_DISTRIBUTION="sname"
+  export RELEASE_NODE="${NODE_BASE}"
+  export RELEASE_COOKIE="${RELEASE_COOKIE:-ps_bench_cookie}"
+
+  # Debug: show the first lines of the vm.args that erlexec will use
+  find "$REL_ROOT/releases" -type f -name vm.args -exec sh -c \
+    'echo "--- {} ---"; nl -ba "{}" | sed -n "1,40p"' \; || true
+}
+
+# write broker host and port into scenario files
 patch_broker_in_scenarios() {
-  if [ -d "${SCEN_DIR}" ]; then
-    find "${SCEN_DIR}" -type f -name '*.scenario' | while read -r f; do
-      sed -i -r "s|^[[:space:]]*host[[:space:]]*=[[:space:]]*\"[^\"]*\"|host = \"${BROKER_HOST}\"|g" "$f" || true
-      sed -i -r "s|^[[:space:]]*hostname[[:space:]]*=[[:space:]]*\"[^\"]*\"|hostname = \"${BROKER_HOST}\"|g" "$f" || true
-      sed -i -r "s|^[[:space:]]*port[[:space:]]*=[[:space:]]*[0-9]+|port = ${BROKER_PORT}|g" "$f" || true
+  if [ -d "$SCEN_DIR" ]
+  then
+    bh="$(esc_sed_repl "$BROKER_HOST")"
+    for f in "$SCEN_DIR"/*.scenario
+    do
+      if [ -f "$f" ]
+      then
+        sed -i -r "s|^[[:space:]]*host[[:space:]]*=[[:space:]]*\"[^\"]*\"|host = \"${bh}\"|g" "$f" || true
+        sed -i -r "s|^[[:space:]]*hostname[[:space:]]*=[[:space:]]*\"[^\"]*\"|hostname = \"${bh}\"|g" "$f" || true
+        sed -i -r "s|^[[:space:]]*port[[:space:]]*=[[:space:]]*[0-9]+|port = ${BROKER_PORT}|g" "$f" || true
+      fi
     done
-    log "Broker patched in scenarios: host=${BROKER_HOST}, port=${BROKER_PORT}."
+    log "Broker patched in scenarios host=${BROKER_HOST} port=${BROKER_PORT}"
   else
-    log "WARNING: Scenario dir ${SCEN_DIR} not found; skipping broker patch."
+    log "WARNING: scenario dir $SCEN_DIR not found"
   fi
 }
 
+# Rewrite any hard-coded 'runner1' bases to the unique NODE_BASE
+patch_node_base_everywhere() {
+  local nb="$NODE_BASE"
+  if [ -f "$CONFIG_EXS" ]; then
+    sed -i -E \
+      -e 's/(node[_-]?base[[:space:]]*=[[:space:]]*")[^"]*"/\1'"$nb"'"/g' \
+      -e 's/(\{[[:space:]]*node[_-]?base[[:space:]]*,[[:space:]]*")[^"]*"/\1'"$nb"'"/g' \
+      "$CONFIG_EXS" || true
+    sed -i -E 's/"runner1_([^"]+)"/"'"$nb"'_\1"/g' "$CONFIG_EXS" || true
+    sed -i -E 's/runner1@/'"$nb"'@/g' "$CONFIG_EXS" || true
+  fi
 
-# suffixing of any explicit client IDs in scenarios
-suffix_client_ids() {
-  [ -d "${SCEN_DIR}" ] || return 0
-  find "${SCEN_DIR}" -type f -name '*.scenario' | while read -r f; do
-    # Handle '=' or '=>'; only add if this exact suffix not already present
-    if ! grep -q "_${CID_SUFFIX}\"" "$f"; then
-      sed -i -r \
-        -e "s|([[:space:]]client_name[[:space:]]*(=|=>)[[:space:]]*\"[^\"]*)\"|\1_${CID_SUFFIX}\"|g" \
-        -e "s|([[:space:]]name[[:space:]]*(=|=>)[[:space:]]*\"[^\"]*)\"|\1_${CID_SUFFIX}\"|g" \
-        -e "s|([[:space:]]client_id[[:space:]]*(=|=>)[[:space:]]*\"[^\"]*)\"|\1_${CID_SUFFIX}\"|g" \
+  if [ -d "$SCEN_DIR" ]; then
+    for f in "$SCEN_DIR"/*.scenario; do
+      [ -f "$f" ] || continue
+      sed -i -E \
+        -e 's/(node[_-]?base[[:space:]]*(=|:)[[:space:]]*")[^"]*"/\1'"$nb"'"/g' \
+        -e 's/"runner1_([^"]+)"/"'"$nb"'_\1"/g' \
+        -e 's/runner1@/'"$nb"'@/g' \
         "$f" || true
-    fi
-  done
-  log "Scenario client IDs suffixed with _${CID_SUFFIX} (best-effort)."
+    done
+  fi
+  log "Node base set to ${nb} in configs/scenarios"
 }
 
+# select the scenario in config.exs if present
 patch_selected_scenario() {
-  if [ -f "${CONFIG_EXS}" ]; then
-    sed -i -r "s|^[[:space:]]*selected_scenario[[:space:]]*=[[:space:]]*\"[^\"]*\"|selected_scenario = \"${SELECTED_SCENARIO}\"|g" "${CONFIG_EXS}" || true
-    sed -i -r "s|\{[[:space:]]*selected_scenario[[:space:]]*,[[:space:]]*\"[^\"]*\"[[:space:]]*\}|{selected_scenario,\"${SELECTED_SCENARIO}\"}|g" "${CONFIG_EXS}" || true
-    log "Selected scenario set to: ${SELECTED_SCENARIO}"
+  if [ -f "$CONFIG_EXS" ]
+  then
+    ss="$(esc_sed_repl "$SCEN_CHOSEN")"
+    sed -i -r "s|(^[[:space:]]*selected_scenario[[:space:]]*=[[:space:]]*)\"[^\"]*\"|\1\"${ss}\"|g" "$CONFIG_EXS" || true
+    sed -i -r "s|\{[[:space:]]*selected_scenario[[:space:]]*,[[:space:]]*\"[^\"]*\"[[:space:]]*\}|{selected_scenario,\"${ss}\"}|g" "$CONFIG_EXS" || true
+    log "Selected scenario set to ${SCEN_CHOSEN}"
+  else
+    log "WARNING: config.exs not found at $CONFIG_EXS"
   fi
 }
 
-# CSV exporters
+# add a stable suffix to explicit client ids to avoid collisions
+suffix_client_ids() {
+  if [ "${ADD_NODE_TO_SUFFIX:-true}" != "true" ]; then
+    log "Client ID suffixing disabled"
+    return 0
+  fi
+  [ -d "$SCEN_DIR" ] || return 0
+
+  SUF="_${RUN_TAG:-$(hostname | tr -cd 'a-zA-Z0-9' | tail -c 8)}"
+
+  for f in "$SCEN_DIR"/*.scenario; do
+    [ -f "$f" ] || continue
+    awk -v suf="$SUF" '
+      function add_suf(v) { return (v ~ (suf"$")) ? v : v suf }
+
+      {
+        line=$0
+
+        # 1) Handle client_* keys anywhere on the line
+        #    client_id | clientId | client-name | client_name
+        while (match(line, /(^|[^[:alnum:]_])(client_id|clientId|client-name|client_name)[[:space:]]*(=|=>)[[:space:]]*"([^"]+)"/, m)) {
+          pre=substr(line,1,RSTART-1); post=substr(line,RSTART+RLENGTH)
+          pfx=m[1]; key=m[2]; sep=m[3]; val=m[4]
+          line=pre pfx key " " sep " \"" add_suf(val) "\"" post
+        }
+
+        # 2) Handle a bare key named "name" (possibly nested),
+        #    but NOT parts of larger identifiers like hostname, username, topic_name, device_name, etc.
+        #    We ensure the char before 'name' is not [A-Za-z0-9_].
+        while (match(line, /(^|[^[:alnum:]_])(name)[[:space:]]*(=|=>)[[:space:]]*"([^"]+)"/, n)) {
+          pre=substr(line,1,RSTART-1); post=substr(line,RSTART+RLENGTH)
+          pfx=n[1]; key=n[2]; sep=n[3]; val=n[4]
+          line=pre pfx key " " sep " \"" add_suf(val) "\"" post
+        }
+
+        print line
+      }
+    ' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+  done
+
+  log "Scenario client IDs/names suffixed with ${SUF}"
+
+  grep -RIn "^[[:space:]]*\(name\|client_id\|clientId\|client-name\|client_name\)[[:space:]]*=" "$SCEN_DIR" | head -n 60 || true
+}
+
+
+# convert a metrics.out style file to csv
 to_csv() {
   src="$1"
   dir="$(dirname "$src")"
   base="$(basename "$src")"
-
-  case "$base" in
-    metrics.out)   dest="${dir}/metrics_out.csv" ;;
-    metrics.out.*) dest="${dir}/$(echo "$base" | sed 's/^metrics\.out\./metrics_out./').csv" ;;
-    *)             dest="${src}.csv" ;;
-  esac
-
-  if [ ! -s "$src" ]; then
+  if [ "$base" = "metrics.out" ]
+  then
+    dest="${dir}/metrics_out.csv"
+  else
+    case_prefix="$(printf '%s' "$base" | sed 's/^metrics\.out\./metrics_out./')"
+    if printf '%s' "$base" | grep -q '^metrics\.out\.'
+    then
+      dest="${dir}/${case_prefix}.csv"
+    else
+      dest="${src}.csv"
+    fi
+  fi
+  if [ ! -s "$src" ]
+  then
     printf "metric,value\n" > "$dest"
     return 0
   fi
-
   awk '
-    function ltrim(s){sub(/^[ \t\r\n]+/,"",s);return s}
-    function rtrim(s){sub(/[ \t\r\n]+$/,"",s);return s}
-    function trim(s){return rtrim(ltrim(s))}
-    BEGIN { OFS=","; print "metric","value" }
+    function ltrim(s){
+      sub(/^[ \t\r\n]+/,"",s)
+      return s
+    }
+    function rtrim(s){
+      sub(/[ \t\r\n]+$/,"",s)
+      return s
+    }
+    function trim(s){
+      return rtrim(ltrim(s))
+    }
+    BEGIN {
+      OFS=","
+      print "source_metric","value"
+    }
     {
       line=$0
-      c=index(line,":"); e=index(line,"=")
+      c=index(line,":")
+      e=index(line,"=")
       sep=0
-      if (c>0 && e>0)      sep = (c<e ? c : e)
-      else if (c>0)        sep = c
-      else if (e>0)        sep = e
-
+      if (c>0 && e>0) {
+        if (c<e) {
+          sep=c
+        } else {
+          sep=e
+        }
+      } else {
+        if (c>0) {
+          sep=c
+        } else {
+          if (e>0) {
+            sep=e
+          }
+        }
+      }
       if (sep>0) {
         key=trim(substr(line,1,sep-1))
         val=trim(substr(line,sep+1))
@@ -128,62 +261,104 @@ to_csv() {
   ' "$src" > "$dest"
 }
 
+# build a global csv index over all metrics files
 convert_all_metrics() {
-  # Aggregate index
   index_csv="${OUT_DIR}/metrics_index.csv"
+  mkdir -p "$OUT_DIR"
   printf "source,metric,value\n" > "$index_csv"
-
-  # Find every metrics.out or metrics.out.*
-  find "${OUT_DIR}" -type f \( -name 'metrics.out' -o -name 'metrics.out.*' \) | while read -r src; do
+  find "$OUT_DIR" -type f \( -name 'metrics.out' -o -name 'metrics.out.*' \) 2>/dev/null | while read -r src
+  do
     to_csv "$src"
-
-    # Append to index (skip per-file header)
     dir="$(dirname "$src")"
     base="$(basename "$src")"
-    case "$base" in
-      metrics.out)   dest="${dir}/metrics_out.csv" ;;
-      metrics.out.*) dest="${dir}/$(echo "$base" | sed 's/^metrics\.out\./metrics_out./').csv" ;;
-      *)             dest="${src}.csv" ;;
-    esac
-
-    # Use a path relative to OUT_DIR for the "source" column
+    if [ "$base" = "metrics.out" ]
+    then
+      dest="${dir}/metrics_out.csv"
+    else
+      dest_guess="${dir}/$(printf '%s' "$base" | sed 's/^metrics\.out\./metrics_out./').csv"
+      if [ -f "$dest_guess" ]
+      then
+        dest="$dest_guess"
+      else
+        dest="${src}.csv"
+      fi
+    fi
     rel="${src#${OUT_DIR}/}"
-    if [ -f "$dest" ]; then
-      # Skip header line from dest and prefix the source path
+    if [ -f "$dest" ]
+    then
       tail -n +2 "$dest" | awk -v s="$rel" -F, 'BEGIN{OFS=","} {print s,$1,$2}' >> "$index_csv"
     fi
   done
-
-  log "CSV export complete. See: ${index_csv} and per-file metrics_out*.csv."
+  log "CSV export complete ${index_csv}"
 }
 
-###############################################################################
-# F) Run
-###############################################################################
-force_unique_sname
-patch_broker_in_scenarios
-suffix_client_ids
-patch_selected_scenario
+# handle SIGTERM
+on_term() {
+  log "SIGTERM received stopping"
+  if kill -TERM "$APP_PID" 2>/dev/null
+  then
+    true
+  fi
+  if wait "$APP_PID" 2>/dev/null
+  then
+    true
+  fi
+  convert_all_metrics
+  exit 0
+}
 
-if [ ! -x "${BIN}" ]; then
-  log "ERROR: Release binary not found at ${BIN}"
-  exit 1
-fi
+# handle SIGINT
+on_int() {
+  log "SIGINT received stopping"
+  if kill -INT "$APP_PID" 2>/dev/null
+  then
+    true
+  fi
+  if wait "$APP_PID" 2>/dev/null
+  then
+    true
+  fi
+  convert_all_metrics
+  exit 130
+}
 
-log "Starting ps_bench with Erlang short name: ${NODE_SNAME} (CID_SUFFIX=${CID_SUFFIX})"
-set +e
-"${BIN}" foreground &
-APP_PID="$!"
+# main launcher
+main() {
+  mkdir -p "$OUT_DIR"
+  log "OUT_DIR=${OUT_DIR}"
+  : "${ERL_AFLAGS:=}"
+  : "${ELIXIR_ERL_OPTIONS:=}"
+  ERL_AFLAGS="$(strip_name_flags "$ERL_AFLAGS")"
+  ELIXIR_ERL_OPTIONS="$(strip_name_flags "$ELIXIR_ERL_OPTIONS")"
+  export ERL_AFLAGS ELIXIR_ERL_OPTIONS
 
-trap 'log "SIGTERM received, stopping ps_bench…"; kill -TERM "${APP_PID}" 2>/dev/null; wait "${APP_PID}" 2>/dev/null || true' TERM
-trap 'log "SIGINT received, stopping ps_bench…"; kill -INT  "${APP_PID}" 2>/dev/null; wait "${APP_PID}" 2>/dev/null || true' INT
+  unset SNAME NAME RELEASE_SNAME RELEASE_NAME
+  force_sname
+  find "$REL_ROOT/releases" -type f -name vm.args -exec sh -c 'echo "--- {} ---"; head -n 20 "{}"' \; || true
+  suffix_client_ids
+  patch_broker_in_scenarios
+  grep -RIn '^\s*\(host\|hostname\|port\)\s*=' "$SCEN_DIR" || true
+  grep -RIn '^\s*\(name\|client_id\|clientId\|client-name\|client_name\)\s*=' "$SCEN_DIR" | head -n 40 || true  
+  patch_node_base_everywhere  
+  patch_selected_scenario
+  if [ ! -x "$BIN" ]
+  then
+    log "ERROR release binary not found at $BIN"
+    exit 1
+  fi
+  log "StartinFg ps_bench as ${NODE_BASE}@$(hostname) broker=${BROKER_HOST}:${BROKER_PORT} scenario=${SCEN_CHOSEN}"
+  set +e
+  "$BIN" foreground &
+  APP_PID="$!"
+  trap on_term TERM
+  trap on_int INT
+  wait "$APP_PID"
+  APP_RC="$?"
+  set -e
+  log "ps_bench exited with code ${APP_RC} converting metrics"
+  convert_all_metrics
+  log "Done"
+  exit "$APP_RC"
+}
 
-wait "${APP_PID}"
-APP_RC="$?"
-set -e
-
-log "ps_bench exited with code ${APP_RC}; converting metrics to CSV…"
-convert_all_metrics
-
-log "Done."
-exit "${APP_RC}"
+main "$@"

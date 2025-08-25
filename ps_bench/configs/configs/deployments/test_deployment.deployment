@@ -1,0 +1,14 @@
+[
+    {name, test_deployment},                                 % Format: Erlang atom
+    {nodes,                                                                     % Format: List of nodes which contain node specific deployment info
+    [
+        {runner1,
+        [
+            {devices,                                                           % Format: List of 2-tuples in the form {DEVICE_TYPE, DEVICE_COUNT}                                                                           
+            [                                                                   %         (DEVICE_TYPE must match the type field in a device definition file)
+                {occupancy_sensor, 1},
+                {temperature_sensor, 3}
+            ]}
+        ]}
+    ]}
+].

@@ -5,7 +5,11 @@
     {deployment_name, REPLACE_DEPLOYMENT_NAME}                              % Format: Erlang atom, must match the name field in a deployment definition file
     {hosts,
     [
-        {REPLACE_NODE_1_NAME, REPLACE_NODE_1_HOSTNAME}                      % Format: Erlang atoms, REPLACE_NODE_1_NAME must match a node in the deployment file and REPLACE_NODE_1_HOSTNAME must be the atom hostname for that node
+        {REPLACE_NODE_1_NAME,                                               % Format: Erlang atom, REPLACE_NODE_1_NAME must match a node in the deployment file
+        [
+            {hostname, 'REPLACE_HOSTNAME'},                                 % Format: Erlang atom, REPLACE_NODE_1_HOSTNAME must be the atom hostname for REPLACE_NODE_1_NAME
+            {rng_seed, REPLACE_RNG_SEED}                                    % Format: Erlang RNG seed in the form {PART_1, PART_2, PART_3} (See https://www.erlang.org/doc/apps/stdlib/rand.html#t:seed/0)
+        ]}
     ]},
     
     {protocol_config,                                                       % Protocol specific configuration, see README for details on protocol configuration

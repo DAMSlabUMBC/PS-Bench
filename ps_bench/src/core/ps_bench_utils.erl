@@ -85,8 +85,9 @@ generate_mqtt_payload_data(PayloadSizeMean, PayloadSizeVariance, Topic) ->
 
     % We need to encode some data in the payload, subtracted the fixed content
     % from the payload size, making sure we don't try to generate a negative amount of bytes
-    HeaderSize = 8 + 2 + PublisherSize,
-    RandomBytesToGen = max(0, IntSize - ?PAYLOAD_HDR_BYTES - 2 - PublisherSize),
+    OurHeaderSize = 8 + 2 + PublisherSize,
+    TimeHeaderSize = 8; 
+    RandomBytesToGen = max(0, IntSize - OurHeaderSize - TimeHeaderSize),
     RandomBytes = crypto:strong_rand_bytes(RandomBytesToGen),
 
     % Calculate sequence number.
@@ -119,6 +120,12 @@ evaluate_uniform_chance(ChanceOfEvent) when 0.0 =< ChanceOfEvent, ChanceOfEvent 
     % We want strict inequality so the event doesn't fire on 0.0 <= 0.0
     % This is fine since rand:uniform cannot generate 1.0, so a chance of 1.0 will always fire
     RandVal < ChanceOfEvent.
+
+decode_seq_header(<<TimeNs:64/unsigned, Seq:64/unsigned, Rest/binary>>) ->
+    {Seq, TimeNs, Rest};
+
+decode_seq_header(Bin) ->
+    {undefined, undefined, Bin}.
 
 decode_seq_header_with_publisher(<<TimeNs:64/unsigned, Seq:64/unsigned, 
                                    PublisherSize:16/unsigned, Rest/binary>>) ->

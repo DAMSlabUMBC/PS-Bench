@@ -1,11 +1,11 @@
 [
-    {name, smart_home_distrib},                                 % Format: Erlang atom
-    {nodes,                                                                     % Format: List of nodes which contain node specific deployment info
+    {name, smart_homes},
+    {nodes,
     [
         {runner1,
         [
-            {devices,                                                           % Format: List of 2-tuples in the form {DEVICE_TYPE, DEVICE_COUNT}                                                                           
-            [                                                                   %         (DEVICE_TYPE must match the type field in a device definition file)
+            {devices,                                                                      
+            [
                 {smoke_sensor, 1},
                 {bp_sensor, 1},
                 {weather_sensor, 1},

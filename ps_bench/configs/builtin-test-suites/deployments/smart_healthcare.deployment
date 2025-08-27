@@ -1,11 +1,11 @@
 [
-    {name, health_sensor},                                 % Format: Erlang atom
-    {nodes,                                                                     % Format: List of nodes which contain node specific deployment info
+    {name, smart_healthcare},
+    {nodes,
     [
         {runner1,
         [
-            {devices,                                                           % Format: List of 2-tuples in the form {DEVICE_TYPE, DEVICE_COUNT}                                                                           
-            [                                                                   %         (DEVICE_TYPE must match the type field in a device definition file)
+            {devices,                                                                  
+            [
                 {health_sensor, 24}
 
             ]}

@@ -86,7 +86,7 @@ generate_mqtt_payload_data(PayloadSizeMean, PayloadSizeVariance, Topic) ->
     % We need to encode some data in the payload, subtracted the fixed content
     % from the payload size, making sure we don't try to generate a negative amount of bytes
     OurHeaderSize = 8 + 2 + PublisherSize,
-    TimeHeaderSize = 8; 
+    TimeHeaderSize = 8,
     RandomBytesToGen = max(0, IntSize - OurHeaderSize - TimeHeaderSize),
     RandomBytes = crypto:strong_rand_bytes(RandomBytesToGen),
 

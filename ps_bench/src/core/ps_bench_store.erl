@@ -24,6 +24,14 @@
 -define(T_DROPPED, psb_dropped_msgs).
 
 initialize_node_storage() ->
+    % Clear any existing tables first
+    lists:foreach(fun(Table) ->
+        catch ets:delete(Table)
+    end, [?T_PUBSEQ, ?T_RECVSEQ, ?T_CONNECT_EVENTS, 
+          ?T_DISCONNECT_EVENTS, ?T_PUBLISH_EVENTS, 
+          ?T_RECV_EVENTS, ?T_WINS, ?T_DROPPED]),
+    
+    % Now create fresh tables
     ensure_tables(),
     ok.
 

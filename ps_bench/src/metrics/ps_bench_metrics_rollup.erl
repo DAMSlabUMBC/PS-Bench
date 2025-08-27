@@ -38,7 +38,7 @@ handle_info(tick, S=#state{win_ms=WinMs, run_id=RunId}) ->
     % Get drops
     Drops = ps_bench_store:get_dropped_message_count(),
 
-    WinStartMs = (Tnow div 1000000),
+    WinStartMs = (Tnow div 1000000) - WinMs,
     Summary = #{
         lat_ms => Latencies,           % List of latencies in ms
         size_b => [maps:get(bytes, E) || E <- Events],  % List of sizes

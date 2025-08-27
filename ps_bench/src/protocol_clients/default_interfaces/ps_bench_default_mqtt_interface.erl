@@ -50,7 +50,7 @@ handle_call({publish, Properties, Topic, Payload, PubOpts},
   when is_binary(Topic), is_binary(Payload) ->
     case Connected of
         true ->
-            %% Prepend monotonic time so payload matches decode_seq_header/1
+            %% Prepend system time time so payload matches decode_seq_header/1
             TimeNs = erlang:system_time(nanosecond),
             Payload1 = <<TimeNs:64/unsigned, Payload/binary>>,
             _ = emqtt:publish(ClientPid, Topic, Properties, Payload1, PubOpts),
@@ -172,19 +172,19 @@ do_connect(CleanStart, State = #{client_name := ClientName, owner_pid := OwnerPi
 
 connect_event(OwnerPid, _Properties, ClientName) ->
     % Forward required event information to the adapter
-    TimeNs = erlang:monotonic_time(nanosecond),
+    TimeNs = erlang:system_time(nanosecond),
     OwnerPid ! {?CONNECTED_MSG, {TimeNs}, ClientName},
     ok.
 
 disconnect_event(OwnerPid, Reason, ClientName) ->
     % Forward required event information to the adapter
-    TimeNs = erlang:monotonic_time(nanosecond),
+    TimeNs = erlang:system_time(nanosecond),
     OwnerPid ! {?DISCONNECTED_MSG, {TimeNs, Reason}, ClientName},
     ok.
 
 publish_event(OwnerPid, _Msg = #{topic := Topic, payload := Payload}, ClientName) ->
     % Forward required event information to the adapter
-    TimeNs = erlang:monotonic_time(nanosecond),
+    TimeNs = erlang:system_time(nanosecond),
     OwnerPid ! {?PUBLISH_RECV_MSG, {TimeNs, Topic, Payload}, ClientName},
     ok.
 

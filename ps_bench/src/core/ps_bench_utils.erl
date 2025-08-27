@@ -62,13 +62,13 @@ try_crypto_seed(TimeoutMs) ->
     end.
 
 make_time_seed() ->
-    T = erlang:monotonic_time(),
+    T = erlang:system_time(),
     U = erlang:unique_integer([positive]),
     N = erlang:phash2(node()),
     {T band 16#3fffffff, U band 16#3fffffff, N band 16#3fffffff}.
 
 mix_seed(Extra) ->
-    T = erlang:monotonic_time() bxor Extra,
+    T = erlang:system_time() bxor Extra,
     U = erlang:unique_integer([positive]) bxor (Extra bsl 13),
     N = erlang:phash2(node()) bxor (Extra bsl 7),
     {T band 16#3fffffff, U band 16#3fffffff, N band 16#3fffffff}.

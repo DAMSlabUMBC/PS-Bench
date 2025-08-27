@@ -289,7 +289,7 @@ do_connect(NifModule, ClientName, Participant, Publisher, State) ->
             {ok, NewPublisher} = NifModule:create_publisher_on_topic(?DDS_TOPIC, Participant, QoSProfile),
 
             % We've connected at this point, save data
-            TimeNs = erlang:monotonic_time(nanosecond),
+            TimeNs = erlang:system_time(nanosecond),
             ps_bench_store:record_connect(ClientName, TimeNs),
             {reply, {ok, new_connection}, State#{publisher := NewPublisher}};
         _ ->
@@ -315,5 +315,5 @@ do_disconnect(NifModule, ClientName, Participant, Publisher, Subscriber) ->
             % Delete the publisher
             NifModule:delete_subscriber(Participant, Subscriber)
     end,
-    TimeNs = erlang:monotonic_time(nanosecond),
+    TimeNs = erlang:system_time(nanosecond),
     ps_bench_store:record_disconnect(ClientName, TimeNs, expected).

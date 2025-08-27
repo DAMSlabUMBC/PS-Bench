@@ -57,10 +57,13 @@ handle_info(tick, S=#state{win_ms=WinMs, run_id=RunId}) ->
     Ref = erlang:send_after(WinMs, self(), tick),
     {noreply, S#state{next_tick_ref=Ref}};
     
+handle_info(_, State) ->  
+    {noreply, State}.
 
 handle_call(stop_loop, _From, S=#state{next_tick_ref=Ref}) ->
     timer:cancel(Ref),
     {reply, ok, S#state{next_tick_ref=undefined}};
+
 handle_call(_,_,S)->{reply,ok,S}.
 terminate(_,_) -> ok.
 code_change(_,S,_) -> {ok,S}.

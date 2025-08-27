@@ -4,7 +4,8 @@
 
 %% public
 -export([initialize_rng_seed/0, initialize_rng_seed/1, generate_mqtt_payload_data/3,
-         generate_dds_datatype_data/2, evaluate_uniform_chance/1, decode_seq_header/1, fetch_rng_seed/0]).
+         generate_dds_datatype_data/2, evaluate_uniform_chance/1, decode_seq_header/1, 
+         fetch_rng_seed/0, decode_seq_header_with_publisher/1]).
 
 -export([convert_to_atom/1, convert_to_binary/1, convert_to_list/1]).
 
@@ -77,9 +78,15 @@ generate_mqtt_payload_data(PayloadSizeMean, PayloadSizeVariance, Topic) ->
     FloatSize = rand:normal(PayloadSizeMean, PayloadSizeVariance),
     IntSize = erlang:round(FloatSize),
 
+    % Get publisher ID (node name for now)
+    {ok, PublisherID} = ps_bench_config_manager:fetch_node_name(),
+    PublisherBin = atom_to_binary(PublisherID, utf8),
+    PublisherSize = byte_size(PublisherBin),
+
     % We need to encode some data in the payload, subtracted the fixed content
     % from the payload size, making sure we don't try to generate a negative amount of bytes
-    RandomBytesToGen = max(0, IntSize - ?PAYLOAD_HDR_BYTES),
+    HeaderSize = 8 + 2 + PublisherSize,
+    RandomBytesToGen = max(0, IntSize - ?PAYLOAD_HDR_BYTES - 2 - PublisherSize),
     RandomBytes = crypto:strong_rand_bytes(RandomBytesToGen),
 
     % Calculate sequence number.
@@ -89,7 +96,7 @@ generate_mqtt_payload_data(PayloadSizeMean, PayloadSizeVariance, Topic) ->
     %       This function intentionally generates a payload 8 bytes too "small" 
     %       to allow for the interface to add the time data
     Seq = ps_bench_store:get_next_seq_id(Topic),
-    Payload = <<Seq:64/unsigned, RandomBytes/binary>>,
+    Payload = <<Seq:64/unsigned, PublisherSize:16/unsigned, PublisherBin/binary, RandomBytes/binary>>,
     Payload.
 
 generate_dds_datatype_data(PayloadSizeMean, PayloadSizeVariance) ->
@@ -113,11 +120,16 @@ evaluate_uniform_chance(ChanceOfEvent) when 0.0 =< ChanceOfEvent, ChanceOfEvent 
     % This is fine since rand:uniform cannot generate 1.0, so a chance of 1.0 will always fire
     RandVal < ChanceOfEvent.
 
-decode_seq_header(<<TimeNs:64/unsigned, Seq:64/unsigned, Rest/binary>>) ->
-    {Seq, TimeNs, Rest};
+decode_seq_header_with_publisher(<<TimeNs:64/unsigned, Seq:64/unsigned, 
+                                   PublisherSize:16/unsigned, Rest/binary>>) ->
+    <<PublisherBin:PublisherSize/binary, Payload/binary>> = Rest,
+    PublisherID = binary_to_atom(PublisherBin, utf8),
+    {Seq, TimeNs, PublisherID, Payload};
 
-decode_seq_header(Bin) ->
-    {undefined, undefined, Bin}.
+decode_seq_header_with_publisher(Bin) ->
+    % Fallback for old format
+    {Seq, Time, Rest} = decode_seq_header(Bin),
+    {Seq, Time, unknown, Rest}.
 
 convert_to_atom(Name) ->
     case Name of

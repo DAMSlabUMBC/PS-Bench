@@ -19,6 +19,10 @@ init([{NodeName, NodeList}]) ->
         start => {ps_bench_metrics_py, start_link, [[{listener_name, ps_bench_metrics_listener}]]},
         restart => permanent, shutdown => 5000, type => worker, modules => [ps_bench_metrics_py]},
 
+    MetricsAgg = #{id => ps_bench_metrics_aggregator,
+        start => {ps_bench_metrics_aggregator, start_link, []},
+        restart => permanent, shutdown => 5000, type => worker, modules => [ps_bench_metrics_aggregator]},
+
     Roll = #{id => ps_bench_metrics_rollup,
         start => {ps_bench_metrics_rollup, start_link, []},
         restart => permanent, shutdown => 5000, type => worker, modules => [ps_bench_metrics_rollup]},
@@ -39,6 +43,6 @@ init([{NodeName, NodeList}]) ->
         start => {ps_bench_scenario_sup, start_link, []},
         restart => permanent, shutdown => 5000, type => supervisor, modules => [ps_bench_scenario_sup]},
 
-    Children = [Pg, Roll, MetricsListener, MetricsPy, Lifecycle, NodeManager, ScenarioSup],
+    Children = [Pg, Roll, MetricsListener, MetricsPy, MetricsAgg, Lifecycle, NodeManager, ScenarioSup],
     {ok, {{one_for_one, 5, 60}, Children}}.
 

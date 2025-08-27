@@ -149,8 +149,19 @@ handle_info({?DISCONNECTED_MSG, {TimeNs, Reason}, ClientName}, State) ->
 handle_info({?PUBLISH_RECV_MSG, {RecvTimeNs, Topic, Payload}, ClientName}, State) ->
     % Extracted needed info and store
     Bytes = byte_size(Payload),
-    {Seq, PubTimeNs, _Rest} = ps_bench_utils:decode_seq_header(Payload),
-    ps_bench_store:record_recv(ClientName, Topic, Seq, PubTimeNs, RecvTimeNs, Bytes),
+    
+    % Try to decode with publisher ID
+    {Seq, PubTimeNs, PublisherID, _Rest} = 
+        case ps_bench_utils:decode_seq_header_with_publisher(Payload) of
+            {S, T, P, R} -> {S, T, P, R};
+            _ -> 
+                % Fallback to old format
+                {S, T, R} = ps_bench_utils:decode_seq_header(Payload),
+                {S, T, unknown, R}
+        end,
+    
+    % Updated call with PublisherID
+    ps_bench_store:record_recv(ClientName, Topic, Seq, PubTimeNs, RecvTimeNs, Bytes, PublisherID),
     {noreply, State};
 
 handle_info(_Info, State) ->

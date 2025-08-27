@@ -1,5 +1,14 @@
+# Calculate drop metrics from the counts
 def apply(lat_ms, size_b, counts):
-    drops = int(counts.get('drops', 0))
-    recv = int(counts.get('recv', 0))
-    rate = (drops / max(1, (drops + recv))) if (drops + recv) else 0.0
-    return {'drops': drops, 'loss_rate': rate, 'recv': recv}
+    recv = counts.get('recv', 0)
+    drops = counts.get('drops', 0)
+    
+    if recv + drops > 0:
+        drop_rate = (drops / (recv + drops)) * 100
+    else:
+        drop_rate = 0.0
+    
+    return {
+        'drops': drops,
+        'drop_rate_pct': drop_rate
+    }

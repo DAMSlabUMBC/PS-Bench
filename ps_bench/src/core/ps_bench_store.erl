@@ -10,7 +10,7 @@
 %% rollup helpers
 -export([take_events_until/1, get_last_recv_seq/1, put_last_recv_seq/2]).
 %% window summaries
--export([put_window_summary/3, list_window_summaries/0]).
+-export([put_window_summary/3, list_window_summaries/0, get_dropped_message_count/0]).
 
 
 -define(T_PUBSEQ, psb_pub_seq).      %% {pub_topic, TopicBin} -> Seq
@@ -21,6 +21,7 @@
 -define(T_PUBLISH_EVENTS, psb_publish_events).       %% ordered by t_recv_ns key
 -define(T_RECV_EVENTS, psb_recv_events).
 -define(T_WINS, psb_windows).        %% {{RunId, WinStartMs}} -> SummaryMap
+-define(T_DROPPED, psb_dropped_msgs).
 
 initialize_node_storage() ->
     ensure_tables(),
@@ -72,28 +73,77 @@ ensure_tables() ->
                                        {write_concurrency,true}]);
         _ -> ok
     end,
+    case ets:info(?T_DROPPED) of
+        undefined -> ets:new(?T_DROPPED, [named_table, public, set,
+                                        {write_concurrency,true}]);
+        _ -> ok
+    end,
     ok.
+
+%% Track dropped messages based on sequence gaps
+check_and_record_drops(ClientName, TopicBin, PublisherID, Seq) ->
+    ensure_tables(),
+    Key = {ClientName, TopicBin, PublisherID},
+    
+    case ets:lookup(?T_RECVSEQ, Key) of
+        [] -> 
+            % First message from this publisher
+            ets:insert(?T_RECVSEQ, {Key, Seq}),
+            0;  % No drops
+        [{Key, LastSeq}] when Seq > LastSeq + 1 ->
+            % We have drops
+            DroppedCount = Seq - LastSeq - 1,
+            ets:update_counter(?T_DROPPED, Key, {2, DroppedCount}, {Key, 0}),
+            ets:insert(?T_RECVSEQ, {Key, Seq}),
+            ps_bench_utils:log_message("Drops detected: Publisher ~p dropped ~p messages", [PublisherID, DroppedCount]),
+            DroppedCount;
+        [{Key, _LastSeq}] ->
+            % Sequential message, no drops
+            ets:insert(?T_RECVSEQ, {Key, Seq}),
+            0
+    end.
 
 %% record a recv event 
 %% EventMap shape:
 %% #{topic=>Topic, seq=>Seq|undefined, t_pub_ns=>TPub|undefined, t_recv_ns=>TRecv, bytes=>Bytes}
-record_recv(_ClientName, TopicBin, Seq, TPubNs, TRecvNs, Bytes) ->
+record_recv(ClientName, TopicBin, Seq, TPubNs, TRecvNs, Bytes, PublisherID) ->
     ensure_tables(),
+    
+    % Check for drops
+    check_and_record_drops(ClientName, TopicBin, PublisherID, Seq),
+    
     Key = TRecvNs,   %% ordered_set key
-    Event = #{topic=>TopicBin, seq=>Seq, t_pub_ns=>TPubNs, t_recv_ns=>TRecvNs, bytes=>Bytes},
-
-    % Record = #?RECV_EVENT_RECORD_NAME{node_name=node(), client_name=ClientName, topic=TopicBin, seq_id=Seq, pub_timestamp=TPubNs, recv_timestamp=TRecvNs, payload_size=Bytes},
-    % mnesia:write(Record),
-
-    % io:format("~p~n", [mnesia:table_info(?RECV_EVENT_RECORD_NAME, all)]),
+    Event = #{topic=>TopicBin, seq=>Seq, publisher=>PublisherID,
+              t_pub_ns=>TPubNs, t_recv_ns=>TRecvNs, bytes=>Bytes},
 
     ets:insert(?T_RECV_EVENTS, {Key, Event}),
     ok.
 
-record_connect(_ClientName, _TimeNs) ->
+%% Keep old signature for backward compatibility
+record_recv(ClientName, TopicBin, Seq, TPubNs, TRecvNs, Bytes) ->
+    record_recv(ClientName, TopicBin, Seq, TPubNs, TRecvNs, Bytes, unknown).
+
+record_connect(ClientName, TimeNs) ->
+    ensure_tables(),
+    Key = {TimeNs, ClientName, connect},
+    ets:insert(?T_CONNECT_EVENTS, {Key, #{client=>ClientName, time=>TimeNs}}),
+    
+    % Reset sequence tracking for this client on connect
+    AllKeys = ets:select(?T_RECVSEQ, [{{'$1', '_'}, [], ['$1']}]),
+    lists:foreach(fun({C, _, _} = K) when C =:= ClientName -> 
+                      ets:delete(?T_RECVSEQ, K);
+                     (_) -> ok 
+                  end, AllKeys),
+    ps_bench_utils:log_message("Client ~p connected at ~p", [ClientName, TimeNs]),
     ok.
 
-record_disconnect(_ClientName, _TimeNs, _Type) ->
+record_disconnect(ClientName, TimeNs, Type) ->
+    ensure_tables(),
+    Key = {TimeNs, ClientName, disconnect},
+    ets:insert(?T_DISCONNECT_EVENTS, {Key, #{client=>ClientName, 
+                                              time=>TimeNs, 
+                                              type=>Type}}),
+    ps_bench_utils:log_message("Client ~p disconnected (~p) at ~p", [ClientName, Type, TimeNs]),
     ok.
 
 %% Drain all events with t_recv_ns <= CutoffNs and delete them
@@ -128,4 +178,12 @@ put_window_summary(RunId, WinStartMs, Summary) ->
 
 list_window_summaries() ->
     lists:sort(ets:tab2list(?T_WINS)).
+
+%% Get total dropped message count
+get_dropped_message_count() ->
+    ensure_tables(),
+    case ets:info(?T_DROPPED) of
+        undefined -> 0;
+        _ -> lists:sum([Count || {_Key, Count} <- ets:tab2list(?T_DROPPED)])
+    end.
     

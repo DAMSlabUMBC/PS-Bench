@@ -51,7 +51,7 @@ handle_call({publish, Properties, Topic, Payload, PubOpts},
     case Connected of
         true ->
             %% Prepend monotonic time so payload matches decode_seq_header/1
-            TimeNs = erlang:monotonic_time(nanosecond),
+            TimeNs = erlang:system_time(nanosecond),
             Payload1 = <<TimeNs:64/unsigned, Payload/binary>>,
             _ = emqtt:publish(ClientPid, Topic, Properties, Payload1, PubOpts),
             {reply, ok, State};

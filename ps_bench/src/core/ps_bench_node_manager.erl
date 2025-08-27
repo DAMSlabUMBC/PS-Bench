@@ -92,6 +92,23 @@ handle_next_step_command(start_benchmark) ->
 
 handle_next_step_command(start_calculate_metrics) ->
     ps_bench_utils:log_state_change("Starting Metric Calc"),
+    
+    % Wait for final messages
+    timer:sleep(2000),
+    
+    % Write local metrics first
+    ps_bench_metrics_rollup:write_csv(),
+    
+    % If primary node, aggregate from all nodes
+    case is_primary_node() of
+        true ->
+            ps_bench_utils:log_message("Primary node: aggregating metrics from all nodes"),
+            ps_bench_metrics_aggregator:aggregate_metrics();
+        false ->
+            ps_bench_utils:log_message("Secondary node: skipping aggregation"),
+            ok
+    end,
+    
     gen_server:cast(?MODULE, global_continue),
     ok;
 

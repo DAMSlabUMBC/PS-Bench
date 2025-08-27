@@ -147,7 +147,7 @@ handle_cast(stop, State = #{nif_module := NifModule, pub_task := PubTaskRef, dis
 
 handle_info({?PUBLISH_RECV_MSG, {ClientName, Topic, SeqId, PubTimeNs, RecvTimeNs, Bytes}}, State) ->
     % Extracted needed info and store
-    ps_bench_store:record_recv(ClientName, Topic, SeqId, PubTimeNs, RecvTimeNs, Bytes),
+    ps_bench_store:record_recv(ClientName, Topic, SeqId, PubTimeNs, RecvTimeNs, Bytes, ClientName),
     {noreply, State};
 
 handle_info(_Info, State) ->

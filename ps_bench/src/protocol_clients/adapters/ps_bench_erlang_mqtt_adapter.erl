@@ -38,7 +38,6 @@ init([TestName, InterfaceName, ClientName, DeviceType]) ->
     ServerRef   = ServerName,
 
     Tid = ensure_subs_table(),
-    ok = ps_bench_store:initialize_node_storage(),
     {ok, #{ test_name        => TestName
           , device_type      => DeviceType
           , server_reference => ServerRef

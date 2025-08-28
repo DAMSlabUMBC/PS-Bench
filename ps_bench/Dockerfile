@@ -23,7 +23,8 @@ RUN rebar3 release
 # make configs/out visible to the release
 RUN set -eux; rel="/app/_build/default/rel/ps_bench"; \
     ln -s /app/configs "$rel/configs" || true; \
-    ln -s /app/out     "$rel/out"     || true
+    ln -s /app/out     "$rel/out"     || true; \
+    ln -s /app/results "$rel/results" || true
 
 # ports for epmd + distribution 
 EXPOSE 4369 15000-15010

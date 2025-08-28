@@ -6,7 +6,7 @@
 %% seq mgmt
 -export([get_next_seq_id/1]).
 %% recv event I/O
--export([record_recv/6, record_connect/2, record_disconnect/3]).
+-export([record_recv/6, record_recv/7, record_connect/2, record_disconnect/3]).
 %% rollup helpers
 -export([take_events_until/1, get_last_recv_seq/1, put_last_recv_seq/2]).
 %% window summaries
@@ -103,7 +103,7 @@ check_and_record_drops(ClientName, TopicBin, PublisherID, Seq) ->
             DroppedCount = Seq - LastSeq - 1,
             ets:update_counter(?T_DROPPED, Key, {2, DroppedCount}, {Key, 0}),
             ets:insert(?T_RECVSEQ, {Key, Seq}),
-            ps_bench_utils:log_message("Drops detected: Publisher ~p dropped ~p messages", [PublisherID, DroppedCount]),
+            %% ps_bench_utils:log_message("Drops detected: Publisher ~p dropped ~p messages", [PublisherID, DroppedCount]),
             DroppedCount;
         [{Key, _LastSeq}] ->
             % Sequential message, no drops

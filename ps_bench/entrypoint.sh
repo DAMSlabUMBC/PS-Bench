@@ -103,34 +103,30 @@ patch_hostnames_in_scenarios() {
   fi
 }
 
-# This forces the use of -name or -sname based on DIST_MODE
+# Update configure_distribution to check the actual file content
 configure_distribution() {
-  if [ -d "$REL_ROOT/releases" ]; then
-    find "$REL_ROOT/releases" -type f -name vm.args | while read -r f; do
-      sed -i -r '/^[[:space:]]*-[sn]name([[:space:]]+|$).*/d' "$f" || true
-      
-      if [ "$DIST_MODE" = "name" ] || [ "$DIST_MODE" = "longnames" ]; then
-        # Use full hostname for -name
-        FULL_HOSTNAME="$(hostname -f)"
-        printf '%s\n' "-name ${NODE_BASE}@${FULL_HOSTNAME}" >> "$f"
-        log "vm.args patched: $f => -name ${NODE_BASE}@${FULL_HOSTNAME}"
-        export RELEASE_DISTRIBUTION="name"
-        export RELEASE_NODE="${NODE_BASE}@${FULL_HOSTNAME}"
-      else
-        # Use short hostname for -sname
-        SHORT_HOSTNAME="$(hostname -s)"
-        printf '%s\n' "-sname ${NODE_BASE}@${SHORT_HOSTNAME}" >> "$f"
-        log "vm.args patched: $f => -sname ${NODE_BASE}@${SHORT_HOSTNAME}"
-        export RELEASE_DISTRIBUTION="sname"
-        export RELEASE_NODE="${NODE_BASE}@${SHORT_HOSTNAME}"
-      fi
-    done
+  log "Starting configure_distribution with DIST_MODE=$DIST_MODE"
+  if [ "$DIST_MODE" = "name" ] || [ "$DIST_MODE" = "longnames" ]; then
+    # Long names: full hostname
+    FULL_HOSTNAME="$(hostname -f)"
+    export RELEASE_DISTRIBUTION="name"
+    export NAME="${NODE_BASE}@${FULL_HOSTNAME}"
+    export RELEASE_NODE="$NAME"
+    log "Set NAME=$NAME"
   else
-    log "WARNING: ${REL_ROOT}/releases not found"
+    # Short names: only node base on command line; host inferred
+    SHORT_HOSTNAME="$(hostname -s)"
+    export RELEASE_DISTRIBUTION="sname"
+    export SNAME="$NODE_BASE"
+    export RELEASE_NODE="${NODE_BASE}@${SHORT_HOSTNAME}"
+    log "Set SNAME=$SNAME (full node will be ${RELEASE_NODE})"
   fi
-  
+  # Always set a cookie
   export RELEASE_COOKIE="${RELEASE_COOKIE:-ps_bench_cookie}"
+  log "Set RELEASE_COOKIE=$RELEASE_COOKIE"
 }
+
+
 
 # write broker host and port into scenario files
 patch_broker_in_scenarios() {
@@ -188,6 +184,29 @@ patch_selected_scenario() {
   else
     log "WARNING: config.exs not found at $CONFIG_EXS"
   fi
+}
+
+create_app_config() {
+    local config_path="${REL_ROOT}/releases/${REL_VSN}/sys.config"
+    
+    # Ensure the metrics scenario config includes the output directory
+    local METRICS_CONFIG=""
+    if [ -n "$OUT_DIR" ]; then
+        METRICS_CONFIG=", metric_config => [{output_dir, \"$OUT_DIR\"}]"
+    fi
+    
+    cat > "$config_path" << EOF
+[
+  {ps_bench, [
+    {node_name, ${NODE_BASE}},
+    {device_definitions_directory, "$SCEN_DIR/../devices"},
+    {deployment_definitions_directory, "$SCEN_DIR/../deployments"}, 
+    {scenario_definitions_directory, "$SCEN_DIR"},
+    {selected_scenario, ${SCEN_CHOSEN}}
+  ]}
+].
+EOF
+    log "Created sys.config with selected_scenario=${SCEN_CHOSEN}"
 }
 
 # add a stable suffix to explicit client ids to avoid collisions
@@ -378,8 +397,22 @@ main() {
   ELIXIR_ERL_OPTIONS="$(strip_name_flags "$ELIXIR_ERL_OPTIONS")"
   export ERL_AFLAGS ELIXIR_ERL_OPTIONS
 
-  unset SNAME NAME RELEASE_SNAME RELEASE_NAME
+  # Don't unset NAME and SNAME - we need them!
+  unset RELEASE_SNAME RELEASE_NAME
+  
+  # Debug: show current state
+  log "Before configure_distribution: SNAME=${SNAME:-not_set} NAME=${NAME:-not_set}"
+  
   configure_distribution
+  
+  # Debug: show state after configuration
+  log "After configure_distribution: SNAME=${SNAME:-not_set} NAME=${NAME:-not_set}"
+  log "RELEASE_NODE=${RELEASE_NODE:-not_set} RELEASE_DISTRIBUTION=${RELEASE_DISTRIBUTION:-not_set}"
+  
+  REL_VSN="$(basename "$(ls -d "${REL_ROOT}/releases"/*/ 2>/dev/null | sort | tail -n1)")"
+  export REL_VSN
+  log "Found release version: ${REL_VSN}"
+  
   find "$REL_ROOT/releases" -type f -name vm.args -exec sh -c 'echo "--- {} ---"; head -n 20 "{}"' \; || true
   suffix_client_ids
   patch_broker_in_scenarios
@@ -388,15 +421,56 @@ main() {
   grep -RIn '^\s*\(name\|client_id\|clientId\|client-name\|client_name\)\s*=' "$SCEN_DIR" | head -n 40 || true  
   patch_node_base_everywhere  
   patch_selected_scenario
+  create_app_config
   export NODE_HOST_OVERRIDE="$(hostname)"
   if [ ! -x "$BIN" ]
   then
     log "ERROR release binary not found at $BIN"
     exit 1
   fi
-  log "StartinFg ps_bench as ${NODE_BASE}@$(hostname) broker=${BROKER_HOST}:${BROKER_PORT} scenario=${SCEN_CHOSEN}"
+  log "Starting ps_bench as ${NODE_BASE}@$(hostname) broker=${BROKER_HOST}:${BROKER_PORT} scenario=${SCEN_CHOSEN}"
+  
+  # Debug: show environment before running
+  log "Environment check before running:"
+  log "  SNAME=${SNAME:-not_set}"
+  log "  NAME=${NAME:-not_set}"
+  log "  RELEASE_NODE=${RELEASE_NODE:-not_set}"
+  
   set +e
+  
+  # Create vm.args (and vm.args.src) with our settings before running
+  export RELX_REPLACE_OS_VARS=true
+
+  # Derive the release version dynamically instead of hardcoding 0.1.0
+  REL_VSN="$(basename "$(ls -d "${REL_ROOT}/releases"/*/ 2>/dev/null | sort | tail -n1)")"
+  VM_ARGS_PATH="${REL_ROOT}/releases/${REL_VSN}/vm.args"
+  VM_ARGS_SRC="${REL_ROOT}/releases/${REL_VSN}/vm.args.src"
+  mkdir -p "$(dirname "$VM_ARGS_PATH")"
+
+  {
+    echo "-kernel inet_dist_listen_min 15000"
+    echo "-kernel inet_dist_listen_max 15010"
+    echo "+Bd"
+    echo "-setcookie ${RELEASE_COOKIE}"
+
+    if [ "${RELEASE_DISTRIBUTION}" = "name" ]; then
+      # Long name must include host
+      echo "-name ${NAME}"
+    else
+      # Short name MUST be only the node base (no @host)
+      echo "-sname ${SNAME}"
+    fi
+  } > "$VM_ARGS_PATH"
+
+  # Keep .src in sync so the wrapper won't regenerate a distribution-less vm.args
+  cp -f "$VM_ARGS_PATH" "$VM_ARGS_SRC" 2>/dev/null || true
+
+  log "Created vm.args with content:"
+  while IFS= read -r line; do log "  $line"; done < "$VM_ARGS_PATH"
+
+  log "Running: $BIN foreground"
   "$BIN" foreground &
+
   APP_PID="$!"
   trap on_term TERM
   trap on_int INT

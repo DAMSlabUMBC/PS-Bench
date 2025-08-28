@@ -36,6 +36,7 @@ services:
       SCEN_DIR: /app/configs/initial_tests/scenarios
     volumes:
       - ./out/runner01:/app/out
+      - ./results:/app/results 
     depends_on:
       mosquitto:
         condition: service_healthy

@@ -61,7 +61,9 @@ handle_next_step_command(start_connections) ->
     % {ok, NodeList} = ps_bench_config_manager:fetch_node_name_list(),
     % NodeHostList = lists:map(fun(X) -> get_hostname_for_node(X) end, NodeList),
     {ok, NodeList} = ps_bench_config_manager:fetch_node_list(),
-    case wait_for_nodes_to_connect(NodeList) of
+    CurrentNode = node(),
+    OtherNodes = lists:delete(CurrentNode, NodeList),
+    case wait_for_nodes_to_connect(OtherNodes) of
         ok ->
             gen_server:cast(?MODULE, local_continue);
         {error, Reason} ->
@@ -135,7 +137,6 @@ setup_benchmark() ->
 
     % Register this node
     {ok, NodeName} = ps_bench_config_manager:fetch_node_name(),
-    _ = ensure_distribution(NodeName),
     erlang:set_cookie(node(), ?PS_BENCH_COOKIE),
 
     % At this point in the call, we're done configuring, so let the lifecycle manager know

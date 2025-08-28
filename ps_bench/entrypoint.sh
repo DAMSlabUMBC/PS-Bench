@@ -10,7 +10,7 @@ OUT_DIR="${OUT_DIR:-/app/out}"
 OUT_DIR="${OUT_DIR%/}/${RUN_TAG}_${RUN_TS}"
 export RUN_TAG RUN_TS OUT_DIR
 
-SCEN_DIR="${SCEN_DIR:-/app/configs/scenarios}"
+SCEN_DIR="${SCEN_DIR:-/app/configs/initial_tests/scenarios}"
 CONFIG_EXS="${CONFIG_EXS:-/app/configs/config.exs}"
 BROKER_HOST="${BROKER_HOST:-mqtt}"
 BROKER_PORT="${BROKER_PORT:-1883}"
@@ -39,6 +39,11 @@ case "$NODE_BASE" in
   * ) NODE_BASE="r_${NODE_BASE}" ;;
 esac
 
+# Make sure it's not empty
+if [ -z "$NODE_BASE" ]; then
+    NODE_BASE="runner1"
+fi
+
 RELEASE_COOKIE="${RELEASE_COOKIE:-ps_bench_cookie}"
 export NODE_BASE RELEASE_COOKIE
 
@@ -63,27 +68,52 @@ strip_name_flags() {
   printf '%s' "${1:-}" | sed -E 's/(^|[[:space:]])-(sname|name)[[:space:]]+[^[:space:]]+//g'
 }
 
-# ensure exactly one -sname in vm.args and export cookie
-force_sname() {
+# replace REPLACE_HOSTNAME in scenarios with actual hostname
+patch_hostnames_in_scenarios() {
+  if [ -d "$SCEN_DIR" ]; then
+    # Get full hostname with domain
+    FULL_HOSTNAME="$(hostname -f)"
+    
+    for f in "$SCEN_DIR"/*.scenario; do
+      [ -f "$f" ] || continue
+      
+      # Replace 'REPLACE_HOSTNAME' atoms with full hostname
+      sed -i "s/'REPLACE_HOSTNAME'/'${FULL_HOSTNAME}'/g" "$f" || true
+      
+      # For multi-node scenarios with specific runner hostnames
+      sed -i "s/'REPLACE_RUNNER1_HOSTNAME'/'runner01.benchnet'/g" "$f" || true
+      sed -i "s/'REPLACE_RUNNER2_HOSTNAME'/'runner02.benchnet'/g" "$f" || true
+      sed -i "s/'REPLACE_RUNNER3_HOSTNAME'/'runner03.benchnet'/g" "$f" || true
+      sed -i "s/'REPLACE_RUNNER4_HOSTNAME'/'runner04.benchnet'/g" "$f" || true
+      sed -i "s/'REPLACE_RUNNER5_HOSTNAME'/'runner05.benchnet'/g" "$f" || true
+      
+      # Also handle quoted strings if any
+      sed -i "s/\"REPLACE_HOSTNAME\"/\"${FULL_HOSTNAME}\"/g" "$f" || true
+      sed -i "s/\"REPLACE_BROKER_IP\"/\"${BROKER_HOST}\"/g" "$f" || true
+    done
+    
+    log "Hostnames patched in scenarios to ${FULL_HOSTNAME}"
+  fi
+}
+
+# ensure exactly one -name in vm.args and export cookie
+force_name() {
   if [ -d "$REL_ROOT/releases" ]; then
-    # Remove any existing -name/-sname from *all* vm.args files and append ours
     find "$REL_ROOT/releases" -type f -name vm.args | while read -r f; do
       sed -i -r '/^[[:space:]]*-[sn]name([[:space:]]+|$).*/d' "$f" || true
-      printf '%s\n' "-sname ${NODE_BASE}" >> "$f"
-      log "vm.args patched: $f => -sname ${NODE_BASE}"
+      # Use full hostname for -name
+      FULL_HOSTNAME="$(hostname -f)"
+      printf '%s\n' "-name ${NODE_BASE}@${FULL_HOSTNAME}" >> "$f"
+      log "vm.args patched: $f => -name ${NODE_BASE}@${FULL_HOSTNAME}"
     done
   else
     log "WARNING: ${REL_ROOT}/releases not found"
   fi
-
-  # Make sure modern Mix releases derive consistent args (if they use these)
-  export RELEASE_DISTRIBUTION="sname"
-  export RELEASE_NODE="${NODE_BASE}"
+  
+  # Update environment variables for -name
+  export RELEASE_DISTRIBUTION="name"  # Changed from "sname"
+  export RELEASE_NODE="${NODE_BASE}@$(hostname -f)"  # Full hostname
   export RELEASE_COOKIE="${RELEASE_COOKIE:-ps_bench_cookie}"
-
-  # Debug: show the first lines of the vm.args that erlexec will use
-  find "$REL_ROOT/releases" -type f -name vm.args -exec sh -c \
-    'echo "--- {} ---"; nl -ba "{}" | sed -n "1,40p"' \; || true
 }
 
 # write broker host and port into scenario files
@@ -333,14 +363,16 @@ main() {
   export ERL_AFLAGS ELIXIR_ERL_OPTIONS
 
   unset SNAME NAME RELEASE_SNAME RELEASE_NAME
-  force_sname
+  force_name
   find "$REL_ROOT/releases" -type f -name vm.args -exec sh -c 'echo "--- {} ---"; head -n 20 "{}"' \; || true
   suffix_client_ids
   patch_broker_in_scenarios
+  patch_hostnames_in_scenarios
   grep -RIn '^\s*\(host\|hostname\|port\)\s*=' "$SCEN_DIR" || true
   grep -RIn '^\s*\(name\|client_id\|clientId\|client-name\|client_name\)\s*=' "$SCEN_DIR" | head -n 40 || true  
   patch_node_base_everywhere  
   patch_selected_scenario
+  export NODE_HOST_OVERRIDE="$(hostname)"
   if [ ! -x "$BIN" ]
   then
     log "ERROR release binary not found at $BIN"

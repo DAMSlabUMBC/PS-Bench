@@ -525,8 +525,35 @@ fetch_node_list() ->
 
 fetch_full_node_from_name(NodeName) ->
     {ok, Host} = fetch_host_for_node_name(NodeName, net_adm:localhost()),
-    list_to_atom(ps_bench_utils:convert_to_list(NodeName) ++ "@" ++ ps_bench_utils:convert_to_list(Host)).
-
+    NodeStr = ps_bench_utils:convert_to_list(NodeName),
+    HostStr = ps_bench_utils:convert_to_list(Host),
+    
+    % Build the node name to match current distribution mode
+    case node() of
+        'nonode@nohost' ->
+            % Not distributed yet, just build the name
+            list_to_atom(NodeStr ++ "@" ++ HostStr);
+        CurrentNode ->
+            % Match the format of the current node
+            case string:tokens(atom_to_list(CurrentNode), "@") of
+                [_CurrentName, CurrentHost] when length(CurrentHost) > 0 ->
+                    % We're distributed, use same host format
+                    % If CurrentHost has dots, we're using -name, otherwise -sname
+                    case string:chr(CurrentHost, $.) of
+                        0 -> 
+                            % No dots, using -sname, use short hostname
+                            ShortHost = hd(string:tokens(HostStr, ".")),
+                            list_to_atom(NodeStr ++ "@" ++ ShortHost);
+                        _ ->
+                            % Has dots, using -name, use full hostname
+                            list_to_atom(NodeStr ++ "@" ++ HostStr)
+                    end;
+                _ ->
+                    % Shouldn't happen, fallback
+                    list_to_atom(NodeStr ++ "@" ++ HostStr)
+            end
+    end.
+    
 fetch_metrics_output_dir() ->
     fetch_metric_property(?METRIC_RESULTS_DIR_PROP, ?DEFAULT_OUT_DIR).
 

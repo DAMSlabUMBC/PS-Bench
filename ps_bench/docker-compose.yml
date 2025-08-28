@@ -60,7 +60,7 @@ services:
     networks: [benchnet]
     environment: *runner-env
     volumes:
-      - ./out/runner04:/app/out
+      - ./out/runner03:/app/out
 
   runner04:
     image: ps_bench-runner:latest

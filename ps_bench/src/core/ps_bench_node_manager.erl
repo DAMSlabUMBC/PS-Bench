@@ -145,7 +145,12 @@ ensure_distribution(NodeName0) ->
     case node() of
         nonode@nohost ->
             NodeName = ps_bench_utils:convert_to_atom(NodeName0),
-            case net_kernel:start([NodeName, shortnames]) of
+            DistMode = case os:getenv("ERLANG_DIST_MODE") of
+                "longnames" -> longnames;
+                "name" -> longnames;
+                _ -> shortnames  % default to shortnames
+            end,
+            case net_kernel:start([NodeName, DistMode]) of
                 {ok, _Pid}                       -> ok;
                 {error, {already_started, _Pid}} -> ok;
                 {error, Reason} ->

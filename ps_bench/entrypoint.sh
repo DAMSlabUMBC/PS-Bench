@@ -14,6 +14,9 @@ SCEN_DIR="${SCEN_DIR:-/app/configs/initial_tests/scenarios}"
 CONFIG_EXS="${CONFIG_EXS:-/app/configs/config.exs}"
 BROKER_HOST="${BROKER_HOST:-mqtt}"
 BROKER_PORT="${BROKER_PORT:-1883}"
+DIST_MODE="${DIST_MODE:-sname}"
+export ERLANG_DIST_MODE="$DIST_MODE"
+
 
 DEFAULT_SCEN="mqtt_multi_node_light"
 if [ -n "${SELECTED_SCENARIO:-}" ]
@@ -96,23 +99,32 @@ patch_hostnames_in_scenarios() {
   fi
 }
 
-# ensure exactly one -name in vm.args and export cookie
-force_name() {
+# This forces the use of -name or -sname based on DIST_MODE
+configure_distribution() {
   if [ -d "$REL_ROOT/releases" ]; then
     find "$REL_ROOT/releases" -type f -name vm.args | while read -r f; do
       sed -i -r '/^[[:space:]]*-[sn]name([[:space:]]+|$).*/d' "$f" || true
-      # Use full hostname for -name
-      FULL_HOSTNAME="$(hostname -f)"
-      printf '%s\n' "-name ${NODE_BASE}@${FULL_HOSTNAME}" >> "$f"
-      log "vm.args patched: $f => -name ${NODE_BASE}@${FULL_HOSTNAME}"
+      
+      if [ "$DIST_MODE" = "name" ] || [ "$DIST_MODE" = "longnames" ]; then
+        # Use full hostname for -name
+        FULL_HOSTNAME="$(hostname -f)"
+        printf '%s\n' "-name ${NODE_BASE}@${FULL_HOSTNAME}" >> "$f"
+        log "vm.args patched: $f => -name ${NODE_BASE}@${FULL_HOSTNAME}"
+        export RELEASE_DISTRIBUTION="name"
+        export RELEASE_NODE="${NODE_BASE}@${FULL_HOSTNAME}"
+      else
+        # Use short hostname for -sname
+        SHORT_HOSTNAME="$(hostname -s)"
+        printf '%s\n' "-sname ${NODE_BASE}@${SHORT_HOSTNAME}" >> "$f"
+        log "vm.args patched: $f => -sname ${NODE_BASE}@${SHORT_HOSTNAME}"
+        export RELEASE_DISTRIBUTION="sname"
+        export RELEASE_NODE="${NODE_BASE}@${SHORT_HOSTNAME}"
+      fi
     done
   else
     log "WARNING: ${REL_ROOT}/releases not found"
   fi
   
-  # Update environment variables for -name
-  export RELEASE_DISTRIBUTION="name"  # Changed from "sname"
-  export RELEASE_NODE="${NODE_BASE}@$(hostname -f)"  # Full hostname
   export RELEASE_COOKIE="${RELEASE_COOKIE:-ps_bench_cookie}"
 }
 

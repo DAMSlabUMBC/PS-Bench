@@ -531,8 +531,17 @@ fetch_full_node_from_name(NodeName) ->
     % Build the node name to match current distribution mode
     case node() of
         'nonode@nohost' ->
-            % Not distributed yet, just build the name
-            list_to_atom(NodeStr ++ "@" ++ HostStr);
+            % Not distributed yet, check env var to match what will be used
+            case os:getenv("ERLANG_DIST_MODE") of
+                "longnames" -> 
+                    list_to_atom(NodeStr ++ "@" ++ HostStr);
+                "name" -> 
+                    list_to_atom(NodeStr ++ "@" ++ HostStr);
+                _ -> 
+                    % Default to shortnames
+                    ShortHost = hd(string:tokens(HostStr, ".")),
+                    list_to_atom(NodeStr ++ "@" ++ ShortHost)
+            end;
         CurrentNode ->
             % Match the format of the current node
             case string:tokens(atom_to_list(CurrentNode), "@") of

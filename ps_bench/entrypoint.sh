@@ -75,13 +75,17 @@ strip_name_flags() {
 patch_hostnames_in_scenarios() {
   if [ -d "$SCEN_DIR" ]; then
     # Get full hostname with domain
-    FULL_HOSTNAME="$(hostname -f)"
+    if [ "$DIST_MODE" = "name" ] || [ "$DIST_MODE" = "longnames" ]; then
+      HOSTNAME_TO_USE="$(hostname -f)"
+    else
+      HOSTNAME_TO_USE="$(hostname -s)"
+    fi
     
     for f in "$SCEN_DIR"/*.scenario; do
       [ -f "$f" ] || continue
       
       # Replace 'REPLACE_HOSTNAME' atoms with full hostname
-      sed -i "s/'REPLACE_HOSTNAME'/'${FULL_HOSTNAME}'/g" "$f" || true
+      sed -i "s/'REPLACE_HOSTNAME'/'${HOSTNAME_TO_USE}'/g" "$f" || true
       
       # For multi-node scenarios with specific runner hostnames
       sed -i "s/'REPLACE_RUNNER1_HOSTNAME'/'runner01.benchnet'/g" "$f" || true
@@ -91,11 +95,11 @@ patch_hostnames_in_scenarios() {
       sed -i "s/'REPLACE_RUNNER5_HOSTNAME'/'runner05.benchnet'/g" "$f" || true
       
       # Also handle quoted strings if any
-      sed -i "s/\"REPLACE_HOSTNAME\"/\"${FULL_HOSTNAME}\"/g" "$f" || true
+      sed -i "s/\"REPLACE_HOSTNAME\"/\"${HOSTNAME_TO_USE}\"/g" "$f" || true
       sed -i "s/\"REPLACE_BROKER_IP\"/\"${BROKER_HOST}\"/g" "$f" || true
     done
     
-    log "Hostnames patched in scenarios to ${FULL_HOSTNAME}"
+    log "Hostnames patched in scenarios to ${HOSTNAME_TO_USE}"
   fi
 }
 
@@ -375,7 +379,7 @@ main() {
   export ERL_AFLAGS ELIXIR_ERL_OPTIONS
 
   unset SNAME NAME RELEASE_SNAME RELEASE_NAME
-  force_name
+  configure_distribution
   find "$REL_ROOT/releases" -type f -name vm.args -exec sh -c 'echo "--- {} ---"; head -n 20 "{}"' \; || true
   suffix_client_ids
   patch_broker_in_scenarios

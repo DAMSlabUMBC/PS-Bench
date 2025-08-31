@@ -35,7 +35,6 @@ handle_cast(local_continue, State = #{node_name := RawNodeName}) ->
 handle_cast(global_continue, State = #{node_name := RawNodeName}) ->
     NodeName = ps_bench_utils:convert_to_atom(RawNodeName),
     {ok, Nodes} = ps_bench_config_manager:fetch_node_list(),
-    ps_bench_utils:log_message("Nodes: ~p", [Nodes]),
     rpc:multicall(Nodes, ps_bench_lifecycle, current_step_complete, [NodeName]),
     {noreply, State};
 
@@ -58,13 +57,12 @@ handle_next_step_command(start_connections) ->
     ps_bench_utils:log_state_change("Establishing Connections"),
 
     % Find all other nodes
-    % {ok, NodeList} = ps_bench_config_manager:fetch_node_name_list(),
-    % NodeHostList = lists:map(fun(X) -> get_hostname_for_node(X) end, NodeList),
     {ok, NodeList} = ps_bench_config_manager:fetch_node_list(),
     CurrentNode = node(),
     OtherNodes = lists:delete(CurrentNode, NodeList),
     case wait_for_nodes_to_connect(OtherNodes) of
         ok ->
+            ps_bench_store:initialize_mnesia_storage(NodeList),
             gen_server:cast(?MODULE, local_continue);
         {error, Reason} ->
             {error, Reason}
@@ -82,14 +80,23 @@ handle_next_step_command(start_initialization) ->
     % Now initalize the scenario
     ok = ps_bench_scenario_manager:initialize_scenario(),
 
+    % Finally initialize the metric plugins
+    ps_bench_metrics_manager:initialize_plugins(),
+
     % Ready to start when other nodes are synced
     gen_server:cast(?MODULE, global_continue),
     ok;
 
 
 handle_next_step_command(start_benchmark) ->
-    gen_server:cast(ps_bench_metrics_rollup, start_loop),
+    % gen_server:cast(ps_bench_metrics_rollup, start_loop),
     ps_bench_scenario_manager:run_scenario(),
+    ok;
+
+handle_next_step_command(finalize_scenario) ->
+    % gen_server:cast(ps_bench_metrics_rollup, start_loop),
+    ps_bench_scenario_manager:clean_up_scenario(),
+    gen_server:cast(?MODULE, global_continue),
     ok;
 
 handle_next_step_command(start_calculate_metrics) ->
@@ -97,26 +104,28 @@ handle_next_step_command(start_calculate_metrics) ->
     
     % Wait for final messages
     timer:sleep(2000),
+
+    ps_bench_metrics_manager:run_metric_calculations(),
     
     % Write local metrics first
-    ps_bench_metrics_rollup:write_csv(),
+    % ps_bench_metrics_rollup:write_csv(),
     
-    % If primary node, aggregate from all nodes
-    case is_primary_node() of
-        true ->
-            ps_bench_utils:log_message("Primary node: aggregating metrics from all nodes"),
-            ps_bench_metrics_aggregator:aggregate_metrics();
-        false ->
-            ps_bench_utils:log_message("Secondary node: skipping aggregation"),
-            ok
-    end,
+    % % If primary node, aggregate from all nodes
+    % case is_primary_node() of
+    %     true ->
+    %         ps_bench_utils:log_message("Primary node: aggregating metrics from all nodes"),
+    %         ps_bench_metrics_aggregator:aggregate_metrics();
+    %     false ->
+    %         ps_bench_utils:log_message("Secondary node: skipping aggregation"),
+    %         ok
+    % end,
     
     gen_server:cast(?MODULE, global_continue),
     ok;
 
 handle_next_step_command(start_clean_up) ->
     ps_bench_utils:log_state_change("Starting Cleanup"),
-    ps_bench_metrics_rollup:write_csv(),
+    % ps_bench_metrics_rollup:write_csv(),
     ps_bench_app:stop_benchmark_application(),
     ok.
 
@@ -137,6 +146,7 @@ setup_benchmark() ->
 
     % Register this node
     {ok, NodeName} = ps_bench_config_manager:fetch_node_name(),
+    _ = ensure_distribution(NodeName),
     erlang:set_cookie(node(), ?PS_BENCH_COOKIE),
 
     % At this point in the call, we're done configuring, so let the lifecycle manager know

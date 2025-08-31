@@ -90,8 +90,13 @@ handle_call(subscribe, _From, State = #{nif_module := NifModule, participant := 
             {reply, ok, State}
     end;
 
-handle_call({publish, SeqId, Data}, _From, State = #{nif_module := NifModule, publisher := Publisher}) -> 
-    NifModule:publish_message(SeqId, Data, Publisher),
+handle_call({publish, SeqId, Data}, _From, State = #{client_name := ClientName, nif_module := NifModule, publisher := Publisher}) -> 
+    case NifModule:publish_message(SeqId, Data, Publisher) of
+        ok ->
+            ps_bench_store:record_publish(ClientName, ?DDS_TOPIC, SeqId);
+        not_connected ->
+            ok
+    end,
     {reply, ok, State};
 
 handle_call(unsubscribe, _From, State = #{nif_module := NifModule, participant := Participant, subscriber := Subscriber, client_name := ClientName, tid := Tid}) ->  
@@ -129,10 +134,17 @@ handle_call(_Msg, _From, State) ->
 
 % Calls to start the actual timer functions
 handle_cast(start_client_loops, State = #{device_type := DeviceType, client_name := ClientName}) ->
-    {ok, PubTaskRef} = start_publication_loop(DeviceType, ClientName),
-    {ok, DisconLoopTaskRef} = start_disconnection_loop(DeviceType, ClientName),
-    {ok, ReconLoopTaskRef} = start_reconnection_loop(DeviceType, ClientName),
-    {noreply, State#{pub_task := PubTaskRef, discon_task := DisconLoopTaskRef, recon_task := ReconLoopTaskRef}};
+
+    % Subscriber clients don't have client loops
+    case DeviceType of
+        subscriber ->
+            {noreply, State};
+        _ ->
+            {ok, PubTaskRef} = start_publication_loop(DeviceType, ClientName),
+            {ok, DisconLoopTaskRef} = start_disconnection_loop(DeviceType, ClientName),
+            {ok, ReconLoopTaskRef} = start_reconnection_loop(DeviceType, ClientName),
+        {noreply, State#{pub_task := PubTaskRef, discon_task := DisconLoopTaskRef, recon_task := ReconLoopTaskRef}}
+    end;
 
 handle_cast(stop, State = #{nif_module := NifModule, pub_task := PubTaskRef, discon_task := DisconLoopTaskRef, recon_task := ReconLoopTaskRef, 
                 participant := Participant, publisher := Publisher, subscriber := Subscriber, client_name := ClientName}) ->
@@ -140,14 +152,12 @@ handle_cast(stop, State = #{nif_module := NifModule, pub_task := PubTaskRef, dis
     timer:cancel(PubTaskRef),
     timer:cancel(DisconLoopTaskRef),
     timer:cancel(ReconLoopTaskRef),
-
-    % Clean up publishers and subscribers
-    do_disconnect(NifModule, ClientName, Participant, Publisher, Subscriber),
     {noreply, State}.
 
-handle_info({?PUBLISH_RECV_MSG, {ClientName, Topic, SeqId, PubTimeNs, RecvTimeNs, Bytes}}, State) ->
+handle_info({?PUBLISH_RECV_MSG, {ClientName, Topic, SeqId, PubTimeNs, RecvTimeNs, Bytes, PublisherId}}, State) ->
     % Extracted needed info and store
-    ps_bench_store:record_recv(ClientName, Topic, SeqId, PubTimeNs, RecvTimeNs, Bytes, ClientName),
+    AtomId = list_to_atom(PublisherId),
+    ps_bench_store:record_recv(ClientName, Topic, SeqId, PubTimeNs, RecvTimeNs, Bytes, AtomId),
     {noreply, State};
 
 handle_info(_Info, State) ->
@@ -286,7 +296,8 @@ do_connect(NifModule, ClientName, Participant, Publisher, State) ->
         undefined ->
             % Create the publisher for this client
             {ok, QoSProfile} = ps_bench_config_manager:fetch_dds_qos_profile(),
-            {ok, NewPublisher} = NifModule:create_publisher_on_topic(?DDS_TOPIC, Participant, QoSProfile),
+            {ok, NodeName} = ps_bench_config_manager:fetch_node_name(),
+            {ok, NewPublisher} = NifModule:create_publisher_on_topic(?DDS_TOPIC, Participant, QoSProfile, atom_to_list(NodeName)),
 
             % We've connected at this point, save data
             TimeNs = erlang:system_time(nanosecond),

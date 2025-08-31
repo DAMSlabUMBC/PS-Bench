@@ -11,6 +11,8 @@
 #include <PsBenchC.h>
 #include "DataReaderListenerImpl.h"
 
+#include <string>
+
 // Define macro to avoid compiler warnings for unused API params
 #define UNUSED_PARAM(expr) do { (void)(expr); } while (0)
 
@@ -18,6 +20,7 @@ ErlNifResourceType* PARTICIPANT_RES_TYPE;
 ErlNifResourceType* PUBLISHER_RES_TYPE;
 ErlNifResourceType* SUBSCRIBER_RES_TYPE;
 ERL_NIF_TERM atom_ok;
+ERL_NIF_TERM atom_not_connected;
 
 typedef struct 
 {
@@ -29,6 +32,7 @@ typedef struct
 {
     DDS::Publisher_ptr publisher;
     PsBench::DeviceMessageDataWriter_ptr writer;
+    char* nodeId;
 } PublisherStruct;
 
 typedef struct 
@@ -40,7 +44,6 @@ typedef struct
 void participant_free_res(ErlNifEnv* env, void* obj)
 {
     UNUSED_PARAM(env);
-    UNUSED_PARAM(obj);
 
     ParticipantStruct* participantStruct = (ParticipantStruct*) obj;
     participantStruct->participant->delete_contained_entities();
@@ -48,11 +51,17 @@ void participant_free_res(ErlNifEnv* env, void* obj)
     dpf->delete_participant(participantStruct->participant);
 }
 
-void writer_free_res(ErlNifEnv* env, void* obj)
+void publisher_free_res(ErlNifEnv* env, void* obj)
 {
     UNUSED_PARAM(env);
     UNUSED_PARAM(obj);
-    // Do nothing, will be cleaned with participant
+    
+    PublisherStruct* publisherStruct = (PublisherStruct*) obj;
+    if(publisherStruct->nodeId != 0)
+    {
+        free(publisherStruct->nodeId);
+        publisherStruct->nodeId = 0;
+    }
 }
 
 void subscriber_free_res(ErlNifEnv* env, void* obj)
@@ -72,7 +81,7 @@ static int open_resource(ErlNifEnv* env)
     if(PARTICIPANT_RES_TYPE == NULL) return -1;
 
     name = "PublisherStruct";
-    PUBLISHER_RES_TYPE = enif_open_resource_type(env, mod, name, writer_free_res, flags, NULL);
+    PUBLISHER_RES_TYPE = enif_open_resource_type(env, mod, name, publisher_free_res, flags, NULL);
     if(PUBLISHER_RES_TYPE == NULL) return -1;
 
     name = "SubscriberStruct";
@@ -90,6 +99,7 @@ static int load(ErlNifEnv* env, void** priv, ERL_NIF_TERM load_info)
     if(open_resource(env) == -1) return -1;
 
     atom_ok = enif_make_atom(env, "ok");
+    atom_not_connected = enif_make_atom(env, "not_connected");
 
     return 0;
 }
@@ -448,6 +458,20 @@ ERL_NIF_TERM create_publisher_on_topic(ErlNifEnv* env, int argc, const ERL_NIF_T
         return enif_make_atom(env, "invalid_qos_profile");
     }
 
+    // Get publishing node ID
+    unsigned int publishingNodeLength = 0;
+    if(!enif_get_string_length(env, argv[3], &publishingNodeLength, ERL_NIF_UTF8))
+    {
+        return enif_make_atom(env, "invalid_node_id");
+    }
+
+    char* publishingNode = (char*)malloc(publishingNodeLength + 1);
+    if(!enif_get_string(env, argv[3], publishingNode, publishingNodeLength + 1, ERL_NIF_UTF8))
+    {
+        free(publishingNode);
+        return enif_make_atom(env, "invalid_node_id");
+    }
+
     bool useQos = false;
     char* qosParam = nullptr;
     if(qosParamLength > 0)
@@ -538,6 +562,7 @@ ERL_NIF_TERM create_publisher_on_topic(ErlNifEnv* env, int argc, const ERL_NIF_T
 
     res->publisher = publisher.in();
     res->writer = message_writer.in();
+    res->nodeId = publishingNode;
 
     return enif_make_tuple2(env, atom_ok, ret);
 }
@@ -570,6 +595,11 @@ ERL_NIF_TERM delete_publisher(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[
         return enif_make_atom(env, "failed_to_delete_publisher");
     }
 
+    publisherStruct->publisher = 0;
+    publisherStruct->writer = 0;
+    free(publisherStruct->nodeId);
+    publisherStruct->nodeId = 0;
+
     return atom_ok;
 }
 
@@ -595,30 +625,38 @@ ERL_NIF_TERM publish_message(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]
     void* voidStruct = nullptr;
     if(!enif_get_resource(env, argv[2], PUBLISHER_RES_TYPE, &voidStruct))
     {
-        return enif_make_atom(env, "failed_to_fetch_writer");
+        return atom_not_connected;
     }
 
     PublisherStruct* publisherStruct = (PublisherStruct*)voidStruct;
 
-    PsBench::DeviceMessage message;
-    message.seq_id = seqId;
-    message.payload.length(messageData.size);
-    for(size_t i = 0; i < messageData.size; i++)
+    if(publisherStruct->publisher != 0)
     {
-        message.payload[i] = messageData.data[i];
-    }
-    
-    DDS::ReturnCode_t err = publisherStruct->writer->write(message, DDS::HANDLE_NIL);
-    if (err!=DDS::RETCODE_OK)
-        return enif_make_atom(env, "write_failed");
+        PsBench::DeviceMessage message;
+        message.seq_id = seqId;
+        message.payload.length(messageData.size);
+        for(size_t i = 0; i < messageData.size; i++)
+        {
+            message.payload[i] = messageData.data[i];
+        }
+        message.publisher_id = CORBA::string_dup(publisherStruct->nodeId);
+        
+        DDS::ReturnCode_t err = publisherStruct->writer->write(message, DDS::HANDLE_NIL);
+        if (err!=DDS::RETCODE_OK)
+            return enif_make_atom(env, "write_failed");
 
-    return atom_ok;
+        return atom_ok;
+    }
+    else
+    {
+        return atom_not_connected;
+    }
 }
 
 static ErlNifFunc nif_funcs[] = {
     {"create_participant", 3, create_participant},
     {"create_subscriber_on_topic", 5, create_subscriber_on_topic},
-    {"create_publisher_on_topic", 3, create_publisher_on_topic},
+    {"create_publisher_on_topic", 4, create_publisher_on_topic},
     {"publish_message", 3, publish_message},
     {"delete_subscriber", 2, delete_subscriber},
     {"delete_publisher", 2, delete_publisher}

@@ -78,8 +78,15 @@ handle_call(subscribe, _From, State = #{server_reference := ServerReference, tid
     do_subscribe([], ServerReference, Tid), %TODO FIX
     {reply, ok, State};
 
-handle_call({publish, Topic, Data, PubOpts}, _From, State = #{server_reference := ServerReference}) ->
-    gen_server:call(ServerReference, {publish, #{}, Topic, Data, PubOpts}),
+handle_call({publish, Topic, Seq, Data, PubOpts}, _From, State = #{server_reference := ServerReference}) ->
+    {ok, Result} = gen_server:call(ServerReference, {publish, #{}, Topic, Data, PubOpts}),
+    case Result of 
+        published ->
+            ps_bench_store:record_publish(ServerReference, Topic, Seq);
+        not_connected ->
+            % This isn't an error, it just means we didn't publish
+            ok
+    end,
     {reply, ok, State};
 
 handle_call({unsubscribe, Topics}, _From, State = #{server_reference := ServerReference, tid := Tid}) ->
@@ -109,10 +116,17 @@ handle_call(_Msg, _From, State) ->
 
 % Calls to start the actual timer functions
 handle_cast(start_client_loops, State = #{device_type := DeviceType, server_reference := ServerReference}) ->
-    {ok, PubTaskRef} = start_publication_loop(DeviceType, ServerReference),
-    {ok, DisconLoopTaskRef} = start_disconnection_loop(DeviceType, ServerReference),
-    {ok, ReconLoopTaskRef} = start_reconnection_loop(DeviceType, ServerReference),
-    {noreply, State#{pub_task := PubTaskRef, discon_task := DisconLoopTaskRef, recon_task := ReconLoopTaskRef}};
+
+    % Subscriber clients don't have client loops
+    case DeviceType of
+        subscriber ->
+            {noreply, State};
+        _ ->
+            {ok, PubTaskRef} = start_publication_loop(DeviceType, ServerReference),
+            {ok, DisconLoopTaskRef} = start_disconnection_loop(DeviceType, ServerReference),
+            {ok, ReconLoopTaskRef} = start_reconnection_loop(DeviceType, ServerReference),
+        {noreply, State#{pub_task := PubTaskRef, discon_task := DisconLoopTaskRef, recon_task := ReconLoopTaskRef}}
+    end;
 
 handle_cast(stop, State = #{server_reference := ServerReference, pub_task := PubTaskRef, discon_task := DisconLoopTaskRef, recon_task := ReconLoopTaskRef}) ->
     % Stop all loops
@@ -123,9 +137,9 @@ handle_cast(stop, State = #{server_reference := ServerReference, pub_task := Pub
         (R) when is_reference(R) -> timer:cancel(R);
         (_) -> ok
     end,
-    Cancel(PubTaskRef),
-    Cancel(DisconLoopTaskRef),
-    Cancel(ReconLoopTaskRef),
+    timer:cancel(PubTaskRef),
+    timer:cancel(DisconLoopTaskRef),
+    timer:cancel(ReconLoopTaskRef),
 
     % Tell interface to stop
     gen_server:call(ServerReference, stop),
@@ -210,8 +224,15 @@ start_publication_loop(DeviceType, ServerReference) ->
 
 
 publication_loop(ServerReference, Topic, QoS, PayloadSizeMean, PayloadSizeVariance) ->
-    Payload = ps_bench_utils:generate_mqtt_payload_data(PayloadSizeMean, PayloadSizeVariance, Topic),
-    gen_server:call(ServerReference, {publish, #{}, Topic, Payload, [{qos, QoS}]}). % TODO, more settings?
+    {Seq, Payload} = ps_bench_utils:generate_mqtt_payload_data(PayloadSizeMean, PayloadSizeVariance, Topic),
+    {ok, Result} = gen_server:call(ServerReference, {publish, #{}, Topic, Payload, [{qos, QoS}]}),
+    case Result of 
+        published ->
+            ps_bench_store:record_publish(ServerReference, Topic, Seq);
+        not_connected ->
+            % This isn't an error, it just means we didn't publish
+            ok
+    end.
 
 start_disconnection_loop(DeviceType, ServerReference) ->
     % Lookup needed parameters

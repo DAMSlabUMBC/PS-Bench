@@ -53,11 +53,11 @@ handle_call({publish, Properties, Topic, Payload, PubOpts},
             %% Prepend system time time so payload matches decode_seq_header/1
             TimeNs = erlang:system_time(nanosecond),
             Payload1 = <<TimeNs:64/unsigned, Payload/binary>>,
-            _ = emqtt:publish(ClientPid, Topic, Properties, Payload1, PubOpts),
-            {reply, ok, State};
+            Result = emqtt:publish(ClientPid, Topic, Properties, Payload1, PubOpts),
+            {reply, {ok, published}, State};
         false ->
             %% Not connected; swallow to keep orchestration alive
-            {reply, ok, State}
+            {reply, {ok, not_connected}, State}
     end;
 
 handle_call({unsubscribe, Properties, Topics}, _From, State = #{client_pid := ClientPid}) ->

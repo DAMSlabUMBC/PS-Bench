@@ -43,6 +43,6 @@ init([{NodeName, NodeList}]) ->
         start => {ps_bench_scenario_sup, start_link, []},
         restart => permanent, shutdown => 5000, type => supervisor, modules => [ps_bench_scenario_sup]},
 
-    Children = [Pg, Roll, MetricsListener, MetricsPy, MetricsAgg, Lifecycle, NodeManager, ScenarioSup],
+    Children = [Pg, Lifecycle, NodeManager, ScenarioSup],
     {ok, {{one_for_one, 5, 60}, Children}}.
 

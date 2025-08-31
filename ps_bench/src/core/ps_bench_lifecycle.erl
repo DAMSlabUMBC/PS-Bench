@@ -8,7 +8,7 @@
 -export([init/1,callback_mode/0]).
 
 % States
--export([configuring/3,connecting/3,initializing/3,benchmarking/3,calculating_metrics/3,done/3]).
+-export([configuring/3,connecting/3,initializing/3,benchmarking/3,finalizing/3,calculating_metrics/3,done/3]).
 
 start_link(NodeList, SetupTimeout) ->
     NodeStatusMap = #{all_nodes => NodeList, pending_nodes => NodeList, timeout => SetupTimeout},
@@ -67,6 +67,16 @@ benchmarking(enter, _OldState, _State) ->
 
 % Process casts until every node is ready to transition state
 benchmarking(cast, NodeName, #{all_nodes := AllNodes, pending_nodes := PendingNodes} = Data) ->
+    evaluate_continuation(NodeName, AllNodes, PendingNodes, Data, finalizing).
+
+% Instruct the manager to clean up the benchmarking objects
+finalizing(enter, _OldState, _State) ->
+    ManagerPid = whereis(ps_bench_node_manager),
+    ManagerPid ! {self(), finalize_scenario},
+    keep_state_and_data;
+
+% Process casts until every node is ready to transition state
+finalizing(cast, NodeName, #{all_nodes := AllNodes, pending_nodes := PendingNodes} = Data) ->
     evaluate_continuation(NodeName, AllNodes, PendingNodes, Data, calculating_metrics).
 
 % Instruct the manager to start metric calculation

@@ -19,7 +19,7 @@
 
 % Metric exports
 -export([fetch_metrics_output_dir/0, fetch_metric_calculation_window/0, fetch_metric_rollup_period/0, fetch_python_metric_engine_path/0,
-    fetch_python_metric_plugins/0]).
+    fetch_python_metric_plugins/0, fetch_erlang_metric_plugins/0]).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Loading Bootstrapping Functions
@@ -579,6 +579,11 @@ fetch_python_metric_plugins() ->
     {ok, AllPlugins} = fetch_metric_property(?METRIC_PLUGINS_PROP),
     PythonPlugins = lists:filtermap(fun({Name, Interface}) -> case Interface of ?PYTHON_INTERFACE -> {true, Name}; _ -> false end end, AllPlugins),
     {ok, PythonPlugins}.
+
+fetch_erlang_metric_plugins() ->
+    {ok, AllPlugins} = fetch_metric_property(?METRIC_PLUGINS_PROP),
+    ErlangPlugins = lists:filtermap(fun({Name, Interface}) -> case Interface of ?ERLANG_INTERFACE -> {true, Name}; _ -> false end end, AllPlugins),
+    {ok, ErlangPlugins}.
 
 fetch_devices_for_this_node() ->
     {ok, NodeName} = fetch_node_name(),

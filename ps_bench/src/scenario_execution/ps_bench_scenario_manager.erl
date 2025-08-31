@@ -6,7 +6,7 @@
 -define(NODE_MANAGER, ps_bench_node_manager).
 
 %% public
--export([initialize_scenario/0, run_scenario/0, stop_scenario/0]).
+-export([initialize_scenario/0, run_scenario/0, stop_scenario/0, clean_up_scenario/0]).
 
 % Currently we only support one scenario a run
 initialize_scenario() ->
@@ -40,10 +40,16 @@ stop_scenario() ->
     ps_bench_utils:log_state_change("Stopping Scenario: ~p", [ScenarioName]),
 
     % Stop clients and notify the benchmarking scenario is complete
-    stop_clients(),
-    timer:sleep(1000),
-    destroy_clients(),
+    stop_publishers(),
+    timer:sleep(2000),
+    % Note that we don't stop the subscribers here in case other nodes continue to publish for a brief time.
+    % We wait until all clients are confirmed to have stopped publishing before removing subscribers
     gen_server:cast(?NODE_MANAGER, global_continue).
+
+clean_up_scenario() ->
+    ps_bench_utils:log_state_change("Removing Scenario Clients"),
+    stop_subscriber(),
+    destroy_clients().
 
 initialize_clients() ->
 
@@ -51,11 +57,15 @@ initialize_clients() ->
     {ok, NodeDevices} = ps_bench_config_manager:fetch_devices_for_this_node(),
     {ok, NodeName} = ps_bench_config_manager:fetch_node_name(),
 
-    % Initialize each client for each device
+    % Initialize each publication client for each device
     ClientList = initialize_clients_for_devices(NodeName, NodeDevices, []),
 
     % Store the list of client PIDs using the persistent_term module which has constant speed lookup
-    persistent_term:put(?MODULE, ClientList).
+    persistent_term:put({?MODULE, device_clients}, ClientList),
+
+    % We need one subscription client which represents all subscriptions for this node
+    SubscriptionClient = initialize_subscription_client(NodeName),
+    persistent_term:put({?MODULE, subscription_client}, SubscriptionClient).
 
 initialize_clients_for_devices(_NodeName, [], ClientList) ->
     ClientList;
@@ -85,34 +95,60 @@ initialize_client_for_device_type(NodeName, DeviceType, DevicesToCreateCount, De
             NewDeviceClientList
     end.
 
+initialize_subscription_client(NodeName) ->
+    ClientName = atom_to_list(NodeName) ++ "_subscription_client",
+    {ok, SubscriptionClient} = supervisor:start_child(?CLIENT_SUPERVISOR, [ClientName, subscriber]),
+    {ClientName, SubscriptionClient}.
+
 connect_clients() ->
-    ClientList = persistent_term:get(?MODULE),
+    % Connect subscriber first
+    {_SubscriberName, SubscriberClient} = persistent_term:get({?MODULE, subscription_client}),
+    gen_server:call(SubscriberClient, connect),
+
+    % Start client publication loops
+    ClientList = persistent_term:get({?MODULE, device_clients}),
     ConnectFunction = fun({_ClientName, ClientPid}) -> gen_server:call(ClientPid, connect) end,
     lists:foreach(ConnectFunction, ClientList).
 
 subscribe_clients() ->
-    ClientList = persistent_term:get(?MODULE),
-    SubscribeFunction = fun({_ClientName, ClientPid}) -> gen_server:call(ClientPid, subscribe) end,
-    lists:foreach(SubscribeFunction, ClientList).
+    %  Only subscriber client calls this
+    {_SubscriberName, SubscriberClient} = persistent_term:get({?MODULE, subscription_client}),
+    gen_server:call(SubscriberClient, subscribe).
 
 start_client_loops() ->
-    ClientList = persistent_term:get(?MODULE),
+    % Only publishing clients start loops here
+    ClientList = persistent_term:get({?MODULE, device_clients}),
     StartFunction = fun({_ClientName, ClientPid}) -> gen_server:cast(ClientPid, start_client_loops) end,
     lists:foreach(StartFunction, ClientList).
 
-stop_clients() ->
-    ClientList = persistent_term:get(?MODULE),
-    StopFunction = fun({_ClientName, ClientPid}) -> gen_server:call(ClientPid, stop) end,
+stop_publishers() ->
+    % Stop client publication loops
+    ClientList = persistent_term:get({?MODULE, device_clients}),
+    StopFunction = fun({_ClientName, ClientPid}) -> gen_server:cast(ClientPid, stop) end,
     lists:foreach(StopFunction, ClientList).
 
+stop_subscriber() ->
+    % Stop subscriber first
+    {_SubscriberName, SubscriberClient} = persistent_term:get({?MODULE, subscription_client}),
+    gen_server:cast(SubscriberClient, stop).
+
 destroy_clients() ->
-    ClientList = persistent_term:get(?MODULE),
+    % Stop subscriber first
+    {_SubscriberName, SubscriberClient} = persistent_term:get({?MODULE, subscription_client}),
+    supervisor:terminate_child(?CLIENT_SUPERVISOR, SubscriberClient),
+    persistent_term:erase({?MODULE, subscription_client}),
+
+    % Stop client publication loops
+    ClientList = persistent_term:get({?MODULE, device_clients}),
     DestroyFunction = fun({_ClientName, ClientPid}) -> supervisor:terminate_child(?CLIENT_SUPERVISOR, ClientPid) end,
     lists:foreach(DestroyFunction, ClientList),
-    persistent_term:erase(?MODULE).
+    persistent_term:erase({?MODULE, device_clients}).
 
 print_clients() ->
-    ClientList = persistent_term:get(?MODULE),
+    {SubscriberName, SubscriberClient} = persistent_term:get({?MODULE, subscription_client}),
+    ps_bench_utils:log_message("~p - ~p", [SubscriberName, SubscriberClient]),
+
+    ClientList = persistent_term:get({?MODULE, device_clients}),
     ps_bench_utils:log_state_change("All Clients"),
     PrintFunction = fun({ClientName, ClientPid}) -> ps_bench_utils:log_message("~p - ~p", [ClientName, ClientPid]) end,
     lists:foreach(PrintFunction, ClientList).

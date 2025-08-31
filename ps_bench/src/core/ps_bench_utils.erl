@@ -11,6 +11,7 @@
 
 -export([log_message/1, log_message/2, log_state_change/1, log_state_change/2]).
 
+% TODO, Fix RNG seeding
 initialize_rng_seed() ->
     % No seed provided, use the crypto library to generate a 12 digit seed
     Seed = try_crypto_seed(2000),       
@@ -98,7 +99,7 @@ generate_mqtt_payload_data(PayloadSizeMean, PayloadSizeVariance, Topic) ->
     %       to allow for the interface to add the time data
     Seq = ps_bench_store:get_next_seq_id(Topic),
     Payload = <<Seq:64/unsigned, PublisherSize:16/unsigned, PublisherBin/binary, RandomBytes/binary>>,
-    Payload.
+    {Seq, Payload}.
 
 generate_dds_datatype_data(PayloadSizeMean, PayloadSizeVariance) ->
     % Calculate payload size according to a normal distribution

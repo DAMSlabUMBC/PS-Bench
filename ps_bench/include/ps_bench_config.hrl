@@ -124,7 +124,7 @@
 -record(?CONNECT_EVENT_RECORD_NAME, {node_name, client_name, timestamp}).
 -record(?DISCONNECT_EVENT_RECORD_NAME, {node_name, client_name, timestamp}).
 -record(?RECV_EVENT_RECORD_NAME, {node_name, client_name, topic, seq_id, pub_timestamp, recv_timestamp, payload_size}).
--record(?PUB_EVENT_RECORD_NAME, {node_name, client_name, topic, seq_id}).
+-record(?PUB_EVENT_RECORD_NAME, {node_name, topic, max_seq_id}).
 
 % TODO: What to do with this
 -define(TRANSPORTS_PROP, transports).

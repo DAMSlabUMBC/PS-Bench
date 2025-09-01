@@ -146,8 +146,7 @@ handle_cast(start_client_loops, State = #{device_type := DeviceType, client_name
         {noreply, State#{pub_task := PubTaskRef, discon_task := DisconLoopTaskRef, recon_task := ReconLoopTaskRef}}
     end;
 
-handle_cast(stop, State = #{nif_module := NifModule, pub_task := PubTaskRef, discon_task := DisconLoopTaskRef, recon_task := ReconLoopTaskRef, 
-                participant := Participant, publisher := Publisher, subscriber := Subscriber, client_name := ClientName}) ->
+handle_cast(stop, State = #{pub_task := PubTaskRef, discon_task := DisconLoopTaskRef, recon_task := ReconLoopTaskRef}) ->
     % Stop all loops
     timer:cancel(PubTaskRef),
     timer:cancel(DisconLoopTaskRef),

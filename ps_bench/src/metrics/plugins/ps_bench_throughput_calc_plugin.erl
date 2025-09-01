@@ -39,7 +39,7 @@ calculate_pairwise_throughput_for_one_node(ThisNode, TargetNode) ->
       case TotalMessages of
             0 ->
                   {ThisNode, TargetNode, 0, 0, 0};
-            Value ->
+            _ ->
                  % Bootstrap the calculation by setting min/max equal to the first element of the list
                   [FirstElement | _] = AllRecvEvents,
                   {_, _, _, _, _, _, InitialTRecvNs, _} = FirstElement,

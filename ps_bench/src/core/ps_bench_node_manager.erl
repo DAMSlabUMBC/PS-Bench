@@ -96,6 +96,7 @@ handle_next_step_command(start_benchmark) ->
 handle_next_step_command(finalize_scenario) ->
     % gen_server:cast(ps_bench_metrics_rollup, start_loop),
     ps_bench_scenario_manager:clean_up_scenario(),
+    ps_bench_store:aggregate_publish_results(),
     gen_server:cast(?MODULE, global_continue),
     ok;
 

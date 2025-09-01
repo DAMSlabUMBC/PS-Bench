@@ -130,13 +130,6 @@ handle_cast(start_client_loops, State = #{device_type := DeviceType, server_refe
 
 handle_cast(stop, State = #{server_reference := ServerReference, pub_task := PubTaskRef, discon_task := DisconLoopTaskRef, recon_task := ReconLoopTaskRef}) ->
     % Stop all loops
-    Cancel = fun
-        (undefined) -> ok;
-        (0)         -> ok;
-        ({interval, R}) when is_reference(R) -> timer:cancel(R);
-        (R) when is_reference(R) -> timer:cancel(R);
-        (_) -> ok
-    end,
     timer:cancel(PubTaskRef),
     timer:cancel(DisconLoopTaskRef),
     timer:cancel(ReconLoopTaskRef),

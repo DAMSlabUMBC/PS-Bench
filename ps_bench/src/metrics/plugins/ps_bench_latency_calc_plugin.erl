@@ -45,7 +45,7 @@ calculate_pairwise_latency_for_one_node(ThisNode, TargetNode) ->
       case TotalMessages of
             0 ->
                   {ThisNode, TargetNode, 0, 0, 0};
-            Value ->
+            _ ->
                   AvgLatencyNs = OverallLatency / TotalMessages,
                   AvgLatencyMs = AvgLatencyNs / 1000000.0,
                   {ThisNode, TargetNode, OverallLatency, TotalMessages, AvgLatencyMs}

@@ -27,38 +27,33 @@ calculate_pairwise_dropped_messages() ->
 
 calculate_pairwise_dropped_messages_for_one_node(ThisNode, TargetNode) ->
 
-      AllRecvEvents = case TargetNode of
-            overall ->
-                  ps_bench_store:fetch_recv_events_by_filter({ThisNode, '_', '_', '_', '_', '_', '_', '_'});
-            _ ->
-                  ps_bench_store:fetch_recv_events_by_filter({ThisNode, '_', TargetNode, '_', '_', '_', '_', '_'})
-      end,
-
       % We also need to match published messages which will tell us if another node sent a message we never recieved
       % (This is a mnesia database and is shared between nodes)
-      AllPublishEvents = case TargetNode of
+      PublishEventCountsByNodeTopic = case TargetNode of
             overall ->
-                  ps_bench_store:fetch_publish_events();
+                  ps_bench_store:fetch_mnesia_publish_aggregation();
             _ ->
-                  ps_bench_store:fetch_publish_events_from_node(TargetNode)
+                  ps_bench_store:fetch_mnesia_publish_aggregation_from_node(TargetNode)
       end,
 
+      ps_bench_utils:log_message("Recvs: ~p", [ps_bench_store:fetch_recv_events()]),
+      ps_bench_utils:log_message("Publishes: ~p", [PublishEventCountsByNodeTopic]),
+
+
       % At the moment, we make the assumption that every message should be received by every node, which
-      % means we have a dropped message if this node did not recieve a message in the publish event list
-      DroppedPubs = lists:filter(fun(Event) -> not does_recv_exist_for_publish(Event, AllRecvEvents) end, AllPublishEvents),
-      DroppedPubsCount = length(DroppedPubs),
-      AllPubsCount = length(AllPublishEvents),
+      % means we have a dropped message if we have less messages recieved than the maximum sequence number sent by the node
+
+      DroppedPubsCount = lists:foldl(fun({_, PubNode, PubTopic, PubMaxSeqId}, TotalDroppedMessages) ->       
+                                          % Get all recvs that match this node and topic
+                                          RecvEventsFromNodeOnTopic = ps_bench_store:fetch_recv_events_by_filter({ThisNode, '_', PubNode, PubTopic, '_', '_', '_', '_'}),
+                                          RecvEventsFromNodeOnTopicCount = length(RecvEventsFromNodeOnTopic),
+                                          DroppedPubCount = PubMaxSeqId - RecvEventsFromNodeOnTopicCount,
+                                          TotalDroppedMessages + DroppedPubCount
+                                          end,
+                                          0, PublishEventCountsByNodeTopic),
+
+      AllPubsCount = lists:foldl(fun({_, _, _, PubMaxSeqId}, TotalMessages) ->       
+                                          TotalMessages + PubMaxSeqId
+                                          end,
+                                          0, PublishEventCountsByNodeTopic),
       {ThisNode, TargetNode, AllPubsCount, DroppedPubsCount}.
-
-does_recv_exist_for_publish({_, SendingNode, _, PubTopic, PubSeqId}, AllRecvEvents) ->
-      % Check if a recv message matches this pub
-      RecvEventForPub = lists:filter(fun(Event) ->
-                              {_, _, RecvFromNode, RecvTopic, RecvSeqID, _, _, _} = Event,
-                              if    RecvFromNode =:= SendingNode, PubTopic =:= RecvTopic, PubSeqId =:= RecvSeqID -> true;
-                                    true -> false
-                              end end, AllRecvEvents),
-
-      case RecvEventForPub of
-            [] -> false;
-            _ -> true
-      end.

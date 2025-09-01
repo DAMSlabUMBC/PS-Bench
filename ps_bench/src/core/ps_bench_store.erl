@@ -6,11 +6,12 @@
 %% seq mgmt
 -export([get_next_seq_id/1]).
 %% recv event I/O
--export([record_recv/6, record_recv/7, record_publish/3, record_connect/2, record_disconnect/3]).
+-export([record_recv/6, record_recv/7, record_publish/3, record_connect/2, record_disconnect/3, aggregate_publish_results/0]).
 %% rollup helpers
 -export([get_last_recv_seq/1, put_last_recv_seq/2]).
 %% window summaries
--export([fetch_recv_events/0, fetch_recv_events_by_filter/1, fetch_publish_events/0, fetch_publish_events_from_node/1, fetch_connect_events/0, fetch_disconnect_events/0]).
+-export([fetch_recv_events/0, fetch_recv_events_by_filter/1, fetch_publish_events/0, fetch_publish_events_by_filter/1, fetch_connect_events/0, fetch_disconnect_events/0]).
+-export([fetch_mnesia_publish_aggregation/0, fetch_mnesia_publish_aggregation_from_node/1]).
 
 
 -define(T_PUBSEQ, psb_pub_seq).      %% {pub_topic, TopicBin} -> Seq
@@ -100,7 +101,7 @@ ensure_tables() ->
         _ -> ok
     end,
     case ets:info(?T_PUBLISH_EVENTS) of
-        undefined -> ets:new(?T_PUBLISH_EVENTS, [named_table, public, ordered_set,
+        undefined -> ets:new(?T_PUBLISH_EVENTS, [named_table, public, duplicate_bag,
                                                  {write_concurrency,true}]);
         _ -> ok
     end,
@@ -116,14 +117,8 @@ ensure_tables() ->
 %% #{topic=>Topic, seq=>Seq|undefined, t_pub_ns=>TPub|undefined, t_recv_ns=>TRecv, bytes=>Bytes}
 record_recv(RecvClientName, TopicBin, Seq, TPubNs, TRecvNs, Bytes, PublisherID) ->
     ensure_tables(),
-    
-
-    Key = TRecvNs,   %% ordered_set key
     {ok, NodeName} = ps_bench_config_manager:fetch_node_name(),
-    % Event = #{recv_node=>NodeName, subscriber=>ClientName, topic=>TopicBin, seq=>Seq, publisher=>PublisherID,
-    %           t_pub_ns=>TPubNs, t_recv_ns=>TRecvNs, bytes=>Bytes},
     Event = {NodeName, RecvClientName, PublisherID, TopicBin, Seq, TPubNs, TRecvNs, Bytes},
-
     ets:insert(?T_RECV_EVENTS, Event),
     ok.
 
@@ -132,11 +127,12 @@ record_recv(ClientName, TopicBin, Seq, TPubNs, TRecvNs, Bytes) ->
     record_recv(ClientName, TopicBin, Seq, TPubNs, TRecvNs, Bytes, unknown).
 
 record_publish(ClientName, Topic, Seq) ->
-    F = fun() ->
-        {ok, NodeName} = ps_bench_config_manager:fetch_node_name(),
-        mnesia:write(#?PUB_EVENT_RECORD_NAME{node_name=NodeName, client_name=ClientName, topic=Topic, seq_id=Seq})
-    end,
-    ok = mnesia:activity(transaction, F).
+    ps_bench_utils:log_message("RecordPubEvent", []),
+    ensure_tables(),
+    {ok, NodeName} = ps_bench_config_manager:fetch_node_name(),
+    Event = {NodeName, ClientName, Topic, Seq},
+    ets:insert(?T_PUBLISH_EVENTS, Event),
+    ok.
 
 record_connect(ClientName, TimeNs) ->
     ensure_tables(),
@@ -168,13 +164,46 @@ fetch_recv_events_by_filter(ObjectFilter) ->
     ets:match_object(?T_RECV_EVENTS, ObjectFilter).
 
 fetch_publish_events() ->
-    % Publish events are in a mnesia table
+    ets:tab2list(?T_PUBLISH_EVENTS).
+
+fetch_publish_events_by_filter(ObjectFilter) ->
+    ets:match_object(?T_PUBLISH_EVENTS, ObjectFilter).
+
+aggregate_publish_results() ->
+    % We don't want to overload mnesia by storing every individual message,
+    % we simply want to send the count of messages sent per topic for this node to match
+    % against sequence IDs
+
+    % Get the highest sequence ID sent on each topic
+    FullTopicList = ets:foldl(fun({_NodeName, _ClientName, Topic, Seq}, TopicList) ->
+        case lists:keyfind(Topic, 1, TopicList) of
+        {Topic, Value} when Seq > Value ->
+            NewTuple = {Topic, Seq},
+            lists:keyreplace(Topic, 1, TopicList, NewTuple);
+        {Topic, Value} when Value >= Seq ->
+            TopicList;
+        false ->
+            TopicList ++ [{Topic, 1}]
+    end end, [], ?T_PUBLISH_EVENTS),
+
+    ps_bench_utils:log_message("BeforeAgg: ~p", [fetch_publish_events()]),
+
+    % Store the results in the distributed mnesia table
+    lists:foreach(fun({Topic, MaxSeqId}) -> insert_pub_event_in_mnesia(Topic, MaxSeqId) end, FullTopicList).
+
+insert_pub_event_in_mnesia(Topic, MaxSeqId) ->
+    F = fun() ->
+        {ok, NodeName} = ps_bench_config_manager:fetch_node_name(),
+        mnesia:write(#?PUB_EVENT_RECORD_NAME{node_name=NodeName, topic=Topic, max_seq_id=MaxSeqId})
+    end,
+    ok = mnesia:activity(transaction, F).
+
+fetch_mnesia_publish_aggregation() ->
     F = fun() -> mnesia:match_object(?PUB_EVENT_RECORD_NAME, mnesia:table_info(?PUB_EVENT_RECORD_NAME, wild_pattern), read) end,
     mnesia:activity(transaction, F).
 
-fetch_publish_events_from_node(NodeName) ->
-    % Publish events are in a mnesia table
-    F = fun() -> mnesia:match_object(?PUB_EVENT_RECORD_NAME, {?PUB_EVENT_RECORD_NAME, NodeName, '_', '_', '_'}, read) end,
+fetch_mnesia_publish_aggregation_from_node(NodeName) ->
+    F = fun() -> mnesia:match_object(?PUB_EVENT_RECORD_NAME, {?PUB_EVENT_RECORD_NAME, NodeName, '_', '_'}, read) end,
     mnesia:activity(transaction, F).
 
 fetch_connect_events() ->

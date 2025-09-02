@@ -99,13 +99,8 @@
 
 % Set some defaults for metric calculation
 -define(DEFAULT_OUT_DIR, "results").
--define(DEFAULT_WINDOW_MS, 1000).
--define(DEFAULT_ROLLUP_PERIOD_S, 5).
 -define(DEFAULT_PYTHON_ENGINE_PATH, "priv/py_engine").
 -define(DEFAULT_PYTHON_EXECUTABLE, "python3").
-
-% Payload header (8B seq_id + 8B t_pub_ns)
--define(PAYLOAD_HDR_BYTES, 16).
 
 % Message Atoms
 -define(CONNECTED_MSG, connected).
@@ -115,15 +110,5 @@
 -define(UNSUBSCRIBED_MSG, unsubscribed).
 
 % Records for metric storage
--define(CONNECT_EVENT_RECORD_NAME, connect_event).
--define(DISCONNECT_EVENT_RECORD_NAME, disconnect_event).
--define(RECV_EVENT_RECORD_NAME, recv_msg_event).
 -define(PUB_EVENT_RECORD_NAME, pub_msg_event).
-
--record(?CONNECT_EVENT_RECORD_NAME, {node_name, client_name, timestamp}).
--record(?DISCONNECT_EVENT_RECORD_NAME, {node_name, client_name, timestamp}).
--record(?RECV_EVENT_RECORD_NAME, {node_name, client_name, topic, seq_id, pub_timestamp, recv_timestamp, payload_size}).
 -record(?PUB_EVENT_RECORD_NAME, {node_name, topic, pub_count}).
-
-% TODO: What to do with this
--define(TRANSPORTS_PROP, transports).

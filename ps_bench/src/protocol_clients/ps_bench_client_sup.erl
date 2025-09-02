@@ -40,7 +40,6 @@ process_mqtt_children(ScenarioName) ->
                         shutdown => 5000,
                         type => worker, 
                         modules => [ps_bench_erlang_mqtt_adapter]},
-            % TODO: Tune or allow configuration of the timing and restart parameters
             {ok, {{simple_one_for_one, 10, 60}, [Template]}};
         _ ->
             ps_bench_utils:log_message("ERROR: Requested starting a MQTT child of unknown interface"),
@@ -63,8 +62,6 @@ process_dds_children(ScenarioName) ->
                         shutdown => 5000,
                         type => worker, 
                         modules => [ps_bench_nif_dds_adapter]},
-                        
-            % TODO: Tune or allow configuration of the timing and restart parameters
             {ok, {{simple_one_for_one, 10, 60}, [Template]}};
         _ ->
             ps_bench_utils:log_message("ERROR: Requested starting a DDS child of unknown interface"),

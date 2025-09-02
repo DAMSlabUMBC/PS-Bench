@@ -75,7 +75,7 @@ handle_call(reconnect, _From, State = #{server_reference := ServerReference}) ->
     {reply, ok, State};
 
 handle_call(subscribe, _From, State = #{server_reference := ServerReference, tid := Tid}) ->
-    do_subscribe([], ServerReference, Tid), %TODO FIX
+    do_subscribe([], ServerReference, Tid),
     {reply, ok, State};
 
 handle_call({publish, Topic, Seq, Data, PubOpts}, _From, State = #{server_reference := ServerReference}) ->

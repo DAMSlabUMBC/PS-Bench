@@ -13,8 +13,10 @@ initialize_plugins() ->
     ok = filelib:ensure_dir(OutDir),
 
     % Initialize the plugins
-    initialize_erlang_plugins(OutDir),
-    initialize_python_plugins(OutDir).
+    initialize_erlang_plugins(OutDir).
+
+    % This is a future feature but not yet implemented
+    % initialize_python_plugins(OutDir).
     
 initialize_erlang_plugins(OutDir) ->
 
@@ -27,7 +29,6 @@ initialize_erlang_plugins(OutDir) ->
 initialize_python_plugins(OutDir) ->
 
     %% Build an absolute path to priv/py_engine that works in dev & release
-    % TODO: update?
     PrivDir = code:priv_dir(ps_bench),
     PyPath  = filename:join(PrivDir, "py_engine"),
 

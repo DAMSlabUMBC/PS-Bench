@@ -14,24 +14,21 @@
 
     {protocol_config,                                                       % Protocol specific configuration, see README for details on protocol configuration
     [
-        {nif_module, ps_bench_default_dds_interface}
-        {nif_full_path, "priv/dds_cplusplus/lib/libps_bench_default_dds_interface"},
-        {domain_id, 123},
-        {qos_profile, "configs/dds_configs/qos#PsBenchProfile"},
-        {config_file, "filepath"}
+        {nif_module, REPLACE_NIF_MODULE_NAME}                               % Defaults to: ps_bench_default_dds_interface
+        {nif_full_path, REPLACE_PATH_TO_NIF_LIB},                           % Defaults to: "priv/dds_cplusplus/lib/libps_bench_default_dds_interface"
+        {domain_id, REPLACE_DDS_DOMAIN_ID},                                                       
+        {qos_profile, REPLACE_QOS_PROFILE},                                 % Defaults to OpenDDS default QoS
+        {config_file, REPLACE_PATH_TO_CONFIG}                               % Defaults to: "configs/dds_configs/ps_bench_default_dds_interface.ini"
     ]},
 
     {metric_config,                                                         % Metric specific configuration, see README for details on metric configuration
     [
         {output_dir, REPLACE_OUTPUT_DIR},
-        {calculation_window_ms, REPLACE_CALCULATION_WINDOW_MS},                                      
-        {rollup_period_s, REPLACE_ROLLUP_PERIOD_S},
-        {python_metric_engine_path, REPLACE_PYTHON_PATH}                    % Only required if there are python metric plugins
+        {hw_stats_poll_period_ms, HW_STATS_POLL_PERIOD},                    % Optional
         {metric_plugins, 
         [
-            {REPLACE_PLUGIN_1, REPLACE_PLUGIN_1_INTERFACE},
-            {REPLACE_PLUGIN_2, REPLACE_PLUGIN_2_INTERFACE}
+            {REPLACE_PLUGIN_1, erlang},
+            {REPLACE_PLUGIN_2, erlang}
         ]},
-        
     ]}
 ].

@@ -14,27 +14,24 @@
     
     {protocol_config,                                                       % Protocol specific configuration, see README for details on protocol configuration
     [
-        {client_interface_module, ps_bench_default_mqtt_interface},
-        {broker, "192.168.1.212"},
-        {port, 1883},
+        {client_interface_module, ps_bench_default_mqtt_interface},         % Defaults to: ps_bench_default_mqtt_interface
+        {broker, REPLACE_BROKER_IP},                                        % Format: String
+        {port, REPLACE_BROKER_PORT},                                        % Format: Integer
         {qos, 
         [
-            {default_qos, 0},
-            {temperature_sensor, 2}
+            {default_qos, REPLACE_OVERALL_QOS},
+            {REPLACE_DEVICE_NAME, REPLACE_DEVICE_QOS}                       % Format: {Erlang atom, Integer between 0-2}, Device name must match the name field in a device definition file
         ]},
     ]},
     
     {metric_config,                                                         % Metric specific configuration, see README for details on metric configuration
     [
         {output_dir, REPLACE_OUTPUT_DIR},
-        {calculation_window_ms, REPLACE_CALCULATION_WINDOW_MS},                                      
-        {rollup_period_s, REPLACE_ROLLUP_PERIOD_S},
-        {python_metric_engine_path, REPLACE_PYTHON_PATH}                    % Only required if there are python metric plugins
+        {hw_stats_poll_period_ms, HW_STATS_POLL_PERIOD},                    % Optional
         {metric_plugins, 
         [
-            {REPLACE_PLUGIN_1, REPLACE_PLUGIN_1_INTERFACE},
-            {REPLACE_PLUGIN_2, REPLACE_PLUGIN_2_INTERFACE}
+            {REPLACE_PLUGIN_1, erlang},
+            {REPLACE_PLUGIN_2, erlang}
         ]},
-        
     ]}
 ].

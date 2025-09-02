@@ -10,9 +10,7 @@ calc() ->
       PairwiseResults = calculate_pairwise_throughput(),
 
       AllResults = [OverallResults] ++ PairwiseResults,
-      lists:foreach(fun({SourceNode, DestNode, DurationS, TotalMessages, Throughput}) -> 
-            ps_bench_utils:log_message("Recv by ~p from ~p: Duration - ~p | Total - ~p | Throughput - ~p msgs/s", [SourceNode, DestNode, DurationS, TotalMessages, Throughput]) end,
-            AllResults).
+      write_csv(AllResults).
     
 calculate_overall_throughput() ->
       % Get all messages recieved by this node
@@ -58,4 +56,16 @@ calculate_pairwise_throughput_for_one_node(ThisNode, TargetNode) ->
                   {ThisNode, TargetNode, DurationS, TotalMessages, Throughput}
       end.
 
-      
+write_csv(Results) -> 
+      OutDir = persistent_term:get({?MODULE, out_dir}),
+      FullPath = filename:join(OutDir, "throughput.csv"),
+
+      % Open file and write the results
+      {ok, File} = file:open(FullPath, [write]),
+      io:format(File, "Receiver,Sender,DurationSeconds,TotalMessagesRecv,AverageThroughput~n", []),
+      lists:foreach(
+            fun({SourceNode, DestNode, DurationS, TotalMessages, Throughput}) ->
+                  io:format(File, "~p,~p,~p,~p,~p~n",[SourceNode, DestNode, DurationS, TotalMessages, Throughput])
+            end, Results),
+      file:close(File), 
+      ok.

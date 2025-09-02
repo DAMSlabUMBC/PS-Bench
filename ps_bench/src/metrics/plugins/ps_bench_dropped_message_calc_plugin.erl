@@ -10,9 +10,7 @@ calc() ->
       PairwiseResults = calculate_pairwise_dropped_messages(),
 
       AllResults = [OverallResults] ++ PairwiseResults,
-      lists:foreach(fun({SourceNode, DestNode, AllPubsCount, DroppedPubsCount}) -> 
-            ps_bench_utils:log_message("Recv by ~p from ~p: Dropped messages - ~p | Total Messages - ~p", [SourceNode, DestNode, DroppedPubsCount, AllPubsCount]) end,
-            AllResults).
+      write_csv(AllResults).
     
 calculate_overall_dropped_messages() ->
       % Get all messages recieved by this node
@@ -53,3 +51,17 @@ calculate_pairwise_dropped_messages_for_one_node(ThisNode, TargetNode) ->
                                           end,
                                           0, PublishEventCountsByNodeTopic),
       {ThisNode, TargetNode, AllPubsCount, DroppedPubsCount}.
+
+write_csv(Results) -> 
+      OutDir = persistent_term:get({?MODULE, out_dir}),
+      FullPath = filename:join(OutDir, "dropped_messages.csv"),
+
+      % Open file and write the results
+      {ok, File} = file:open(FullPath, [write]),
+      io:format(File, "Receiver,Sender,TotalMessagesSentFromSender,PubsDroppedFromSender~n", []),
+      lists:foreach(
+            fun({SourceNode, DestNode, DroppedPubsCount, AllPubsCount}) ->
+                  io:format(File, "~p,~p,~p,~p~n",[SourceNode, DestNode, DroppedPubsCount, AllPubsCount])
+            end, Results),
+      file:close(File), 
+      ok.

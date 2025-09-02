@@ -46,30 +46,34 @@ run_metric_calculations() ->
     run_python_plugins(),
     run_erlang_plugins(),
 
+    {ok, OutDir} = ps_bench_config_manager:fetch_metrics_output_dir(),
+
     % Write hardware stats if we're using it
     case ps_bench_config_manager:using_hw_poll() of
         true ->
-            gen_server:call(ps_bench_metrics_hw_stats_reader, write_stats);
+            gen_server:call(ps_bench_metrics_hw_stats_reader, {write_stats, OutDir});
         false ->
             ok
     end.
 
 run_python_plugins() ->
 
-    Py = persistent_term:get({?MODULE, python_engine}),
+    % This is a future feature but not yet implemented
 
-    %% Fetch stored metric data and send to each python plugin
-    ps_bench_utils:log_message("Fetching recv events", []),
-    RecvEvents = ps_bench_store:fetch_recv_events(),
-    ps_bench_utils:log_message("Fetching pub events", []),
-    PublishEvents = ps_bench_store:fetch_publish_events(),
-    ps_bench_utils:log_message("Fetching connect events", []),
-    ConnectEvents = ps_bench_store:fetch_connect_events(),
-    ps_bench_utils:log_message("Fetching disconnect events", []),
-    DisconnectEvents = ps_bench_store:fetch_disconnect_events(),
+    % Py = persistent_term:get({?MODULE, python_engine}),
 
-    {ok, ThisNodeName} = ps_bench_config_manager:fetch_node_name(),
-    {ok, AllNodes} = ps_bench_config_manager:fetch_node_name_list(),
+    % %% Fetch stored metric data and send to each python plugin
+    % ps_bench_utils:log_message("Fetching recv events", []),
+    % RecvEvents = ps_bench_store:fetch_recv_events(),
+    % ps_bench_utils:log_message("Fetching pub events", []),
+    % PublishEvents = ps_bench_store:fetch_publish_events(),
+    % ps_bench_utils:log_message("Fetching connect events", []),
+    % ConnectEvents = ps_bench_store:fetch_connect_events(),
+    % ps_bench_utils:log_message("Fetching disconnect events", []),
+    % DisconnectEvents = ps_bench_store:fetch_disconnect_events(),
+
+    % {ok, ThisNodeName} = ps_bench_config_manager:fetch_node_name(),
+    % {ok, AllNodes} = ps_bench_config_manager:fetch_node_name_list(),
 
     % Result = python:call(Py, plugin_engine, calc_runner_metrics, [RecvEvents, PublishEvents, ConnectEvents, DisconnectEvents, ThisNodeName, AllNodes]),
     % Result = python:call(Py, plugin_engine, calc_runner_metrics, [[], [], [], [], [], []]),

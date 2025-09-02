@@ -10,9 +10,7 @@ calc() ->
       PairwiseResults = calculate_pairwise_latency(),
 
       AllResults = [OverallResults] ++ PairwiseResults,
-      lists:foreach(fun({SourceNode, DestNode, OverallLatency, TotalMessages, AvgLatencyMs}) -> 
-            ps_bench_utils:log_message("Recv by ~p from ~p: Overall Latency - ~p | Total Messages - ~p | Avg Latency - ~pms", [SourceNode, DestNode, OverallLatency, TotalMessages, AvgLatencyMs]) end,
-            AllResults).
+      write_csv(AllResults).
     
 calculate_overall_latency() ->
       % Get all messages recieved by this node
@@ -50,3 +48,17 @@ calculate_pairwise_latency_for_one_node(ThisNode, TargetNode) ->
                   AvgLatencyMs = AvgLatencyNs / 1000000.0,
                   {ThisNode, TargetNode, OverallLatency, TotalMessages, AvgLatencyMs}
       end.
+
+write_csv(Results) -> 
+      OutDir = persistent_term:get({?MODULE, out_dir}),
+      FullPath = filename:join(OutDir, "latency.csv"),
+
+      % Open file and write the results
+      {ok, File} = file:open(FullPath, [write]),
+      io:format(File, "Receiver,Sender,SumTotalLatency,TotalMessagesRecv,AverageLatencyMs~n", []),
+      lists:foreach(
+            fun({SourceNode, DestNode, OverallLatency, TotalMessages, AvgLatencyMs}) ->
+                  io:format(File, "~p,~p,~p,~p,~p~n",[SourceNode, DestNode, OverallLatency, TotalMessages, AvgLatencyMs])
+            end, Results),
+      file:close(File), 
+      ok.

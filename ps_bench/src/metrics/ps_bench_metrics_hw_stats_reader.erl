@@ -37,10 +37,11 @@ handle_call(stop_polling, _From, State = #{timer_ref := TRef}) ->
                   {reply, ok, State}
       end;
 
-handle_call(write_stats, _From, State) -> 
-      AvgCpuUsage = calculate_average_cpu_usage(local),
-      AvgMemUsage = calculate_average_memory_usage(local),
-      ps_bench_utils:log_message("Local CPU Usage - ~p | Local Memory Usage - ~p", [AvgCpuUsage, AvgMemUsage]),
+handle_call({write_stats, OutDir}, _From, State) -> 
+
+      % Write local first
+      FullPath = filename:join(OutDir, "local_hw_stats.csv"),
+      calculate_and_write_local_stats(FullPath),
 
       % Primary node also reads broker stats
       case ps_bench_node_manager:is_primary_node() of
@@ -49,14 +50,12 @@ handle_call(write_stats, _From, State) ->
                   {ok, ProtocolType} = ps_bench_config_manager:fetch_protocol_type(),
                   case ProtocolType of 
                         ?MQTT_V5_PROTOCOL ->
-                              AvgBrokerCpuUsage = calculate_average_cpu_usage(broker),
-                              AvgBrokerMemUsage = calculate_average_memory_usage(broker),
-                              ps_bench_utils:log_message("Broker CPU Usage - ~p | Broker Memory Usage - ~p", [AvgBrokerCpuUsage, AvgBrokerMemUsage]),
+                              FullBrokerPath = filename:join(OutDir, "broker_hw_stats.csv"),
+                              calculate_and_write_broker_stats(FullBrokerPath),
                               {reply, ok, State};
                         ?MQTT_V311_PROTOCOL ->
-                              AvgBrokerCpuUsage = calculate_average_cpu_usage(broker),
-                              AvgBrokerMemUsage = calculate_average_memory_usage(broker),
-                              ps_bench_utils:log_message("Broker CPU Usage - ~p | Broker Memory Usage - ~p", [AvgBrokerCpuUsage, AvgBrokerMemUsage]),
+                              FullBrokerPath = filename:join(OutDir, "broker_hw_stats.csv"),
+                              calculate_and_write_broker_stats(FullBrokerPath),
                               {reply, ok, State};
                         _ ->
                               {reply, ok, State}
@@ -208,3 +207,24 @@ calculate_average_memory_usage(NodeType) ->
       TotalUsage = lists:foldl(fun({_, UsageVal}, Total) -> Total + UsageVal end, 0, AllMemoryUsageEvents),
       AvgUsage = TotalUsage / TotalEvents,
       AvgUsage.
+
+calculate_and_write_local_stats(OutFile) ->
+      {ok, NodeName} = ps_bench_config_manager:fetch_node_name(),
+      AvgCpuUsage = calculate_average_cpu_usage(local),
+      AvgMemUsage = calculate_average_memory_usage(local),
+
+      % Open file and write the results
+      {ok, File} = file:open(OutFile, [write]),
+      io:format(File, "Node,AverageCPUUsage,AverageMemoryUsage~n", []),
+      io:format(File, "~p,~p,~p~n",[NodeName, AvgCpuUsage, AvgMemUsage]),
+      file:close(File).
+
+calculate_and_write_broker_stats(OutFile) ->
+      AvgCpuUsage = calculate_average_cpu_usage(broker),
+      AvgMemUsage = calculate_average_memory_usage(broker),
+
+      % Open file and write the results
+      {ok, File} = file:open(OutFile, [write]),
+      io:format(File, "Node,AverageCPUUsage,AverageMemoryUsage~n", []),
+      io:format(File, "broker,~p,~p~n",[AvgCpuUsage, AvgMemUsage]),
+      file:close(File).

@@ -1,0 +1,155 @@
+networks:
+  benchnet:
+    driver: bridge
+
+services:
+  mosquitto:
+    build:
+      context: .
+      dockerfile: Dockerfile.mosquitto
+    image: mosquitto-with-exporter
+    container_name: mosquitto
+    hostname: mosquitto
+    domainname: benchnet
+    networks:
+      benchnet:
+        aliases: ["mosquitto", "mqtt", "broker"]
+    ports: ["1883:1883"]
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+    healthcheck:
+      test: ["CMD-SHELL","nc -z 127.0.0.1 1883"]
+      interval: 15s
+      timeout: 1s
+      retries: 20
+      start_period: 2s
+
+  runnerMQTT1:
+    image: ps_bench-runner:latest
+    container_name: runnerMQTT1
+    hostname: runnerMQTT1
+    domainname: benchnet
+    networks: 
+      benchnet:
+        aliases:
+          - runnerMQTT1.benchnet   
+    environment:
+      DIST_MODE: name 
+      SELECTED_SCENARIO: ${SCENARIO:-mqtt_multi_node_moderate}
+      NODE_BASE: runner1
+      BROKER_HOST: mosquitto
+      BROKER_PORT: 1883
+      ADD_NODE_TO_SUFFIX: ${ADD_NODE_TO_SUFFIX:-false}
+      RELEASE_COOKIE: ${RELEASE_COOKIE:-ps_bench_cookie}
+      RUN_TAG: ${RUN_TAG:-mqtt_test}
+      SCEN_DIR: /app/configs/initial_tests/scenarios
+    volumes:
+      - ./out/runnerMQTT1:/app/out
+      - ./results:/app/results
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+
+  runnerMQTT2:
+    image: ps_bench-runner:latest
+    container_name: runnerMQTT2
+    hostname: runnerMQTT2
+    domainname: benchnet
+    networks: 
+      benchnet:
+        aliases:
+          - runnerMQTT2.benchnet   
+    environment:
+      DIST_MODE: name 
+      SELECTED_SCENARIO: ${SCENARIO:-mqtt_multi_node_moderate}
+      NODE_BASE: runner2
+      BROKER_HOST: mosquitto
+      BROKER_PORT: 1883
+      ADD_NODE_TO_SUFFIX: ${ADD_NODE_TO_SUFFIX:-false}
+      RELEASE_COOKIE: ${RELEASE_COOKIE:-ps_bench_cookie}
+      RUN_TAG: ${RUN_TAG:-mqtt_test}
+      SCEN_DIR: /app/configs/initial_tests/scenarios
+    volumes:
+      - ./out/runnerMQTT2:/app/out
+      - ./results:/app/results
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+
+  runnerMQTT3:
+    image: ps_bench-runner:latest
+    container_name: runnerMQTT3
+    hostname: runnerMQTT3
+    domainname: benchnet
+    networks: 
+      benchnet:
+        aliases:
+          - runnerMQTT3.benchnet
+    environment:
+      DIST_MODE: name 
+      SELECTED_SCENARIO: ${SCENARIO:-mqtt_multi_node_moderate}
+      NODE_BASE: runner3
+      BROKER_HOST: mosquitto
+      BROKER_PORT: 1883
+      ADD_NODE_TO_SUFFIX: ${ADD_NODE_TO_SUFFIX:-false}
+      RELEASE_COOKIE: ${RELEASE_COOKIE:-ps_bench_cookie}
+      RUN_TAG: ${RUN_TAG:-mqtt_test}
+      SCEN_DIR: /app/configs/initial_tests/scenarios
+    volumes:
+      - ./out/runnerMQTT3:/app/out
+      - ./results:/app/results
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+
+  runnerMQTT4:
+    image: ps_bench-runner:latest
+    container_name: runnerMQTT4
+    hostname: runnerMQTT4
+    domainname: benchnet
+    networks: 
+      benchnet:
+        aliases:
+          - runnerMQTT4.benchnet
+    environment:
+      DIST_MODE: name 
+      SELECTED_SCENARIO: ${SCENARIO:-mqtt_multi_node_moderate}
+      NODE_BASE: runner4
+      BROKER_HOST: mosquitto
+      BROKER_PORT: 1883
+      ADD_NODE_TO_SUFFIX: ${ADD_NODE_TO_SUFFIX:-false}
+      RELEASE_COOKIE: ${RELEASE_COOKIE:-ps_bench_cookie}
+      RUN_TAG: ${RUN_TAG:-mqtt_test}
+      SCEN_DIR: /app/configs/initial_tests/scenarios
+    volumes:
+      - ./out/runnerMQTT4:/app/out
+      - ./results:/app/results
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+
+  runnerMQTT5:
+    image: ps_bench-runner:latest
+    container_name: runnerMQTT5
+    hostname: runnerMQTT5
+    domainname: benchnet
+    networks: 
+      benchnet:
+        aliases:
+          - runnerMQTT5.benchnet
+    environment:
+      DIST_MODE: name 
+      SELECTED_SCENARIO: ${SCENARIO:-mqtt_multi_node_moderate}
+      NODE_BASE: runner5
+      BROKER_HOST: mosquitto
+      BROKER_PORT: 1883
+      ADD_NODE_TO_SUFFIX: ${ADD_NODE_TO_SUFFIX:-false}
+      RELEASE_COOKIE: ${RELEASE_COOKIE:-ps_bench_cookie}
+      RUN_TAG: ${RUN_TAG:-mqtt_test}
+      SCEN_DIR: /app/configs/initial_tests/scenarios
+    volumes:
+      - ./out/runnerMQTT5:/app/out
+      - ./results:/app/results
+    depends_on:
+      mosquitto:
+        condition: service_healthy

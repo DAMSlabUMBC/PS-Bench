@@ -17,138 +17,314 @@ BROKER_PORT="${BROKER_PORT:-1883}"
 DIST_MODE="${DIST_MODE:-sname}"
 export ERLANG_DIST_MODE="$DIST_MODE"
 
+# Detect DDS by scenario name (dds_*) 
+IS_DDS="false"
+if [ -n "${SELECTED_SCENARIO:-}" ]; then
+  case "$SELECTED_SCENARIO" in dds_*) IS_DDS="true" ;; esac
+elif [ -n "${SCENARIO:-}" ]; then
+  case "$SCENARIO" in dds_*) IS_DDS="true" ;; esac
+fi
+
+# DDS env only when needed 
+if [ "$IS_DDS" = "true" ]; then
+  export DDS_ROOT="${DDS_ROOT:-/opt/OpenDDS}"
+  export ACE_ROOT="$DDS_ROOT/ACE_wrappers"
+  export TAO_ROOT="$ACE_ROOT/TAO"
+  export PATH="$DDS_ROOT/bin:$PATH"
+  export LD_LIBRARY_PATH="$DDS_ROOT/lib:${LD_LIBRARY_PATH:-}"
+  # ERTS_ROOT and Xerces (OpenDDS build-time deps; harmless if present)
+  ERTS_DIR=$(ls -d /usr/lib/erlang/erts-* 2>/dev/null | sort | tail -n1 || true)
+  [ -n "$ERTS_DIR" ] && export ERTS_ROOT="$ERTS_DIR"
+  export XERCES_ROOT="${XERCES_ROOT:-/usr}"
+fi
 
 DEFAULT_SCEN="mqtt_multi_node_light"
-if [ -n "${SELECTED_SCENARIO:-}" ]
-then
+if [ -n "${SELECTED_SCENARIO:-}" ]; then
   SCEN_CHOSEN="$SELECTED_SCENARIO"
+elif [ -n "${SCENARIO:-}" ]; then
+  SCEN_CHOSEN="$SCENARIO"
 else
-  if [ -n "${SCENARIO:-}" ]
-  then
-    SCEN_CHOSEN="$SCENARIO"
-  else
-    SCEN_CHOSEN="$DEFAULT_SCEN"
-  fi
+  SCEN_CHOSEN="$DEFAULT_SCEN"
 fi
 
-NODE_BASE="${NODE_BASE:-runner1}"
-# Unique, valid short name
+# Node base (erl short name)
 _node_base_default="runner_${RUN_TAG:-$(hostname | tr -cd 'a-zA-Z0-9' | tail -c 8)}"
 NODE_BASE="${NODE_BASE:-${_node_base_default}}"
-# sanitize for erl
 NODE_BASE="$(printf '%s' "$NODE_BASE" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9_]/_/g')"
-case "$NODE_BASE" in
-  [a-z]* ) : ;;
-  * ) NODE_BASE="r_${NODE_BASE}" ;;
-esac
-
-# Make sure it's not empty
-if [ -z "$NODE_BASE" ]; then
-    NODE_BASE="runner1"
-fi
+case "$NODE_BASE" in [a-z]* ) : ;; * ) NODE_BASE="r_${NODE_BASE}" ;; esac
+[ -z "$NODE_BASE" ] && NODE_BASE="runner1"
 
 RELEASE_COOKIE="${RELEASE_COOKIE:-ps_bench_cookie}"
 export NODE_BASE RELEASE_COOKIE
 
 REL_ROOT="$(ls -d /app/_build/*/rel/ps_bench 2>/dev/null | head -n1 || true)"
-if [ -z "$REL_ROOT" ]
-then
-  REL_ROOT="/app/_build/default/rel/ps_bench"
-fi
+[ -z "$REL_ROOT" ] && REL_ROOT="/app/_build/default/rel/ps_bench"
 BIN="$REL_ROOT/bin/ps_bench"
 
-# log helper
 log() {
-  printf '[entrypoint] %s\n' "$*"
+  if [ "$IS_DDS" = "true" ]; then
+    printf '[entrypoint-dds] %s\n' "$*"
+  else
+    printf '[entrypoint] %s\n' "$*"
+  fi
 }
 
-# escape for sed replacement
-esc_sed_repl() {
-  printf '%s' "$1" | sed 's/[\/&|]/\\&/g'
-}
+# Escape for sed replacement
+esc_sed_repl() { printf '%s' "$1" | sed 's/[\/&|]/\\&/g'; }
 
 strip_name_flags() {
   printf '%s' "${1:-}" | sed -E 's/(^|[[:space:]])-(sname|name)[[:space:]]+[^[:space:]]+//g'
 }
 
-# replace REPLACE_HOSTNAME in scenarios with actual hostname
+stage_configs() {
+  local orig_root="$(dirname "$SCEN_DIR")"
+  local work_root="/tmp/cfg_${NODE_BASE}_${RUN_TAG}"
+
+  rm -rf "$work_root"
+  mkdir -p "$work_root"/{devices,deployments,scenarios}
+
+  cp -a "${orig_root}/devices/."      "$work_root/devices/"      2>/dev/null || true
+  cp -a "${orig_root}/deployments/."  "$work_root/deployments/"  2>/dev/null || true
+  cp -a "${orig_root}/scenarios/."    "$work_root/scenarios/"
+
+  SCEN_DIR="$work_root/scenarios"
+  export SCEN_DIR
+  log "Working SCEN_DIR=${SCEN_DIR} (root=${work_root})"
+}
+
+# Compute host prefix mapping: runnerMQTT{N} / runnerDDS{N} 
+host_prefix_autodetect() {
+  # Allow override
+  [ -n "${HOST_PREFIX:-}" ] && { printf '%s' "$HOST_PREFIX"; return; }
+  # Default: strip trailing digits from container hostname
+  hp="$(hostname | sed 's/[0-9][0-9]*$//')"
+  # Fallbacks if ran outside compose
+  if [ -z "$hp" ]; then
+    if [ "$IS_DDS" = "true" ]; then hp="runnerDDS"; else hp="runnerMQTT"; fi
+  fi
+  printf '%s' "$hp"
+}
+
+# Replace hostnames per runner, whitespace tolerant, and correct prefix 
 patch_hostnames_in_scenarios() {
-  if [ -d "$SCEN_DIR" ]; then
-    # Get full hostname with domain
-    if [ "$DIST_MODE" = "name" ] || [ "$DIST_MODE" = "longnames" ]; then
-      HOSTNAME_TO_USE="$(hostname -f)"
-    else
-      HOSTNAME_TO_USE="$(hostname -s)"
+  [ -d "$SCEN_DIR" ] || return 0
+
+  # Domain suffix only for -name (longnames)
+  DOMAIN_PART="$(hostname -d 2>/dev/null || true)"
+  [ -z "$DOMAIN_PART" ] && DOMAIN_PART="${DOMAINNAME:-benchnet}"
+  case "$DIST_MODE" in
+    name|longnames) FQDN_SUFFIX=".${DOMAIN_PART}";;
+    *)              FQDN_SUFFIX="";;
+  esac
+
+  HOST_PREFIX="$(host_prefix_autodetect)"
+  export FQDN_SUFFIX HOST_PREFIX
+
+  for f in "$SCEN_DIR"/*.scenario; do
+    [ -f "$f" ] || continue
+
+    # 1) Explicit placeholders: REPLACE_RUNNER{n}_HOSTNAME → runner{MQTT/DDS}{n}[.domain]
+    perl -0777 -pe '
+      my $suf = $ENV{FQDN_SUFFIX} // "";
+      my $pfx = $ENV{HOST_PREFIX} // "runner";
+      for my $n (1..5) {
+        my $host = $pfx.$n.$suf;
+        s/(\x27)REPLACE_RUNNER${n}_HOSTNAME\1/$1$host$1/g;  # single-quoted
+        s/(")REPLACE_RUNNER${n}_HOSTNAME\1/$1$host$1/g;     # double-quoted
+      }
+    ' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+
+    # 2) Scoped REPLACE_HOSTNAME inside runner blocks → runner{MQTT/DDS}{n}[.domain]
+    perl -0777 -pe '
+      my $suf = $ENV{FQDN_SUFFIX} // "";
+      my $pfx = $ENV{HOST_PREFIX} // "runner";
+
+      my @lines = split /\n/;
+      my $runner = 0;
+      my $brace_depth = 0;
+      my $runner_depth = -1;
+
+      sub host_for { my $n = shift; return $pfx.$n.$suf; }
+
+      for (@lines) {
+        # Update depth approximately (good enough for these files)
+        my $opens  = () = /\{/g;
+        my $closes = () = /\}/g;
+
+        # Detect entering a runner block (e.g., "{ runner3 ,", "{runner2,", "runner4 =>", "\"runner1\"", etc.)
+        if (!$runner) {
+          if (/\{\s*runner([1-5])\s*,/ || /\brunner([1-5])\b\s*=>/ || /"runner([1-5])"/ || /\brunner([1-5])\b\s*:/) {
+            $runner = $1;
+            $runner_depth = $brace_depth + $opens - $closes; # depth at this line
+          }
+        }
+
+        if ($runner) {
+          my $h = host_for($runner);
+          s/(\x27)REPLACE_HOSTNAME\1/$1$h$1/g;   # 'REPLACE_HOSTNAME'
+          s/(")REPLACE_HOSTNAME\1/$1$h$1/g;      # "REPLACE_HOSTNAME"
+          s/\bREPLACE_HOSTNAME\b/$h/g;           # bare
+        }
+
+        # Move depth after replacements
+        $brace_depth += $opens - $closes;
+
+        # If we left the runner block, clear
+        if ($runner && $brace_depth < $runner_depth) {
+          $runner = 0; $runner_depth = -1;
+        }
+      }
+      $_ = join("\n", @lines);
+    ' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+
+    # 3) MQTT only: patch broker ip placeholders if any
+    if [ "$IS_DDS" = "false" ]; then
+      sed -i "s/\"REPLACE_BROKER_IP\"/\"${BROKER_HOST}\"/g; s/'REPLACE_BROKER_IP'/'${BROKER_HOST}'/g" "$f" || true
     fi
-    
-    for f in "$SCEN_DIR"/*.scenario; do
-      [ -f "$f" ] || continue
-      
-      # Replace 'REPLACE_HOSTNAME' atoms with full hostname
-      sed -i "s/'REPLACE_HOSTNAME'/'${HOSTNAME_TO_USE}'/g" "$f" || true
-      
-      # For multi-node scenarios with specific runner hostnames
-      sed -i "s/'REPLACE_RUNNER1_HOSTNAME'/'runner01.benchnet'/g" "$f" || true
-      sed -i "s/'REPLACE_RUNNER2_HOSTNAME'/'runner02.benchnet'/g" "$f" || true
-      sed -i "s/'REPLACE_RUNNER3_HOSTNAME'/'runner03.benchnet'/g" "$f" || true
-      sed -i "s/'REPLACE_RUNNER4_HOSTNAME'/'runner04.benchnet'/g" "$f" || true
-      sed -i "s/'REPLACE_RUNNER5_HOSTNAME'/'runner05.benchnet'/g" "$f" || true
-      
-      # Also handle quoted strings if any
-      sed -i "s/\"REPLACE_HOSTNAME\"/\"${HOSTNAME_TO_USE}\"/g" "$f" || true
-      sed -i "s/\"REPLACE_BROKER_IP\"/\"${BROKER_HOST}\"/g" "$f" || true
-    done
-    
-    log "Hostnames patched in scenarios to ${HOSTNAME_TO_USE}"
-  fi
-}
+  done
 
-# Update configure_distribution to check the actual file content
-configure_distribution() {
-  log "Starting configure_distribution with DIST_MODE=$DIST_MODE"
-  if [ "$DIST_MODE" = "name" ] || [ "$DIST_MODE" = "longnames" ]; then
-    # Long names: full hostname
-    FULL_HOSTNAME="$(hostname -f)"
-    export RELEASE_DISTRIBUTION="name"
-    export NAME="${NODE_BASE}@${FULL_HOSTNAME}"
-    export RELEASE_NODE="$NAME"
-    log "Set NAME=$NAME"
+  # Guardrail: fail if any placeholders remain (but only check relevant ones)
+  if [ "$IS_DDS" = "true" ]; then
+    targets=$(ls "$SCEN_DIR"/dds_*.scenario 2>/dev/null || true)
+    if [ -n "$targets" ] && grep -R -n -E "REPLACE_(HOSTNAME|RUNNER[1-5]_HOSTNAME)" $targets >/dev/null; then
+      log "ERROR: hostname placeholder(s) still present in DDS scenarios:"
+      grep -R -n -E "REPLACE_(HOSTNAME|RUNNER[1-5]_HOSTNAME)" $targets || true
+      exit 1
+    fi
   else
-    # Short names: only node base on command line; host inferred
-    SHORT_HOSTNAME="$(hostname -s)"
-    export RELEASE_DISTRIBUTION="sname"
-    export SNAME="$NODE_BASE"
-    export RELEASE_NODE="${NODE_BASE}@${SHORT_HOSTNAME}"
-    log "Set SNAME=$SNAME (full node will be ${RELEASE_NODE})"
+    # MQTT: check hostname placeholders and broker placeholder in mqtt_* files
+    targets=$(ls "$SCEN_DIR"/mqtt_*.scenario 2>/dev/null || true)
+    if [ -n "$targets" ] && grep -R -n -E "REPLACE_(HOSTNAME|RUNNER[1-5]_HOSTNAME|BROKER_IP)" $targets >/dev/null; then
+      log "ERROR: placeholder(s) still present in MQTT scenarios:"
+      grep -R -n -E "REPLACE_(HOSTNAME|RUNNER[1-5]_HOSTNAME|BROKER_IP)" $targets || true
+      exit 1
+    fi
   fi
-  # Always set a cookie
-  export RELEASE_COOKIE="${RELEASE_COOKIE:-ps_bench_cookie}"
-  log "Set RELEASE_COOKIE=$RELEASE_COOKIE"
+  log "Hostnames patched in scenarios"
 }
 
+# If scenario lists specific runners, idle if not listed
+maybe_become_idle_if_not_listed() {
+  # Scenario file after staging/patching:
+  local scen_file="${SCEN_DIR}/${SCEN_CHOSEN}.scenario"
+  [ -f "$scen_file" ] || { log "No scenario file at ${scen_file}; will run."; return 0; }
 
+  # Quick override: keep only the first N runners (by numeric suffix)
+  if [ -n "${MAX_RUNNERS:-}" ]; then
+    local idx; idx="$(printf '%s' "$NODE_BASE" | sed -nE 's/.*([0-9]+)$/\1/p')"
+    [ -z "$idx" ] && idx=1
+    if [ "$idx" -gt "$MAX_RUNNERS" ]; then
+      log "MAX_RUNNERS=$MAX_RUNNERS and my index=$idx -> idling."
+      tail -f /dev/null & wait
+    fi
+  fi
 
-# write broker host and port into scenario files
+  local my_short_host my_id_short my_id_long
+  my_short_host="$(hostname -s)"
+  my_id_short="${NODE_BASE}@${my_short_host}"
+  my_id_long="$my_id_short"
+  if [ "${RELEASE_DISTRIBUTION}" = "name" ] && [ -n "${FULL_HOSTNAME:-}" ]; then
+    my_id_long="${NODE_BASE}@${FULL_HOSTNAME}"
+  fi
+
+  # Treat scenario as "explicit" if it names any runner1..runner5 anywhere:
+  if grep -Eq "runner[1-5]@|\"runner[1-5]\"|'runner[1-5]'|(^|[^[:alnum:]_])runner[1-5]([^[:alnum:]_]|$)" "$scen_file"; then
+    # Participate only if THIS runner is referenced (long, short, quoted, or bare)
+    if grep -Fq "$my_id_long"  "$scen_file" || \
+       grep -Fq "$my_id_short" "$scen_file" || \
+       grep -Fq "\"${NODE_BASE}\"" "$scen_file" || \
+       grep -Fq "'${NODE_BASE}'"  "$scen_file" || \
+       grep -Eq "(^|[^[:alnum:]_])${NODE_BASE}([^[:alnum:]_]|$)" "$scen_file"
+    then
+      log "Scenario references me; participating."
+      return 0
+    else
+      log "Scenario lists specific runners but not me; idling."
+      tail -f /dev/null & wait
+    fi
+  else
+    log "No specific runners referenced in ${SCEN_CHOSEN}; will run."
+  fi
+}
+
+# Only patch broker for MQTT
 patch_broker_in_scenarios() {
-  if [ -d "$SCEN_DIR" ]
-  then
+  if [ -d "$SCEN_DIR" ]; then
     bh="$(esc_sed_repl "$BROKER_HOST")"
-    for f in "$SCEN_DIR"/*.scenario
-    do
-      if [ -f "$f" ]
-      then
-        sed -i -r "s|^[[:space:]]*host[[:space:]]*=[[:space:]]*\"[^\"]*\"|host = \"${bh}\"|g" "$f" || true
-        sed -i -r "s|^[[:space:]]*hostname[[:space:]]*=[[:space:]]*\"[^\"]*\"|hostname = \"${bh}\"|g" "$f" || true
-        sed -i -r "s|^[[:space:]]*port[[:space:]]*=[[:space:]]*[0-9]+|port = ${BROKER_PORT}|g" "$f" || true
-      fi
+    for f in "$SCEN_DIR"/mqtt_*.scenario; do
+      [ -f "$f" ] || continue
+      sed -i -r "s|^[[:space:]]*host[[:space:]]*=[[:space:]]*\"[^\"]*\"|host = \"${bh}\"|g" "$f" || true
+      sed -i -r "s|^[[:space:]]*hostname[[:space:]]*=[[:space:]]*\"[^\"]*\"|hostname = \"${bh}\"|g" "$f" || true
+      sed -i -r "s|^[[:space:]]*port[[:space:]]*=[[:space:]]*[0-9]+|port = ${BROKER_PORT}|g" "$f" || true
+      # In case files use the old placeholder style:
+      sed -i "s/\"REPLACE_BROKER_IP\"/\"${BROKER_HOST}\"/g; s/'REPLACE_BROKER_IP'/'${BROKER_HOST}'/g" "$f" || true
     done
-    log "Broker patched in scenarios host=${BROKER_HOST} port=${BROKER_PORT}"
+    log "Broker patched in mqtt_* scenarios host=${BROKER_HOST} port=${BROKER_PORT}"
   else
     log "WARNING: scenario dir $SCEN_DIR not found"
   fi
 }
 
-# Rewrite any hard-coded 'runner1' bases to the unique NODE_BASE
+# Suffix client IDs/names in scenarios to avoid clashes
+suffix_client_ids() {
+  if [ "${ADD_NODE_TO_SUFFIX:-true}" != "true" ]; then
+    log "Client ID suffixing disabled"
+    return 0
+  fi
+  [ -d "$SCEN_DIR" ] || return 0
+  SUF="_${RUN_TAG:-$(hostname | tr -cd 'a-zA-Z0-9' | tail -c 8)}"
+  SUF="$SUF" perl -0777 -pe '
+    my $s = $ENV{SUF} // "";
+    sub add { my $v = shift; return ($s ne "" && $v !~ /\Q$s\E$/) ? ($v.$s) : $v; }
+
+    # 1) client_* keys
+    s{(?<![A-Za-z0-9_])(client_id|clientId|client-name|client_name)\s*(=|=>)\s*"([^"]+)"}{
+      my ($k,$eq,$val)=($1,$2,$3);
+      "$k $eq \"" . add($val) . "\""
+    }ge;
+
+    # 2) bare "name" key (not hostname/username/etc.)
+    s{(?<![A-Za-z0-9_])(name)\s*(=|=>)\s*"([^"]+)"}{
+      my ($k,$eq,$val)=($1,$2,$3);
+      "$k $eq \"" . add($val) . "\""
+    }ge;
+  ' "$SCEN_DIR"/*.scenario
+  log "Scenario client IDs/names suffixed with ${SUF}"
+  grep -REn '^\s*(name|client_id|clientId|client-name|client_name)\s*=' "$SCEN_DIR" | head -n 40 || true
+}
+
+# Distribution config (-sname / -name)
+configure_distribution() {
+  log "Starting configure_distribution with DIST_MODE=$DIST_MODE"
+  SHORT_HOSTNAME="$(hostname -s)"
+
+  if [ "$DIST_MODE" = "name" ] || [ "$DIST_MODE" = "longnames" ]; then
+    DOMAIN_PART="$(hostname -d 2>/dev/null || true)"
+    [ -z "$DOMAIN_PART" ] && DOMAIN_PART="${DOMAINNAME:-benchnet}"
+    FULL_HOSTNAME="${SHORT_HOSTNAME}.${DOMAIN_PART}"
+    export RELEASE_DISTRIBUTION="name"
+    export NAME="${NODE_BASE}@${FULL_HOSTNAME}"
+    export RELEASE_NODE="${NODE_BASE}@${FULL_HOSTNAME}"
+    unset SNAME 2>/dev/null || true
+    log "Configured for -name mode: NAME=$NAME"
+    log "Full hostname: $FULL_HOSTNAME"
+  else
+    export RELEASE_DISTRIBUTION="sname"
+    export SNAME="$NODE_BASE"
+    export RELEASE_NODE="${NODE_BASE}@${SHORT_HOSTNAME}"
+    unset NAME 2>/dev/null || true
+    log "Configured for -sname mode: SNAME=$SNAME"
+    log "Full node will be: $RELEASE_NODE"
+  fi
+
+  export RELEASE_COOKIE="${RELEASE_COOKIE:-ps_bench_cookie}"
+  export SHORT_HOSTNAME
+  if [ "$RELEASE_DISTRIBUTION" = "name" ]; then export FULL_HOSTNAME; fi
+  log "RELEASE_COOKIE=$RELEASE_COOKIE"
+  log "RELEASE_DISTRIBUTION=$RELEASE_DISTRIBUTION"
+  log "RELEASE_NODE=$RELEASE_NODE"
+}
+
 patch_node_base_everywhere() {
   local nb="$NODE_BASE"
   if [ -f "$CONFIG_EXS" ]; then
@@ -157,7 +333,6 @@ patch_node_base_everywhere() {
       -e 's/(\{[[:space:]]*node[_-]?base[[:space:]]*,[[:space:]]*")[^"]*"/\1'"$nb"'"/g' \
       "$CONFIG_EXS" || true
     sed -i -E 's/"runner1_([^"]+)"/"'"$nb"'_\1"/g' "$CONFIG_EXS" || true
-    sed -i -E 's/runner1@/'"$nb"'@/g' "$CONFIG_EXS" || true
   fi
 
   if [ -d "$SCEN_DIR" ]; then
@@ -173,10 +348,8 @@ patch_node_base_everywhere() {
   log "Node base set to ${nb} in configs/scenarios"
 }
 
-# select the scenario in config.exs if present
 patch_selected_scenario() {
-  if [ -f "$CONFIG_EXS" ]
-  then
+  if [ -f "$CONFIG_EXS" ]; then
     ss="$(esc_sed_repl "$SCEN_CHOSEN")"
     sed -i -r "s|(^[[:space:]]*selected_scenario[[:space:]]*=[[:space:]]*)\"[^\"]*\"|\1\"${ss}\"|g" "$CONFIG_EXS" || true
     sed -i -r "s|\{[[:space:]]*selected_scenario[[:space:]]*,[[:space:]]*\"[^\"]*\"[[:space:]]*\}|{selected_scenario,\"${ss}\"}|g" "$CONFIG_EXS" || true
@@ -187,146 +360,56 @@ patch_selected_scenario() {
 }
 
 create_app_config() {
-    local config_path="${REL_ROOT}/releases/${REL_VSN}/sys.config"
-    
-    # Ensure the metrics scenario config includes the output directory
-    local METRICS_CONFIG=""
-    if [ -n "$OUT_DIR" ]; then
-        METRICS_CONFIG=", metric_config => [{output_dir, \"$OUT_DIR\"}]"
-    fi
-    
-    cat > "$config_path" << EOF
+  local config_path="${REL_ROOT}/releases/${REL_VSN}/sys.config"
+  local CFG_ROOT
+  CFG_ROOT="$(dirname "$SCEN_DIR")"
+
+  cat > "$config_path" << EOF
 [
   {ps_bench, [
     {node_name, ${NODE_BASE}},
-    {device_definitions_directory, "$SCEN_DIR/../devices"},
-    {deployment_definitions_directory, "$SCEN_DIR/../deployments"}, 
+    {device_definitions_directory, "$CFG_ROOT/devices"},
+    {deployment_definitions_directory, "$CFG_ROOT/deployments"},
     {scenario_definitions_directory, "$SCEN_DIR"},
     {selected_scenario, ${SCEN_CHOSEN}}
   ]}
 ].
 EOF
-    log "Created sys.config with selected_scenario=${SCEN_CHOSEN}"
+  log "Created sys.config with selected_scenario=${SCEN_CHOSEN}"
 }
 
-# add a stable suffix to explicit client ids to avoid collisions
-suffix_client_ids() {
-  if [ "${ADD_NODE_TO_SUFFIX:-true}" != "true" ]; then
-    log "Client ID suffixing disabled"
-    return 0
-  fi
-  [ -d "$SCEN_DIR" ] || return 0
-
-  SUF="_${RUN_TAG:-$(hostname | tr -cd 'a-zA-Z0-9' | tail -c 8)}"
-
-  for f in "$SCEN_DIR"/*.scenario; do
-    [ -f "$f" ] || continue
-    awk -v suf="$SUF" '
-      function add_suf(v) { return (v ~ (suf"$")) ? v : v suf }
-
-      {
-        line=$0
-
-        # 1) Handle client_* keys anywhere on the line
-        #    client_id | clientId | client-name | client_name
-        while (match(line, /(^|[^[:alnum:]_])(client_id|clientId|client-name|client_name)[[:space:]]*(=|=>)[[:space:]]*"([^"]+)"/, m)) {
-          pre=substr(line,1,RSTART-1); post=substr(line,RSTART+RLENGTH)
-          pfx=m[1]; key=m[2]; sep=m[3]; val=m[4]
-          line=pre pfx key " " sep " \"" add_suf(val) "\"" post
-        }
-
-        # 2) Handle a bare key named "name" (possibly nested),
-        #    but NOT parts of larger identifiers like hostname, username, topic_name, device_name, etc.
-        #    We ensure the char before 'name' is not [A-Za-z0-9_].
-        while (match(line, /(^|[^[:alnum:]_])(name)[[:space:]]*(=|=>)[[:space:]]*"([^"]+)"/, n)) {
-          pre=substr(line,1,RSTART-1); post=substr(line,RSTART+RLENGTH)
-          pfx=n[1]; key=n[2]; sep=n[3]; val=n[4]
-          line=pre pfx key " " sep " \"" add_suf(val) "\"" post
-        }
-
-        print line
-      }
-    ' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
-  done
-
-  log "Scenario client IDs/names suffixed with ${SUF}"
-
-  grep -RIn "^[[:space:]]*\(name\|client_id\|clientId\|client-name\|client_name\)[[:space:]]*=" "$SCEN_DIR" | head -n 60 || true
-}
-
-
-# convert a metrics.out style file to csv
+# metrics helpers 
 to_csv() {
   src="$1"
   dir="$(dirname "$src")"
   base="$(basename "$src")"
-  if [ "$base" = "metrics.out" ]
-  then
+  if [ "$base" = "metrics.out" ]; then
     dest="${dir}/metrics_out.csv"
   else
     case_prefix="$(printf '%s' "$base" | sed 's/^metrics\.out\./metrics_out./')"
-    if printf '%s' "$base" | grep -q '^metrics\.out\.'
-    then
+    if printf '%s' "$base" | grep -q '^metrics\.out\.'; then
       dest="${dir}/${case_prefix}.csv"
     else
       dest="${src}.csv"
     fi
   fi
-  if [ ! -s "$src" ]
-  then
+  if [ ! -s "$src" ]; then
     printf "metric,value\n" > "$dest"
     return 0
   fi
   awk '
-    function ltrim(s){
-      sub(/^[ \t\r\n]+/,"",s)
-      return s
-    }
-    function rtrim(s){
-      sub(/[ \t\r\n]+$/,"",s)
-      return s
-    }
-    function trim(s){
-      return rtrim(ltrim(s))
-    }
-    BEGIN {
-      OFS=","
-      print "source_metric","value"
-    }
+    function ltrim(s){sub(/^[ \t\r\n]+/,"",s);return s}
+    function rtrim(s){sub(/[ \t\r\n]+$/,"",s);return s}
+    function trim(s){return rtrim(ltrim(s))}
+    BEGIN{OFS=",";print "source_metric","value"}
     {
-      line=$0
-      c=index(line,":")
-      e=index(line,"=")
-      sep=0
-      if (c>0 && e>0) {
-        if (c<e) {
-          sep=c
-        } else {
-          sep=e
-        }
-      } else {
-        if (c>0) {
-          sep=c
-        } else {
-          if (e>0) {
-            sep=e
-          }
-        }
-      }
-      if (sep>0) {
-        key=trim(substr(line,1,sep-1))
-        val=trim(substr(line,sep+1))
-        gsub(/"/,"\"\"",val)
-        print key,"\"" val "\""
-      } else {
-        gsub(/"/,"\"\"",line)
-        print "raw","\"" line "\""
-      }
-    }
-  ' "$src" > "$dest"
+      line=$0; c=index(line,":"); e=index(line,"="); sep=0
+      if(c>0 && e>0){sep=(c<e)?c:e}else if(c>0){sep=c}else if(e>0){sep=e}
+      if(sep>0){ key=trim(substr(line,1,sep-1)); val=trim(substr(line,sep+1)); gsub(/"/,"\"\"",val); print key,"\"" val "\"" }
+      else { gsub(/"/,"\"\"",line); print "raw","\"" line "\"" }
+    }' "$src" > "$dest"
 }
 
-# build a global csv index over all metrics files
 convert_all_metrics() {
   index_csv="${OUT_DIR}/metrics_index.csv"
   mkdir -p "$OUT_DIR"
@@ -336,112 +419,105 @@ convert_all_metrics() {
     to_csv "$src"
     dir="$(dirname "$src")"
     base="$(basename "$src")"
-    if [ "$base" = "metrics.out" ]
-    then
+    if [ "$base" = "metrics.out" ]; then
       dest="${dir}/metrics_out.csv"
     else
       dest_guess="${dir}/$(printf '%s' "$base" | sed 's/^metrics\.out\./metrics_out./').csv"
-      if [ -f "$dest_guess" ]
-      then
-        dest="$dest_guess"
-      else
-        dest="${src}.csv"
-      fi
+      if [ -f "$dest_guess" ]; then dest="$dest_guess"; else dest="${src}.csv"; fi
     fi
     rel="${src#${OUT_DIR}/}"
-    if [ -f "$dest" ]
-    then
+    if [ -f "$dest" ]; then
       tail -n +2 "$dest" | awk -v s="$rel" -F, 'BEGIN{OFS=","} {print s,$1,$2}' >> "$index_csv"
     fi
   done
   log "CSV export complete ${index_csv}"
 }
 
-# handle SIGTERM
 on_term() {
   log "SIGTERM received stopping"
-  if kill -TERM "$APP_PID" 2>/dev/null
-  then
-    true
-  fi
-  if wait "$APP_PID" 2>/dev/null
-  then
-    true
-  fi
+  kill -TERM "$APP_PID" 2>/dev/null || true
+  wait "$APP_PID" 2>/dev/null || true
   convert_all_metrics
   exit 0
 }
-
-# handle SIGINT
 on_int() {
   log "SIGINT received stopping"
-  if kill -INT "$APP_PID" 2>/dev/null
-  then
-    true
-  fi
-  if wait "$APP_PID" 2>/dev/null
-  then
-    true
-  fi
+  kill -INT "$APP_PID" 2>/dev/null || true
+  wait "$APP_PID" 2>/dev/null || true
   convert_all_metrics
   exit 130
 }
 
-# main launcher
 main() {
   mkdir -p "$OUT_DIR"
   log "OUT_DIR=${OUT_DIR}"
-  : "${ERL_AFLAGS:=}"
-  : "${ELIXIR_ERL_OPTIONS:=}"
+
+  if [ -x /usr/local/bin/node_exporter ]; then
+    log "Starting node_exporter for metrics..."
+    /usr/local/bin/node_exporter --collector.disable-defaults --collector.cpu --collector.meminfo > /dev/null 2>&1 &
+    NODE_EXPORTER_PID=$!
+    log "Node exporter started with PID $NODE_EXPORTER_PID"
+  else
+    log "WARNING: node_exporter not found at /usr/local/bin/node_exporter"
+  fi
+
+  stage_configs
+
+  : "${ERL_AFLAGS:=}"; : "${ELIXIR_ERL_OPTIONS:=}"
   ERL_AFLAGS="$(strip_name_flags "$ERL_AFLAGS")"
   ELIXIR_ERL_OPTIONS="$(strip_name_flags "$ELIXIR_ERL_OPTIONS")"
   export ERL_AFLAGS ELIXIR_ERL_OPTIONS
 
-  # Don't unset NAME and SNAME - we need them!
-  unset RELEASE_SNAME RELEASE_NAME
-  
-  # Debug: show current state
+  unset RELEASE_SNAME RELEASE_NAME 2>/dev/null || true
+
   log "Before configure_distribution: SNAME=${SNAME:-not_set} NAME=${NAME:-not_set}"
-  
   configure_distribution
-  
-  # Debug: show state after configuration
   log "After configure_distribution: SNAME=${SNAME:-not_set} NAME=${NAME:-not_set}"
   log "RELEASE_NODE=${RELEASE_NODE:-not_set} RELEASE_DISTRIBUTION=${RELEASE_DISTRIBUTION:-not_set}"
-  
+
   REL_VSN="$(basename "$(ls -d "${REL_ROOT}/releases"/*/ 2>/dev/null | sort | tail -n1)")"
   export REL_VSN
   log "Found release version: ${REL_VSN}"
-  
+
   find "$REL_ROOT/releases" -type f -name vm.args -exec sh -c 'echo "--- {} ---"; head -n 20 "{}"' \; || true
+
   suffix_client_ids
   patch_broker_in_scenarios
   patch_hostnames_in_scenarios
-  grep -RIn '^\s*\(host\|hostname\|port\)\s*=' "$SCEN_DIR" || true
-  grep -RIn '^\s*\(name\|client_id\|clientId\|client-name\|client_name\)\s*=' "$SCEN_DIR" | head -n 40 || true  
-  patch_node_base_everywhere  
+  maybe_become_idle_if_not_listed
+  
+  grep -REn '^\s*(host|hostname|port)\s*=' "$SCEN_DIR" || true
+  grep -REn '^\s*(name|client_id|clientId|client-name|client_name)\s*=' "$SCEN_DIR" | head -n 40 || true
+
+  patch_node_base_everywhere
   patch_selected_scenario
   create_app_config
-  export NODE_HOST_OVERRIDE="$(hostname)"
-  if [ ! -x "$BIN" ]
-  then
+
+  if [ "$RELEASE_DISTRIBUTION" = "name" ]; then
+    export NODE_HOST_OVERRIDE="${FULL_HOSTNAME}"
+  else
+    export NODE_HOST_OVERRIDE="$(hostname -s)"
+  fi
+
+  if [ ! -x "$BIN" ]; then
     log "ERROR release binary not found at $BIN"
     exit 1
   fi
-  log "Starting ps_bench as ${NODE_BASE}@$(hostname) broker=${BROKER_HOST}:${BROKER_PORT} scenario=${SCEN_CHOSEN}"
-  
-  # Debug: show environment before running
+
+  if [ "$IS_DDS" = "true" ]; then
+    log "Starting ps_bench (DDS) as ${NODE_BASE}@$(hostname) scenario=${SCEN_CHOSEN}"
+  else
+    log "Starting ps_bench (MQTT) as ${NODE_BASE}@$(hostname) broker=${BROKER_HOST}:${BROKER_PORT} scenario=${SCEN_CHOSEN}"
+  fi
+
   log "Environment check before running:"
   log "  SNAME=${SNAME:-not_set}"
   log "  NAME=${NAME:-not_set}"
   log "  RELEASE_NODE=${RELEASE_NODE:-not_set}"
-  
+
   set +e
-  
-  # Create vm.args (and vm.args.src) with our settings before running
   export RELX_REPLACE_OS_VARS=true
 
-  # Derive the release version dynamically instead of hardcoding 0.1.0
   REL_VSN="$(basename "$(ls -d "${REL_ROOT}/releases"/*/ 2>/dev/null | sort | tail -n1)")"
   VM_ARGS_PATH="${REL_ROOT}/releases/${REL_VSN}/vm.args"
   VM_ARGS_SRC="${REL_ROOT}/releases/${REL_VSN}/vm.args.src"
@@ -452,17 +528,12 @@ main() {
     echo "-kernel inet_dist_listen_max 15010"
     echo "+Bd"
     echo "-setcookie ${RELEASE_COOKIE}"
-
     if [ "${RELEASE_DISTRIBUTION}" = "name" ]; then
-      # Long name must include host
       echo "-name ${NAME}"
     else
-      # Short name MUST be only the node base (no @host)
       echo "-sname ${SNAME}"
     fi
   } > "$VM_ARGS_PATH"
-
-  # Keep .src in sync so the wrapper won't regenerate a distribution-less vm.args
   cp -f "$VM_ARGS_PATH" "$VM_ARGS_SRC" 2>/dev/null || true
 
   log "Created vm.args with content:"
@@ -470,7 +541,6 @@ main() {
 
   log "Running: $BIN foreground"
   "$BIN" foreground &
-
   APP_PID="$!"
   trap on_term TERM
   trap on_int INT
@@ -480,6 +550,10 @@ main() {
   log "ps_bench exited with code ${APP_RC} converting metrics"
   convert_all_metrics
   log "Done"
+  if [ -n "${NODE_EXPORTER_PID:-}" ]; then
+    kill "$NODE_EXPORTER_PID" 2>/dev/null || true
+    log "Stopped node_exporter"
+  fi
   exit "$APP_RC"
 }
 

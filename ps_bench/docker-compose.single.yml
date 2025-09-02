@@ -1,5 +1,3 @@
-version: '3.8'
-
 networks:
   benchnet:
     driver: bridge
@@ -37,6 +35,7 @@ services:
     volumes:
       - ./out/runner01:/app/out
       - ./results:/app/results 
+      - ./configs:/app/configs:ro 
     depends_on:
       mosquitto:
         condition: service_healthy

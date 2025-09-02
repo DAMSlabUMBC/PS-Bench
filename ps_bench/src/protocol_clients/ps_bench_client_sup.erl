@@ -22,7 +22,7 @@ init([]) ->
             process_dds_children(ScenarioName);
         _ ->
             ps_bench_utils:log_message("ERROR: Requested starting a child of unknown protocol ~p", [ProtocolType]),
-            {error, unsupported_interface}
+            {error, unsupported_protocol}
     end.
 
 process_mqtt_children(ScenarioName) ->

@@ -44,7 +44,15 @@ initialize_python_plugins(OutDir) ->
 
 run_metric_calculations() ->
     run_python_plugins(),
-    run_erlang_plugins().
+    run_erlang_plugins(),
+
+    % Write hardware stats if we're using it
+    case ps_bench_config_manager:using_hw_poll() of
+        true ->
+            gen_server:call(ps_bench_metrics_hw_stats_reader, write_stats);
+        false ->
+            ok
+    end.
 
 run_python_plugins() ->
 

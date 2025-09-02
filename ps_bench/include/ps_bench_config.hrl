@@ -91,8 +91,7 @@
 % metrics and runtime props 
 -define(METRIC_STORAGE_CONSTANT, metrics).
 -define(METRIC_RESULTS_DIR_PROP, output_dir).
--define(METRIC_WINDOW_MS_PROP, calculation_window_ms).
--define(METRIC_ROLLUP_PERIOD_S_PROP, rollup_period_s).
+-define(METRIC_HW_STATS_POLL_PERIOD, hw_stats_poll_period_ms).
 -define(METRIC_PYTHON_ENGINE_PATH, python_metric_engine_path).
 -define(METRIC_PLUGINS_PROP, metric_plugins).
 % NOTE: We do not require a window, rollup period, or python path to be defined
@@ -124,7 +123,7 @@
 -record(?CONNECT_EVENT_RECORD_NAME, {node_name, client_name, timestamp}).
 -record(?DISCONNECT_EVENT_RECORD_NAME, {node_name, client_name, timestamp}).
 -record(?RECV_EVENT_RECORD_NAME, {node_name, client_name, topic, seq_id, pub_timestamp, recv_timestamp, payload_size}).
--record(?PUB_EVENT_RECORD_NAME, {node_name, topic, max_seq_id}).
+-record(?PUB_EVENT_RECORD_NAME, {node_name, topic, pub_count}).
 
 % TODO: What to do with this
 -define(TRANSPORTS_PROP, transports).

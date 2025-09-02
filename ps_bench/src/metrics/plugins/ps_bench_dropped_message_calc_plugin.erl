@@ -36,24 +36,20 @@ calculate_pairwise_dropped_messages_for_one_node(ThisNode, TargetNode) ->
                   ps_bench_store:fetch_mnesia_publish_aggregation_from_node(TargetNode)
       end,
 
-      ps_bench_utils:log_message("Recvs: ~p", [ps_bench_store:fetch_recv_events()]),
-      ps_bench_utils:log_message("Publishes: ~p", [PublishEventCountsByNodeTopic]),
-
-
       % At the moment, we make the assumption that every message should be received by every node, which
       % means we have a dropped message if we have less messages recieved than the maximum sequence number sent by the node
 
-      DroppedPubsCount = lists:foldl(fun({_, PubNode, PubTopic, PubMaxSeqId}, TotalDroppedMessages) ->       
+      DroppedPubsCount = lists:foldl(fun({_, PubNode, PubTopic, PubCount}, TotalDroppedMessages) ->       
                                           % Get all recvs that match this node and topic
                                           RecvEventsFromNodeOnTopic = ps_bench_store:fetch_recv_events_by_filter({ThisNode, '_', PubNode, PubTopic, '_', '_', '_', '_'}),
                                           RecvEventsFromNodeOnTopicCount = length(RecvEventsFromNodeOnTopic),
-                                          DroppedPubCount = PubMaxSeqId - RecvEventsFromNodeOnTopicCount,
+                                          DroppedPubCount = PubCount - RecvEventsFromNodeOnTopicCount,
                                           TotalDroppedMessages + DroppedPubCount
                                           end,
                                           0, PublishEventCountsByNodeTopic),
 
-      AllPubsCount = lists:foldl(fun({_, _, _, PubMaxSeqId}, TotalMessages) ->       
-                                          TotalMessages + PubMaxSeqId
+      AllPubsCount = lists:foldl(fun({_, _, _, PubCount}, TotalMessages) ->       
+                                          TotalMessages + PubCount
                                           end,
                                           0, PublishEventCountsByNodeTopic),
       {ThisNode, TargetNode, AllPubsCount, DroppedPubsCount}.

@@ -11,23 +11,6 @@ start_link(NodeName, NodeList) ->
     supervisor:start_link({global, NodeName}, ?MODULE, [{NodeName, NodeList}]).
 
 init([{NodeName, NodeList}]) ->
-    MetricsListener = #{id => ps_bench_metrics_listener,
-        start => {ps_bench_metrics_listener, start_link, []},
-        restart => permanent, shutdown => 5000, type => worker, modules => [ps_bench_metrics_listener]},
-
-    MetricsPy = #{id => ps_bench_metrics_py,
-        start => {ps_bench_metrics_py, start_link, [[{listener_name, ps_bench_metrics_listener}]]},
-        restart => permanent, shutdown => 5000, type => worker, modules => [ps_bench_metrics_py]},
-
-    MetricsAgg = #{id => ps_bench_metrics_aggregator,
-        start => {ps_bench_metrics_aggregator, start_link, []},
-        restart => permanent, shutdown => 5000, type => worker, modules => [ps_bench_metrics_aggregator]},
-
-    Roll = #{id => ps_bench_metrics_rollup,
-        start => {ps_bench_metrics_rollup, start_link, []},
-        restart => permanent, shutdown => 5000, type => worker, modules => [ps_bench_metrics_rollup]},
-
-    %% existing children
     Pg = #{id => pg_srv, start => {pg, start_link, []},
         restart => permanent, shutdown => 5000, type => worker, modules => [pg]},
 
@@ -43,6 +26,15 @@ init([{NodeName, NodeList}]) ->
         start => {ps_bench_scenario_sup, start_link, []},
         restart => permanent, shutdown => 5000, type => supervisor, modules => [ps_bench_scenario_sup]},
 
-    Children = [Pg, Lifecycle, NodeManager, ScenarioSup],
+    HwStats = #{id => ps_bench_metrics_hw_stats_reader,
+        start => {ps_bench_metrics_hw_stats_reader, start_link, []},
+        restart => permanent, shutdown => 5000, type => worker, modules => [ps_bench_metrics_hw_stats_reader]},
+
+    Children = case ps_bench_config_manager:using_hw_poll() of
+        true ->
+            [Pg, Lifecycle, NodeManager, ScenarioSup, HwStats];
+        false ->
+            [Pg, Lifecycle, NodeManager, ScenarioSup]
+    end,
     {ok, {{one_for_one, 5, 60}, Children}}.
 

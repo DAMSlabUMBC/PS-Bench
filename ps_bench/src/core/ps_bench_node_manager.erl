@@ -89,12 +89,29 @@ handle_next_step_command(start_initialization) ->
 
 
 handle_next_step_command(start_benchmark) ->
-    % gen_server:cast(ps_bench_metrics_rollup, start_loop),
+
+    % Start hardware polling if we're using it
+    case ps_bench_config_manager:using_hw_poll() of
+        true ->
+            gen_server:call(ps_bench_metrics_hw_stats_reader, start_polling);
+        false ->
+            ok
+    end,
+
+    % Start the scenario
     ps_bench_scenario_manager:run_scenario(),
     ok;
 
 handle_next_step_command(finalize_scenario) ->
-    % gen_server:cast(ps_bench_metrics_rollup, start_loop),
+
+    % Stop hardware polling if we're using it
+    case ps_bench_config_manager:using_hw_poll() of
+        true ->
+            gen_server:call(ps_bench_metrics_hw_stats_reader, stop_polling);
+        false ->
+            ok
+    end,
+
     ps_bench_scenario_manager:clean_up_scenario(),
     ps_bench_store:aggregate_publish_results(),
     gen_server:cast(?MODULE, global_continue),

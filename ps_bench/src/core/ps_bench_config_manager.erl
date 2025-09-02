@@ -18,8 +18,8 @@
 -export([fetch_dds_nif_information/0, fetch_dds_domain_id/0, fetch_dds_config_file_path/0, fetch_dds_qos_profile/0]).
 
 % Metric exports
--export([fetch_metrics_output_dir/0, fetch_metric_calculation_window/0, fetch_metric_rollup_period/0, fetch_python_metric_engine_path/0,
-    fetch_python_metric_plugins/0, fetch_erlang_metric_plugins/0]).
+-export([fetch_metrics_output_dir/0, fetch_python_metric_engine_path/0,
+    fetch_python_metric_plugins/0, fetch_erlang_metric_plugins/0, using_hw_poll/0, fetch_metric_hw_poll_period/0]).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Loading Bootstrapping Functions
@@ -363,7 +363,7 @@ process_scenario_metric_config(MetricProps, ScenarioName) ->
     % Validate needed keys are here
     PropListKeys = proplists:get_keys(MetricProps),
     NonReqKeys = PropListKeys -- ?METRIC_REQ_KEY_LIST,
-    ExtraKeys =  NonReqKeys -- [?METRIC_WINDOW_MS_PROP, ?METRIC_ROLLUP_PERIOD_S_PROP, ?METRIC_PYTHON_ENGINE_PATH, ?METRIC_RESULTS_DIR_PROP],
+    ExtraKeys =  NonReqKeys -- [?METRIC_PYTHON_ENGINE_PATH, ?METRIC_RESULTS_DIR_PROP, ?METRIC_HW_STATS_POLL_PERIOD],
     MissingKeys = ?METRIC_REQ_KEY_LIST -- PropListKeys,
 
     % Having extra keys is just a warning, disregard return of the case
@@ -566,11 +566,16 @@ fetch_full_node_from_name(NodeName) ->
 fetch_metrics_output_dir() ->
     fetch_metric_property(?METRIC_RESULTS_DIR_PROP, ?DEFAULT_OUT_DIR).
 
-fetch_metric_calculation_window() ->
-    fetch_metric_property(?METRIC_WINDOW_MS_PROP, ?DEFAULT_WINDOW_MS).
+using_hw_poll() ->
+    case fetch_metric_property(?METRIC_HW_STATS_POLL_PERIOD, undefined) of
+        {error, unknown_property} ->
+            false;
+        _ ->
+            true
+    end.
 
-fetch_metric_rollup_period() ->
-    fetch_metric_property(?METRIC_ROLLUP_PERIOD_S_PROP, ?DEFAULT_ROLLUP_PERIOD_S).
+fetch_metric_hw_poll_period() ->
+    fetch_metric_property(?METRIC_HW_STATS_POLL_PERIOD).
 
 fetch_python_metric_engine_path() ->
     fetch_metric_property(?METRIC_PYTHON_ENGINE_PATH, ?DEFAULT_PYTHON_ENGINE_PATH).

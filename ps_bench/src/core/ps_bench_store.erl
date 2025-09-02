@@ -6,12 +6,12 @@
 %% seq mgmt
 -export([get_next_seq_id/1]).
 %% recv event I/O
--export([record_recv/6, record_recv/7, record_publish/3, record_connect/2, record_disconnect/3, aggregate_publish_results/0]).
+-export([record_recv/6, record_recv/7, record_publish/3, record_connect/2, record_disconnect/3, aggregate_publish_results/0, record_cpu_usage/2, record_memory_usage/2]).
 %% rollup helpers
 -export([get_last_recv_seq/1, put_last_recv_seq/2]).
 %% window summaries
 -export([fetch_recv_events/0, fetch_recv_events_by_filter/1, fetch_publish_events/0, fetch_publish_events_by_filter/1, fetch_connect_events/0, fetch_disconnect_events/0]).
--export([fetch_mnesia_publish_aggregation/0, fetch_mnesia_publish_aggregation_from_node/1]).
+-export([fetch_mnesia_publish_aggregation/0, fetch_mnesia_publish_aggregation_from_node/1, fetch_cpu_usage/0, fetch_broker_cpu_usage/0, fetch_memory_usage/0, fetch_broker_memory_usage/0]).
 
 
 -define(T_PUBSEQ, psb_pub_seq).      %% {pub_topic, TopicBin} -> Seq
@@ -21,6 +21,8 @@
 -define(T_DISCONNECT_EVENTS, psb_disconnect_events).
 -define(T_PUBLISH_EVENTS, psb_publish_events).       %% ordered by t_recv_ns key
 -define(T_RECV_EVENTS, psb_recv_events).
+-define(T_CPU_EVENTS, cpu_usage_events).
+-define(T_MEM_EVENTS, mem_usage_events).
 
 initialize_node_storage() ->
     % Clear any existing tables first
@@ -110,6 +112,16 @@ ensure_tables() ->
                                               {write_concurrency,true}]);
         _ -> ok
     end,
+    case ets:info(?T_CPU_EVENTS) of
+        undefined -> ets:new(?T_CPU_EVENTS, [named_table, public, duplicate_bag,
+                                              {write_concurrency,true}]);
+        _ -> ok
+    end,
+    case ets:info(?T_MEM_EVENTS) of
+        undefined -> ets:new(?T_MEM_EVENTS, [named_table, public, duplicate_bag,
+                                              {write_concurrency,true}]);
+        _ -> ok
+    end,
     ok.
 
 %% record a recv event 
@@ -127,7 +139,6 @@ record_recv(ClientName, TopicBin, Seq, TPubNs, TRecvNs, Bytes) ->
     record_recv(ClientName, TopicBin, Seq, TPubNs, TRecvNs, Bytes, unknown).
 
 record_publish(ClientName, Topic, Seq) ->
-    ps_bench_utils:log_message("RecordPubEvent", []),
     ensure_tables(),
     {ok, NodeName} = ps_bench_config_manager:fetch_node_name(),
     Event = {NodeName, ClientName, Topic, Seq},
@@ -157,6 +168,14 @@ record_disconnect(ClientName, TimeNs, Type) ->
     % ps_bench_utils:log_message("Client ~p disconnected (~p) at ~p", [ClientName, Type, TimeNs]),
     ok.
 
+record_cpu_usage(NodeType, CpuUsage) ->
+    ensure_tables(),
+    ets:insert(?T_CPU_EVENTS, {NodeType, CpuUsage}).
+
+record_memory_usage(NodeType, MemoryUsage) ->
+    ensure_tables(),
+    ets:insert(?T_MEM_EVENTS, {NodeType, MemoryUsage}).
+
 fetch_recv_events() ->
     ets:tab2list(?T_RECV_EVENTS).
 
@@ -174,27 +193,23 @@ aggregate_publish_results() ->
     % we simply want to send the count of messages sent per topic for this node to match
     % against sequence IDs
 
-    % Get the highest sequence ID sent on each topic
-    FullTopicList = ets:foldl(fun({_NodeName, _ClientName, Topic, Seq}, TopicList) ->
+    % Get the number of messages sent on each topic
+    FullTopicList = ets:foldl(fun({_NodeName, _ClientName, Topic, _Seq}, TopicList) ->
         case lists:keyfind(Topic, 1, TopicList) of
-        {Topic, Value} when Seq > Value ->
-            NewTuple = {Topic, Seq},
+        {Topic, Value} ->
+            NewTuple = {Topic, Value + 1},
             lists:keyreplace(Topic, 1, TopicList, NewTuple);
-        {Topic, Value} when Value >= Seq ->
-            TopicList;
         false ->
             TopicList ++ [{Topic, 1}]
     end end, [], ?T_PUBLISH_EVENTS),
 
-    ps_bench_utils:log_message("BeforeAgg: ~p", [fetch_publish_events()]),
-
     % Store the results in the distributed mnesia table
-    lists:foreach(fun({Topic, MaxSeqId}) -> insert_pub_event_in_mnesia(Topic, MaxSeqId) end, FullTopicList).
+    lists:foreach(fun({Topic, PubCount}) -> insert_pub_event_in_mnesia(Topic, PubCount) end, FullTopicList).
 
-insert_pub_event_in_mnesia(Topic, MaxSeqId) ->
+insert_pub_event_in_mnesia(Topic, PubCount) ->
     F = fun() ->
         {ok, NodeName} = ps_bench_config_manager:fetch_node_name(),
-        mnesia:write(#?PUB_EVENT_RECORD_NAME{node_name=NodeName, topic=Topic, max_seq_id=MaxSeqId})
+        mnesia:write(#?PUB_EVENT_RECORD_NAME{node_name=NodeName, topic=Topic, pub_count=PubCount})
     end,
     ok = mnesia:activity(transaction, F).
 
@@ -211,6 +226,18 @@ fetch_connect_events() ->
 
 fetch_disconnect_events() ->
     ets:tab2list(?T_DISCONNECT_EVENTS).
+
+fetch_cpu_usage() ->
+    ets:match_object(?T_CPU_EVENTS, {local, '_'}).
+
+fetch_broker_cpu_usage() ->
+    ets:match_object(?T_CPU_EVENTS, {broker, '_'}).
+
+fetch_memory_usage() ->
+    ets:match_object(?T_MEM_EVENTS, {local, '_'}).
+
+fetch_broker_memory_usage() ->
+    ets:match_object(?T_MEM_EVENTS, {broker, '_'}).
 
 get_last_recv_seq(TopicBin) ->
     case ets:lookup(?T_RECVSEQ, {recv_topic, TopicBin}) of

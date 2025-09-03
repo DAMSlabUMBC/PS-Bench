@@ -7,9 +7,11 @@ RUN apk add --no-cache wget tar && \
     mv node_exporter-1.8.2.linux-amd64/node_exporter /usr/local/bin/ && \
     rm -rf node_exporter-1.8.2.linux-amd64*
 
-# Create a startup script
+# Create a startup script that redirects node_exporter output
 RUN echo '#!/bin/sh' > /entrypoint.sh && \
-    echo 'node_exporter &' >> /entrypoint.sh && \
+    echo '# Start node_exporter in background with redirected output' >> /entrypoint.sh && \
+    echo 'node_exporter > /dev/null 2>&1 &' >> /entrypoint.sh && \
+    echo '# Start mosquitto in foreground' >> /entrypoint.sh && \
     echo 'exec /usr/sbin/mosquitto -c /mosquitto/config/mosquitto.conf' >> /entrypoint.sh && \
     chmod +x /entrypoint.sh
 

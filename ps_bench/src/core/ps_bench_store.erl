@@ -44,23 +44,40 @@ get_next_seq_id(Topic) ->
 
 %% Create mnesia schema and start mnesia
 initialize_mnesia_storage(Nodes) ->
-
     case ps_bench_node_manager:is_primary_node() of
         true ->
-            % We don't store anything on disk, so we don't need to create a schema
-            % Make sure mnesia is started and create the table
             ps_bench_utils:log_message("Initializing mnesia schema on ~p. You may see an exit call for mnesia, this is fine.", [Nodes]),
             rpc:multicall(Nodes, application, stop, [mnesia]),
             mnesia:create_schema(Nodes),
             ps_bench_utils:log_message("Attempting to restart mnesia database on ~p.", [Nodes]),
-            rpc:multicall(Nodes, application, start, [mnesia]),
-            lists:foreach(fun(Node) -> mnesia:add_table_copy(schema, Node, ram_copies) end, Nodes -- [node()]),
-            rpc:multicall(Nodes -- [node()], mnesia, change_config, [extra_db_nodes, Nodes]),
+            {Results, _BadNodes} = rpc:multicall(Nodes, application, start, [mnesia]),
+            
+            % Wait for all nodes to report mnesia is started
+            wait_for_mnesia_on_nodes(Nodes),
+            
+            % Add schema copies and ensure all nodes know about each other
+            lists:foreach(fun(Node) -> 
+                mnesia:add_table_copy(schema, Node, ram_copies) 
+            end, Nodes -- [node()]),
+            
+            % This is the critical fix - ensure ALL nodes know about each other
+            lists:foreach(fun(Node) ->
+                rpc:call(Node, mnesia, change_config, [extra_db_nodes, Nodes])
+            end, Nodes),
+            
             ps_bench_utils:log_message("Creating mnesia tables on ~p", [Nodes]),
             mnesia:delete_table(?PUB_EVENT_RECORD_NAME),
-            mnesia:create_table(?PUB_EVENT_RECORD_NAME, [{type, bag}, {ram_copies, Nodes}, {attributes, record_info(fields, ?PUB_EVENT_RECORD_NAME)}]);
+            mnesia:create_table(?PUB_EVENT_RECORD_NAME, [
+                {type, bag}, 
+                {ram_copies, Nodes}, 
+                {attributes, record_info(fields, ?PUB_EVENT_RECORD_NAME)}
+            ]);
         false ->
             ps_bench_utils:log_message("Waiting for mnesia tables to initialize. You may see an exit call for mnesia, this is fine.", []),
+            % Wait a bit before checking mnesia status
+            timer:sleep(1000),
+            % Make sure this node knows about all other nodes too
+            mnesia:change_config(extra_db_nodes, Nodes),
             wait_for_tables()
     end.
 
@@ -75,6 +92,21 @@ wait_for_tables() ->
             wait_for_tables();
         ok ->
             process_flag(trap_exit, false)
+    end.
+
+wait_for_mnesia_on_nodes([]) -> ok;
+wait_for_mnesia_on_nodes(Nodes) ->
+    NotReady = lists:filter(fun(Node) ->
+        case rpc:call(Node, mnesia, system_info, [is_running], 5000) of
+            yes -> false;
+            _ -> true
+        end
+    end, Nodes),
+    case NotReady of
+        [] -> ok;
+        _ ->
+            timer:sleep(500),
+            wait_for_mnesia_on_nodes(NotReady)
     end.
 
 %% Create ETS tables if they don't already exist (safe to call many times)

@@ -5,19 +5,25 @@
 -export([initialize_plugins/0, run_metric_calculations/0]).
 
 initialize_plugins() ->
-
     ps_bench_utils:log_state_change("Initializing Metric Calculation Plugins", []),
 
     % Fetch output folder and make sure it can be created or exists
     {ok, OutDir} = ps_bench_config_manager:fetch_metrics_output_dir(),
-    ok = filelib:ensure_dir(OutDir),
-
-    % Initialize the plugins
-    initialize_erlang_plugins(OutDir).
-
-    % This is a future feature but not yet implemented
-    % initialize_python_plugins(OutDir).
     
+    % Create timestamped subdirectory for this run
+    {{Year, Month, Day}, {Hour, Minute, Second}} = calendar:local_time(),
+    Timestamp = io_lib:format("~4..0B~2..0B~2..0B_~2..0B~2..0B~2..0B", 
+                              [Year, Month, Day, Hour, Minute, Second]),
+    {ok, ScenarioName} = ps_bench_config_manager:fetch_selected_scenario(),
+    RunDir = filename:join([OutDir, lists:flatten(["run_", Timestamp, "_", atom_to_list(ScenarioName)])]),
+    ok = filelib:ensure_dir(RunDir ++ "/"),
+    
+    % Store the run directory for later use
+    persistent_term:put({?MODULE, run_dir}, RunDir),
+
+    % Initialize the plugins with the timestamped directory
+    initialize_erlang_plugins(RunDir).
+
 initialize_erlang_plugins(OutDir) ->
 
     % Fetch and initialize the plugins
@@ -47,7 +53,15 @@ run_metric_calculations() ->
     run_python_plugins(),
     run_erlang_plugins(),
 
-    {ok, OutDir} = ps_bench_config_manager:fetch_metrics_output_dir(),
+    % Get the stored run directory instead of the base directory
+    RunDir = persistent_term:get({?MODULE, run_dir}, undefined),
+    OutDir = case RunDir of
+        undefined -> 
+            % Fallback to base directory if no run dir was stored
+            {ok, BaseDir} = ps_bench_config_manager:fetch_metrics_output_dir(),
+            BaseDir;
+        _ -> RunDir
+    end,
 
     % Write hardware stats if we're using it
     case ps_bench_config_manager:using_hw_poll() of

@@ -24,7 +24,7 @@
                 {sound_sensor, 10},
                 {temperature_sensor, 10},
                 {uv_sensor, 10},
-                {air_pressure_sensor, 10},
+                {air_pressure_sensor, 10}
 
             ]}
         ]},
@@ -50,8 +50,7 @@
                 {sound_sensor, 10},
                 {temperature_sensor, 10},
                 {uv_sensor, 10},
-                {air_pressure_sensor, 10},
-
+                {air_pressure_sensor, 10}
             ]}
         ]},
         {runner3,
@@ -76,7 +75,7 @@
                 {sound_sensor, 10},
                 {temperature_sensor, 10},
                 {uv_sensor, 10},
-                {air_pressure_sensor, 10},
+                {air_pressure_sensor, 10}
 
             ]}
         ]},
@@ -102,7 +101,7 @@
                 {sound_sensor, 10},
                 {temperature_sensor, 10},
                 {uv_sensor, 10},
-                {air_pressure_sensor, 10},
+                {air_pressure_sensor, 10}
 
             ]}
         ]},
@@ -128,7 +127,7 @@
                 {sound_sensor, 10},
                 {temperature_sensor, 10},
                 {uv_sensor, 10},
-                {air_pressure_sensor, 10},
+                {air_pressure_sensor, 10}
 
             ]}
         ]}   

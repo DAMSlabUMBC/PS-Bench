@@ -15,7 +15,8 @@ initialize_plugins() ->
     Timestamp = io_lib:format("~4..0B~2..0B~2..0B_~2..0B~2..0B~2..0B", 
                               [Year, Month, Day, Hour, Minute, Second]),
     {ok, ScenarioName} = ps_bench_config_manager:fetch_selected_scenario(),
-    RunDir = filename:join([OutDir, lists:flatten(["run_", Timestamp, "_", atom_to_list(ScenarioName)])]),
+    {ok, NodeName} = ps_bench_config_manager:fetch_node_name(),
+    RunDir = filename:join([OutDir, lists:flatten(["run_", Timestamp, "_", atom_to_list(ScenarioName), "_", atom_to_list(NodeName)])]),
     ok = filelib:ensure_dir(RunDir ++ "/"),
     
     % Store the run directory for later use

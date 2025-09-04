@@ -1,6 +1,6 @@
 [
     {name, qossuite_smart_home_dds_high},
-    {duration, {5, minutes}},
+    {duration, {10, minutes}},
     {protocol, dds},
     {deployment_name, smart_home},
     {hosts,
@@ -31,20 +31,18 @@
     {protocol_config,
     [
         {domain_id, 1},
-        {qos_profile, configs/dds_configs/qos#PsBenchHighProfile}
+        {qos_profile, "configs/dds_configs/qos#PsBenchHighProfile"}
     ]},
     
     {metric_config,
     [
         {output_dir, "results"},
-        {calculation_window_ms, 1000},
-        {rollup_period_s, 5},
+        {hw_stats_poll_period_ms, 1000},
         {metric_plugins, 
         [
-            {percentiles, python},
-            {throughput, python},
-            {drops, python}
-        ]},
-        {python_metric_engine_path, "priv/py_engine"}
+            {ps_bench_throughput_calc_plugin, erlang},
+            {ps_bench_latency_calc_plugin, erlang},
+            {ps_bench_dropped_message_calc_plugin, erlang}
+        ]}
     ]}
 ].

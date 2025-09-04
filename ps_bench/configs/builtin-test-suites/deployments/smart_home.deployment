@@ -1,5 +1,5 @@
 [
-    {name, smart_homes},
+    {name, smart_home},
     {nodes,
     [
         {runner1,
@@ -10,7 +10,22 @@
                 {bp_sensor, 1},
                 {weather_sensor, 1},
                 {sleep_sensor, 1},
-                {scale_device, 1}
+                {scale_device, 1},
+                {amazon_echo, 1},
+                {smart_things, 1},
+                {light_bulb, 1},
+                {power_plug, 1},
+                {tplink_plug, 1},
+                {motion_sensor, 1},
+                {belkin_switch, 1},
+                {photo_sensor, 1},
+                {printer_device, 1},
+                {speaker_device, 1},
+                {samsung_camera, 1},
+                {netatmo_camera, 1},
+                {tplink_camera, 1},
+                {child_monitor, 1},
+                {dropcam_camera, 1}
 
             ]}
         ]},
@@ -18,34 +33,99 @@
         [
             {devices,                                                          
             [                                                                  
+                {smoke_sensor, 1},
+                {bp_sensor, 1},
+                {weather_sensor, 1},
+                {sleep_sensor, 1},
+                {scale_device, 1},
                 {amazon_echo, 1},
-                {smart_things, 1}
+                {smart_things, 1},
+                {light_bulb, 1},
+                {power_plug, 1},
+                {tplink_plug, 1},
+                {motion_sensor, 1},
+                {belkin_switch, 1},
+                {photo_sensor, 1},
+                {printer_device, 1},
+                {speaker_device, 1},
+                {samsung_camera, 1},
+                {netatmo_camera, 1},
+                {tplink_camera, 1},
+                {child_monitor, 1},
+                {dropcam_camera, 1}
             ]}
         ]},
         {runner3,
         [
             {devices,                                                           
             [                                                                  
+                {smoke_sensor, 1},
+                {bp_sensor, 1},
+                {weather_sensor, 1},
+                {sleep_sensor, 1},
+                {scale_device, 1},
+                {amazon_echo, 1},
+                {smart_things, 1},
                 {light_bulb, 1},
                 {power_plug, 1},
                 {tplink_plug, 1},
                 {motion_sensor, 1},
-                {belkin_switch, 1}
+                {belkin_switch, 1},
+                {photo_sensor, 1},
+                {printer_device, 1},
+                {speaker_device, 1},
+                {samsung_camera, 1},
+                {netatmo_camera, 1},
+                {tplink_camera, 1},
+                {child_monitor, 1},
+                {dropcam_camera, 1}
             ]}
         ]},
         {runner4,
         [
             {devices,                                                           
             [                                                                   
+                {smoke_sensor, 1},
+                {bp_sensor, 1},
+                {weather_sensor, 1},
+                {sleep_sensor, 1},
+                {scale_device, 1},
+                {amazon_echo, 1},
+                {smart_things, 1},
+                {light_bulb, 1},
+                {power_plug, 1},
+                {tplink_plug, 1},
+                {motion_sensor, 1},
+                {belkin_switch, 1},
                 {photo_sensor, 1},
                 {printer_device, 1},
-                {speaker_device, 1}
+                {speaker_device, 1},
+                {samsung_camera, 1},
+                {netatmo_camera, 1},
+                {tplink_camera, 1},
+                {child_monitor, 1},
+                {dropcam_camera, 1}
             ]}
         ]},
         {runner5,
         [
             {devices,                                                           
             [                                                                   
+                {smoke_sensor, 1},
+                {bp_sensor, 1},
+                {weather_sensor, 1},
+                {sleep_sensor, 1},
+                {scale_device, 1},
+                {amazon_echo, 1},
+                {smart_things, 1},
+                {light_bulb, 1},
+                {power_plug, 1},
+                {tplink_plug, 1},
+                {motion_sensor, 1},
+                {belkin_switch, 1},
+                {photo_sensor, 1},
+                {printer_device, 1},
+                {speaker_device, 1},
                 {samsung_camera, 1},
                 {netatmo_camera, 1},
                 {tplink_camera, 1},

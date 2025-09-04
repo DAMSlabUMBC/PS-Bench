@@ -3,8 +3,8 @@
     {publication_frequency_ms, 789},
     {payload_bytes_mean, 247.39},
     {payload_bytes_variance, 37},
-    {disconnect_check_period_ms, 14.73},
-    {disconnect_chance_pct, 0.3},
-    {reconnect_check_period_ms, 2000},
+    {disconnect_check_period_ms, 1000},
+    {disconnect_chance_pct, 0.05},
+    {reconnect_check_period_ms, 1000},
     {reconnect_chance_pct, 0.8}
 ].

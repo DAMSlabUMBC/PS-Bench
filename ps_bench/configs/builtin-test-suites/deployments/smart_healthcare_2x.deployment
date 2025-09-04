@@ -1,12 +1,12 @@
 [
-    {name, smart_healthcare},
+    {name, smart_healthcare_2x},
     {nodes,
     [
         {runner1,
         [
             {devices,                                                                  
             [
-                {health_sensor, 24}
+                {health_sensor, 48}
 
             ]}
         ]},
@@ -14,28 +14,28 @@
         [
             {devices,                                                          
             [                                                                  
-                {health_sensor, 24}
+                {health_sensor, 48}
             ]}
         ]},
         {runner3,
         [
             {devices,                                                           
             [                                                                  
-                {health_sensor, 24}
+                {health_sensor, 48}
             ]}
         ]},
         {runner4,
         [
             {devices,                                                           
             [                                                                   
-                {health_sensor, 24}
+                {health_sensor, 48}
             ]}
         ]},
         {runner5,
         [
             {devices,                                                           
             [                                                                   
-                {health_sensor, 24}
+                {health_sensor, 48}
             ]}
         ]}
     ]}

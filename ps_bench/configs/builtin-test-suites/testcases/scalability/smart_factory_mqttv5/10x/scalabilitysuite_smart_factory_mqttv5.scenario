@@ -1,6 +1,6 @@
 [
     {name, scalabilitysuite_smart_factory_mqttv5_10x},
-    {duration, {5, minutes}},
+    {duration, {10, minutes}},
     {protocol, mqttv5},
     {deployment_name, smart_factory_10x},
     {hosts,
@@ -41,14 +41,12 @@
     {metric_config,
     [
         {output_dir, "results"},
-        {calculation_window_ms, 1000},
-        {rollup_period_s, 5},
+        {hw_stats_poll_period_ms, 1000},
         {metric_plugins, 
         [
-            {percentiles, python},
-            {throughput, python},
-            {drops, python}
-        ]},
-        {python_metric_engine_path, "priv/py_engine"}
+            {ps_bench_throughput_calc_plugin, erlang},
+            {ps_bench_latency_calc_plugin, erlang},
+            {ps_bench_dropped_message_calc_plugin, erlang}
+        ]}
     ]}
 ].

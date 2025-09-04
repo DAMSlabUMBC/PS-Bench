@@ -1,10 +1,10 @@
 [
     {type, pm10_sensor},
-    {publication_frequency_ms, 900000},
+    {publication_frequency_ms, 15000},
     {payload_bytes_mean, 197},
     {payload_bytes_variance, 21},
-    {disconnect_check_period_ms, 60000},
-    {disconnect_chance_pct, 0.3},
-    {reconnect_check_period_ms, 60000},
-    {reconnect_chance_pct, 0.8}
+    {disconnect_check_period_ms, 5000},
+    {disconnect_chance_pct, 0.2},
+    {reconnect_check_period_ms, 5000},
+    {reconnect_chance_pct, 0.5}
 ].

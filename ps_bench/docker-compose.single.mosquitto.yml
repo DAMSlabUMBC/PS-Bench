@@ -4,7 +4,11 @@ networks:
 
 services:
   mosquitto:
-    image: eclipse-mosquitto:2
+    build:
+      context: .
+      dockerfile: Dockerfile.mosquitto
+    image: mosquitto-with-exporter
+    container_name: mosquitto
     hostname: mosquitto
     domainname: benchnet
     networks:
@@ -14,10 +18,11 @@ services:
     volumes:
       - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
     healthcheck:
-      test: ["CMD-SHELL", "nc -z 127.0.0.1 1883"]
-      interval: 2s
+      test: ["CMD-SHELL","nc -z 127.0.0.1 1883"]
+      interval: 15s
       timeout: 1s
       retries: 20
+      start_period: 2s
 
   runner01:
     image: ps_bench-runner:latest
@@ -32,6 +37,8 @@ services:
       ADD_NODE_TO_SUFFIX: "false"
       RELEASE_COOKIE: ps_bench_cookie
       SCEN_DIR: /app/configs/initial_tests/scenarios
+      DEVICE_DIR: /app/configs/initial_tests/devices
+      DEPLOY_DIR: /app/configs/initial_tests/deployments
     volumes:
       - ./out/runner01:/app/out
       - ./results:/app/results 

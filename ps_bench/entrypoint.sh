@@ -1,7 +1,10 @@
-#!/usr/bin/env sh
+#!/usr/bin/env bash
 set -eu
 
 cd /app 2>/dev/null || true
+
+# For recursive searching
+shopt -s globstar
 
 RUN_TAG="${RUN_TAG:-$(hostname | tr -cd 'a-zA-Z0-9' | tail -c 8)}"
 RUN_TS="${RUN_TS:-$(date +%Y%m%d_%H%M%S)}"
@@ -10,14 +13,13 @@ OUT_DIR="${OUT_DIR:-/app/out}"
 OUT_DIR="${OUT_DIR%/}/${RUN_TAG}_${RUN_TS}"
 export RUN_TAG RUN_TS OUT_DIR
 
-SCEN_DIR="${SCEN_DIR:-/app/configs/initial_tests/scenarios}"
 CONFIG_EXS="${CONFIG_EXS:-/app/configs/config.exs}"
 BROKER_HOST="${BROKER_HOST:-mqtt}"
 BROKER_PORT="${BROKER_PORT:-1883}"
 DIST_MODE="${DIST_MODE:-sname}"
 export ERLANG_DIST_MODE="$DIST_MODE"
 
-# Detect DDS by scenario name (dds_*) 
+# Detect DDS by scenario name (dds_*)
 IS_DDS="false"
 if [ -n "${SELECTED_SCENARIO:-}" ]; then
   case "$SELECTED_SCENARIO" in dds_*) IS_DDS="true" ;; esac
@@ -38,13 +40,15 @@ if [ "$IS_DDS" = "true" ]; then
   export XERCES_ROOT="${XERCES_ROOT:-/usr}"
 fi
 
-DEFAULT_SCEN="mqtt_multi_node_light"
-if [ -n "${SELECTED_SCENARIO:-}" ]; then
-  SCEN_CHOSEN="$SELECTED_SCENARIO"
-elif [ -n "${SCENARIO:-}" ]; then
-  SCEN_CHOSEN="$SCENARIO"
+DEFAULT_SCEN="scalabilitysuite_smart_home_mqttv5"
+
+# Use SCENARIO for the scenario file name when provided
+if [ -n "${SCENARIO:-}" ]; then
+  SCEN_CHOSEN="${SCENARIO}"
+elif [ -n "${SELECTED_SCENARIO:-}" ]; then
+  SCEN_CHOSEN="${SELECTED_SCENARIO}"
 else
-  SCEN_CHOSEN="$DEFAULT_SCEN"
+  SCEN_CHOSEN="${DEFAULT_SCEN}"
 fi
 
 # Node base (erl short name)
@@ -77,19 +81,18 @@ strip_name_flags() {
 }
 
 stage_configs() {
-  local orig_root="$(dirname "$SCEN_DIR")"
   local work_root="/tmp/cfg_${NODE_BASE}_${RUN_TAG}"
 
   rm -rf "$work_root"
-  mkdir -p "$work_root"/{devices,deployments,scenarios}
+  mkdir -p "$work_root/devices" "$work_root/deployments" "$work_root/scenarios"
 
-  cp -a "${orig_root}/devices/."      "$work_root/devices/"      2>/dev/null || true
-  cp -a "${orig_root}/deployments/."  "$work_root/deployments/"  2>/dev/null || true
-  cp -a "${orig_root}/scenarios/."    "$work_root/scenarios/"
+  cp -a "${DEVICE_DIR}/."     "$work_root/devices/"      2>/dev/null || true
+  cp -a "${DEPLOY_DIR}/." "$work_root/deployments/"  2>/dev/null || true
+  cp -a "${SCEN_DIR}/."   "$work_root/scenarios/"    2>/dev/null || true
 
   SCEN_DIR="$work_root/scenarios"
   export SCEN_DIR
-  log "Working SCEN_DIR=${SCEN_DIR} (root=${work_root})"
+  log "Working SCEN_DIR=${SCEN_DIR}"
 }
 
 # Compute host prefix mapping: runnerMQTT{N} / runnerDDS{N} 
@@ -120,7 +123,7 @@ patch_hostnames_in_scenarios() {
   HOST_PREFIX="$(host_prefix_autodetect)"
   export FQDN_SUFFIX HOST_PREFIX
 
-  for f in "$SCEN_DIR"/*.scenario; do
+  for f in "$SCEN_DIR"/**/*.scenario; do
     [ -f "$f" ] || continue
 
     # 1) Explicit placeholders: REPLACE_RUNNER{n}_HOSTNAME → runner{MQTT/DDS}{n}[.domain]
@@ -251,7 +254,7 @@ maybe_become_idle_if_not_listed() {
 patch_broker_in_scenarios() {
   if [ -d "$SCEN_DIR" ]; then
     bh="$(esc_sed_repl "$BROKER_HOST")"
-    for f in "$SCEN_DIR"/mqtt_*.scenario; do
+    for f in "$SCEN_DIR"/**/*.scenario; do
       [ -f "$f" ] || continue
       sed -i -r "s|^[[:space:]]*host[[:space:]]*=[[:space:]]*\"[^\"]*\"|host = \"${bh}\"|g" "$f" || true
       sed -i -r "s|^[[:space:]]*hostname[[:space:]]*=[[:space:]]*\"[^\"]*\"|hostname = \"${bh}\"|g" "$f" || true
@@ -336,7 +339,7 @@ patch_node_base_everywhere() {
   fi
 
   if [ -d "$SCEN_DIR" ]; then
-    for f in "$SCEN_DIR"/*.scenario; do
+    for f in "$SCEN_DIR"/**/*.scenario; do
       [ -f "$f" ] || continue
       sed -i -E \
         -e 's/(node[_-]?base[[:space:]]*(=|:)[[:space:]]*")[^"]*"/\1'"$nb"'"/g' \
@@ -486,17 +489,20 @@ main() {
   patch_hostnames_in_scenarios
   maybe_become_idle_if_not_listed
   
-  grep -REn '^\s*(host|hostname|port)\s*=' "$SCEN_DIR" || true
-  grep -REn '^\s*(name|client_id|clientId|client-name|client_name)\s*=' "$SCEN_DIR" | head -n 40 || true
 
   patch_node_base_everywhere
   patch_selected_scenario
   create_app_config
 
-  if [ "$RELEASE_DISTRIBUTION" = "name" ]; then
-    export NODE_HOST_OVERRIDE="${FULL_HOSTNAME}"
+  if [ -z "${NODE_HOST_OVERRIDE:-}" ]; then
+    if [ "$RELEASE_DISTRIBUTION" = "name" ]; then
+      export NODE_HOST_OVERRIDE="${FULL_HOSTNAME}"
+    else
+      export NODE_HOST_OVERRIDE="$(hostname -s)"
+    fi
+    log "NODE_HOST_OVERRIDE auto-set to: ${NODE_HOST_OVERRIDE}"
   else
-    export NODE_HOST_OVERRIDE="$(hostname -s)"
+    log "NODE_HOST_OVERRIDE manually set to: ${NODE_HOST_OVERRIDE}"
   fi
 
   if [ ! -x "$BIN" ]; then

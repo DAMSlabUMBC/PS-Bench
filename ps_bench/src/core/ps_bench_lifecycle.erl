@@ -45,9 +45,8 @@ connecting(enter, _OldState, _State) ->
     ManagerPid ! {self(), start_connections},
     keep_state_and_data;
 
-connecting(cast, _NodeName, Data) ->
-    % We don't have to wait for other nodes for this step, just move to the next step
-    {next_state, initializing, Data}.
+connecting(cast, NodeName, #{all_nodes := AllNodes, pending_nodes := PendingNodes} = Data) ->
+    evaluate_continuation(NodeName, AllNodes, PendingNodes, Data, initializing).
 
 % Instruct the manager to initialize the tests
 initializing(enter, _OldState, _State) ->

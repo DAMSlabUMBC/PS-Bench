@@ -3,22 +3,20 @@ networks:
     driver: bridge
 
 services:
-  mosquitto:
+  emqx:
     build:
       context: .
-      dockerfile: Dockerfile.mosquitto
-    image: mosquitto-with-exporter
-    container_name: mosquitto
-    hostname: mosquitto
+      dockerfile: Dockerfile.emqx
+    image: emqx-with-exporter
+    container_name: emqx
+    hostname: emqx
     domainname: benchnet
     networks:
       benchnet:
-        aliases: ["mosquitto", "mqtt", "broker"]
+        aliases: ["emqx", "mqtt", "broker"]
     ports: ["1883:1883"]
-    volumes:
-      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
     healthcheck:
-      test: ["CMD-SHELL","nc -z 127.0.0.1 1883"]
+      test: ["CMD-SHELL","emqx ping"]
       interval: 15s
       timeout: 1s
       retries: 20
@@ -35,19 +33,22 @@ services:
           - runnerMQTT1.benchnet   
     environment:
       DIST_MODE: name 
-      SELECTED_SCENARIO: ${SCENARIO:-mqtt_multi_node_moderate}
       NODE_BASE: runner1
-      BROKER_HOST: mosquitto
+      NODE_HOST_OVERRIDE: ${NODE1_HOST_OVERRIDE:-}
+      BROKER_HOST: emqx
       BROKER_PORT: 1883
       ADD_NODE_TO_SUFFIX: ${ADD_NODE_TO_SUFFIX:-false}
       RELEASE_COOKIE: ${RELEASE_COOKIE:-ps_bench_cookie}
       RUN_TAG: ${RUN_TAG:-mqtt_test}
-      SCEN_DIR: /app/configs/initial_tests/scenarios
+      SCEN_DIR: /app/configs/builtin-test-suites/testcases
+      DEVICE_DIR: /app/configs/builtin-test-suites/devices
+      DEPLOY_DIR: /app/configs/builtin-test-suites/deployments
+      SCENARIO: scalabilitysuite_smart_home_mqttv5
     volumes:
       - ./out/runnerMQTT1:/app/out
       - ./results:/app/results
     depends_on:
-      mosquitto:
+      emqx:
         condition: service_healthy
 
   runnerMQTT2:
@@ -61,19 +62,22 @@ services:
           - runnerMQTT2.benchnet   
     environment:
       DIST_MODE: name 
-      SELECTED_SCENARIO: ${SCENARIO:-mqtt_multi_node_moderate}
       NODE_BASE: runner2
-      BROKER_HOST: mosquitto
+      NODE_HOST_OVERRIDE: ${NODE2_HOST_OVERRIDE:-}
+      BROKER_HOST: emqx
       BROKER_PORT: 1883
       ADD_NODE_TO_SUFFIX: ${ADD_NODE_TO_SUFFIX:-false}
       RELEASE_COOKIE: ${RELEASE_COOKIE:-ps_bench_cookie}
       RUN_TAG: ${RUN_TAG:-mqtt_test}
-      SCEN_DIR: /app/configs/initial_tests/scenarios
+      SCEN_DIR: /app/configs/builtin-test-suites/testcases
+      DEVICE_DIR: /app/configs/builtin-test-suites/devices
+      DEPLOY_DIR: /app/configs/builtin-test-suites/deployments
+      SCENARIO: scalabilitysuite_smart_home_mqttv5
     volumes:
       - ./out/runnerMQTT2:/app/out
       - ./results:/app/results
     depends_on:
-      mosquitto:
+      emqx:
         condition: service_healthy
 
   runnerMQTT3:
@@ -87,19 +91,22 @@ services:
           - runnerMQTT3.benchnet
     environment:
       DIST_MODE: name 
-      SELECTED_SCENARIO: ${SCENARIO:-mqtt_multi_node_moderate}
       NODE_BASE: runner3
-      BROKER_HOST: mosquitto
+      NODE_HOST_OVERRIDE: ${NODE3_HOST_OVERRIDE:-}
+      BROKER_HOST: emqx
       BROKER_PORT: 1883
       ADD_NODE_TO_SUFFIX: ${ADD_NODE_TO_SUFFIX:-false}
       RELEASE_COOKIE: ${RELEASE_COOKIE:-ps_bench_cookie}
       RUN_TAG: ${RUN_TAG:-mqtt_test}
-      SCEN_DIR: /app/configs/initial_tests/scenarios
+      SCEN_DIR: /app/configs/builtin-test-suites/testcases
+      DEVICE_DIR: /app/configs/builtin-test-suites/devices
+      DEPLOY_DIR: /app/configs/builtin-test-suites/deployments
+      SCENARIO: scalabilitysuite_smart_home_mqttv5
     volumes:
       - ./out/runnerMQTT3:/app/out
       - ./results:/app/results
     depends_on:
-      mosquitto:
+      emqx:
         condition: service_healthy
 
   runnerMQTT4:
@@ -113,19 +120,22 @@ services:
           - runnerMQTT4.benchnet
     environment:
       DIST_MODE: name 
-      SELECTED_SCENARIO: ${SCENARIO:-mqtt_multi_node_moderate}
       NODE_BASE: runner4
-      BROKER_HOST: mosquitto
+      NODE_HOST_OVERRIDE: ${NODE4_HOST_OVERRIDE:-}
+      BROKER_HOST: emqx
       BROKER_PORT: 1883
       ADD_NODE_TO_SUFFIX: ${ADD_NODE_TO_SUFFIX:-false}
       RELEASE_COOKIE: ${RELEASE_COOKIE:-ps_bench_cookie}
       RUN_TAG: ${RUN_TAG:-mqtt_test}
-      SCEN_DIR: /app/configs/initial_tests/scenarios
+      SCEN_DIR: /app/configs/builtin-test-suites/testcases
+      DEVICE_DIR: /app/configs/builtin-test-suites/devices
+      DEPLOY_DIR: /app/configs/builtin-test-suites/deployments
+      SCENARIO: scalabilitysuite_smart_home_mqttv5
     volumes:
       - ./out/runnerMQTT4:/app/out
       - ./results:/app/results
     depends_on:
-      mosquitto:
+      emqx:
         condition: service_healthy
 
   runnerMQTT5:
@@ -139,17 +149,20 @@ services:
           - runnerMQTT5.benchnet
     environment:
       DIST_MODE: name 
-      SELECTED_SCENARIO: ${SCENARIO:-mqtt_multi_node_moderate}
       NODE_BASE: runner5
-      BROKER_HOST: mosquitto
+      NODE_HOST_OVERRIDE: ${NODE5_HOST_OVERRIDE:-}
+      BROKER_HOST: emqx
       BROKER_PORT: 1883
       ADD_NODE_TO_SUFFIX: ${ADD_NODE_TO_SUFFIX:-false}
       RELEASE_COOKIE: ${RELEASE_COOKIE:-ps_bench_cookie}
       RUN_TAG: ${RUN_TAG:-mqtt_test}
-      SCEN_DIR: /app/configs/initial_tests/scenarios
+      SCEN_DIR: /app/configs/builtin-test-suites/testcases
+      DEVICE_DIR: /app/configs/builtin-test-suites/devices
+      DEPLOY_DIR: /app/configs/builtin-test-suites/deployments
+      SCENARIO: scalabilitysuite_smart_home_mqttv5
     volumes:
       - ./out/runnerMQTT5:/app/out
       - ./results:/app/results
     depends_on:
-      mosquitto:
+      emqx:
         condition: service_healthy

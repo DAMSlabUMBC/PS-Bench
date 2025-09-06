@@ -56,14 +56,12 @@ initialize_mnesia_storage(Nodes) ->
             wait_for_mnesia_on_nodes(Nodes),
             
             % Add schema copies and ensure all nodes know about each other
-            lists:foreach(fun(Node) -> 
-                mnesia:add_table_copy(schema, Node, ram_copies) 
-            end, Nodes -- [node()]),
+            % lists:foreach(fun(Node) -> 
+            %     mnesia:add_table_copy(schema, Node, ram_copies) 
+            % end, Nodes -- [node()]),
             
             % This is the critical fix - ensure ALL nodes know about each other
-            lists:foreach(fun(Node) ->
-                rpc:call(Node, mnesia, change_config, [extra_db_nodes, Nodes])
-            end, Nodes),
+            % rpc:multicall(Nodes, mnesia, change_config, [extra_db_nodes, Nodes]),
             
             ps_bench_utils:log_message("Creating mnesia tables on ~p", [Nodes]),
             mnesia:delete_table(?PUB_EVENT_RECORD_NAME),
@@ -71,13 +69,10 @@ initialize_mnesia_storage(Nodes) ->
                 {type, bag}, 
                 {ram_copies, Nodes}, 
                 {attributes, record_info(fields, ?PUB_EVENT_RECORD_NAME)}
-            ]);
+            ]),
+            wait_for_tables();
         false ->
             ps_bench_utils:log_message("Waiting for mnesia tables to initialize. You may see an exit call for mnesia, this is fine.", []),
-            % Wait a bit before checking mnesia status
-            timer:sleep(1000),
-            % Make sure this node knows about all other nodes too
-            mnesia:change_config(extra_db_nodes, Nodes),
             wait_for_tables()
     end.
 
@@ -85,10 +80,11 @@ initialize_mnesia_storage(Nodes) ->
 %% This function swallows the exception and retries until we're ready
 wait_for_tables() ->
     process_flag(trap_exit, true),
-    case mnesia:wait_for_tables([?PUB_EVENT_RECORD_NAME], infinity) of
+    case mnesia:wait_for_tables([?PUB_EVENT_RECORD_NAME], 5000) of
         {timeout, _} ->
             wait_for_tables();
         {error, {node_not_running, _}} ->
+            timer:sleep(500),
             wait_for_tables();
         ok ->
             process_flag(trap_exit, false)

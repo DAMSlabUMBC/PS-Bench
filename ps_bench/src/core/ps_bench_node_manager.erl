@@ -63,7 +63,7 @@ handle_next_step_command(start_connections) ->
     case wait_for_nodes_to_connect(OtherNodes) of
         ok ->
             ps_bench_store:initialize_mnesia_storage(NodeList),
-            gen_server:cast(?MODULE, local_continue);
+            gen_server:cast(?MODULE, global_continue);
         {error, Reason} ->
             {error, Reason}
     end;

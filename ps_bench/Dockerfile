@@ -1,4 +1,4 @@
-FROM erlang:26-alpine
+FROM erlang:27-alpine
 
 # Install all dependencies for both MQTT and DDS
 RUN apk add --no-cache \
@@ -6,6 +6,12 @@ RUN apk add --no-cache \
       python3 py3-pip linux-headers numactl-dev openssl-dev pkgconf \
       netcat-openbsd \
       g++ xerces-c-dev make wget
+      
+# Install OpenDDS
+RUN wget https://github.com/OpenDDS/OpenDDS/releases/download/v3.33.0/OpenDDS-3.33.0.tar.gz && \
+    tar xzf OpenDDS-3.33.0.tar.gz -C /opt && \
+    cd /opt/OpenDDS-3.33.0 && ./configure --xerces3 \
+    && make -j 4 && source /opt/OpenDDS-3.33.0/setenv.sh
 
 # Install node_exporter for CPU/Memory stats
 RUN cd /tmp && \
@@ -15,12 +21,12 @@ RUN cd /tmp && \
     rm -rf /tmp/node_exporter-*
     
 # Set OpenDDS environment variables
-ENV DDS_ROOT=/opt/OpenDDS
-ENV PATH=$DDS_ROOT/bin:$PATH
-ENV LD_LIBRARY_PATH=$DDS_ROOT/lib:$LD_LIBRARY_PATH
+ENV DDS_ROOT=/opt/OpenDDS-3.33.0
 ENV ACE_ROOT=$DDS_ROOT/ACE_wrappers
 ENV TAO_ROOT=$ACE_ROOT/TAO
-ENV MPC_ROOT=$DDS_ROOT/MPC
+ENV MPC_ROOT=$ACE_ROOT/MPC
+ENV PATH=$DDS_ROOT/bin:$ACE_ROOT/bin:$PATH
+ENV LD_LIBRARY_PATH=$DDS_ROOT/lib:$ACE_ROOT/lib:$LD_LIBRARY_PATH
 
 # isolate python packages 
 RUN python3 -m venv /opt/venv

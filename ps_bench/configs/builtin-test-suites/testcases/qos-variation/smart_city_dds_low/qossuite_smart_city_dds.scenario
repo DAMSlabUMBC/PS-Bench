@@ -31,7 +31,8 @@
     {protocol_config,
     [
         {domain_id, 1},
-        {qos_profile, "configs/dds_configs/qos#PsBenchLowProfile"}
+        {qos_profile, "configs/dds_configs/qos#PsBenchLowProfile"},
+	    {nif_full_path, "/app/priv/dds_cplusplus/lib/libps_bench_default_dds_interface"}
     ]},
     
     {metric_config,

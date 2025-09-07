@@ -19,27 +19,6 @@ BROKER_PORT="${BROKER_PORT:-1883}"
 DIST_MODE="${DIST_MODE:-sname}"
 export ERLANG_DIST_MODE="$DIST_MODE"
 
-# Detect DDS by scenario name (dds_*)
-IS_DDS="false"
-if [ -n "${SELECTED_SCENARIO:-}" ]; then
-  case "$SELECTED_SCENARIO" in dds_*) IS_DDS="true" ;; esac
-elif [ -n "${SCENARIO:-}" ]; then
-  case "$SCENARIO" in dds_*) IS_DDS="true" ;; esac
-fi
-
-# DDS env only when needed 
-if [ "$IS_DDS" = "true" ]; then
-  export DDS_ROOT="${DDS_ROOT:-/opt/OpenDDS}"
-  export ACE_ROOT="$DDS_ROOT/ACE_wrappers"
-  export TAO_ROOT="$ACE_ROOT/TAO"
-  export PATH="$DDS_ROOT/bin:$PATH"
-  export LD_LIBRARY_PATH="$DDS_ROOT/lib:${LD_LIBRARY_PATH:-}"
-  # ERTS_ROOT and Xerces (OpenDDS build-time deps; harmless if present)
-  ERTS_DIR=$(ls -d /usr/lib/erlang/erts-* 2>/dev/null | sort | tail -n1 || true)
-  [ -n "$ERTS_DIR" ] && export ERTS_ROOT="$ERTS_DIR"
-  export XERCES_ROOT="${XERCES_ROOT:-/usr}"
-fi
-
 DEFAULT_SCEN="scalabilitysuite_smart_home_mqttv5"
 
 # Use SCENARIO for the scenario file name when provided
@@ -49,6 +28,12 @@ elif [ -n "${SELECTED_SCENARIO:-}" ]; then
   SCEN_CHOSEN="${SELECTED_SCENARIO}"
 else
   SCEN_CHOSEN="${DEFAULT_SCEN}"
+fi
+
+# Detect DDS by scenario name (dds_*)
+IS_DDS="false"
+if [[ $SCEN_CHOSEN == *"dds"* ]]; then
+  IS_DDS="true"
 fi
 
 # Node base (erl short name)
@@ -381,6 +366,18 @@ EOF
   log "Created sys.config with selected_scenario=${SCEN_CHOSEN}"
 }
 
+build_dds_nif() {
+    # Do required replaces
+    sed -i -e 's@REPLACE_ERTS_ROOT@/usr/local/lib/erlang/erts-15.2.7.1@g' /app/priv/dds_cplusplus/build.sh || true
+    sed -i -e 's@REPLACE_XERCES_ROOT@/usr/lib@g' /app/priv/dds_cplusplus/build.sh || true
+    
+    source /opt/OpenDDS-3.33.0/setenv.sh
+
+    cd /app/priv/dds_cplusplus 
+    chmod 777 build.sh 
+    bash build.sh
+}
+
 # metrics helpers 
 to_csv() {
   src="$1"
@@ -488,11 +485,14 @@ main() {
   patch_broker_in_scenarios
   patch_hostnames_in_scenarios
   maybe_become_idle_if_not_listed
-  
 
   patch_node_base_everywhere
   patch_selected_scenario
   create_app_config
+
+  if [ "$IS_DDS" = "true" ]; then
+    build_dds_nif
+  fi
 
   if [ -z "${NODE_HOST_OVERRIDE:-}" ]; then
     if [ "$RELEASE_DISTRIBUTION" = "name" ]; then
@@ -511,9 +511,9 @@ main() {
   fi
 
   if [ "$IS_DDS" = "true" ]; then
-    log "Starting ps_bench (DDS) as ${NODE_BASE}@$(hostname) scenario=${SCEN_CHOSEN}"
+    log "Starting ps_bench (DDS) as ${NODE_BASE}@$(hostname) scenario=${SCEN_CHOSEN} pwd=`pwd`"
   else
-    log "Starting ps_bench (MQTT) as ${NODE_BASE}@$(hostname) broker=${BROKER_HOST}:${BROKER_PORT} scenario=${SCEN_CHOSEN}"
+    log "Starting ps_bench (MQTT) as ${NODE_BASE}@$(hostname) broker=${BROKER_HOST}:${BROKER_PORT} scenario=${SCEN_CHOSEN} pwd=`pwd`"
   fi
 
   log "Environment check before running:"

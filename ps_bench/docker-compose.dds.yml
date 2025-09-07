@@ -16,10 +16,14 @@ services:
       DIST_MODE: name
       SELECTED_SCENARIO: ${SCENARIO:-dds_multi_node_moderate}
       NODE_BASE: runner1
+      NODE_HOST_OVERRIDE: ${NODE5_HOST_OVERRIDE:-}
       ADD_NODE_TO_SUFFIX: ${ADD_NODE_TO_SUFFIX:-false}
       RELEASE_COOKIE: ${RELEASE_COOKIE:-ps_bench_cookie}
       RUN_TAG: ${RUN_TAG:-dds_test}
-      SCEN_DIR: /app/configs/initial_tests/scenarios
+      SCEN_DIR: /app/configs/builtin-test-suites/testcases
+      DEVICE_DIR: /app/configs/builtin-test-suites/devices
+      DEPLOY_DIR: /app/configs/builtin-test-suites/deployments
+      SCENARIO: scalabilitysuite_smart_home_dds
     volumes:
       - ./out/runnerDDS1:/app/out
       - ./results:/app/results
@@ -37,10 +41,14 @@ services:
       DIST_MODE: name     
       SELECTED_SCENARIO: ${SCENARIO:-dds_multi_node_moderate}
       NODE_BASE: runner2
+      NODE_HOST_OVERRIDE: ${NODE5_HOST_OVERRIDE:-}
       ADD_NODE_TO_SUFFIX: ${ADD_NODE_TO_SUFFIX:-false}
       RELEASE_COOKIE: ${RELEASE_COOKIE:-ps_bench_cookie}
       RUN_TAG: ${RUN_TAG:-dds_test}
-      SCEN_DIR: /app/configs/initial_tests/scenarios
+      SCEN_DIR: /app/configs/builtin-test-suites/testcases
+      DEVICE_DIR: /app/configs/builtin-test-suites/devices
+      DEPLOY_DIR: /app/configs/builtin-test-suites/deployments
+      SCENARIO: scalabilitysuite_smart_home_dds
     volumes:
       - ./out/runnerDDS2:/app/out
       - ./results:/app/results
@@ -58,10 +66,14 @@ services:
       DIST_MODE: name
       SELECTED_SCENARIO: ${SCENARIO:-dds_multi_node_moderate}
       NODE_BASE: runner3
+      NODE_HOST_OVERRIDE: ${NODE5_HOST_OVERRIDE:-}
       ADD_NODE_TO_SUFFIX: ${ADD_NODE_TO_SUFFIX:-false}
       RELEASE_COOKIE: ${RELEASE_COOKIE:-ps_bench_cookie}
       RUN_TAG: ${RUN_TAG:-dds_test}
-      SCEN_DIR: /app/configs/initial_tests/scenarios
+      SCEN_DIR: /app/configs/builtin-test-suites/testcases
+      DEVICE_DIR: /app/configs/builtin-test-suites/devices
+      DEPLOY_DIR: /app/configs/builtin-test-suites/deployments
+      SCENARIO: scalabilitysuite_smart_home_dds
     volumes:
       - ./out/runnerDDS3:/app/out
       - ./results:/app/results
@@ -79,10 +91,14 @@ services:
       DIST_MODE: name
       SELECTED_SCENARIO: ${SCENARIO:-dds_multi_node_moderate}
       NODE_BASE: runner4
+      NODE_HOST_OVERRIDE: ${NODE5_HOST_OVERRIDE:-}
       ADD_NODE_TO_SUFFIX: ${ADD_NODE_TO_SUFFIX:-false}
       RELEASE_COOKIE: ${RELEASE_COOKIE:-ps_bench_cookie}
       RUN_TAG: ${RUN_TAG:-dds_test}
-      SCEN_DIR: /app/configs/initial_tests/scenarios
+      SCEN_DIR: /app/configs/builtin-test-suites/testcases
+      DEVICE_DIR: /app/configs/builtin-test-suites/devices
+      DEPLOY_DIR: /app/configs/builtin-test-suites/deployments
+      SCENARIO: scalabilitysuite_smart_home_dds
     volumes:
       - ./out/runnerDDS4:/app/out
       - ./results:/app/results
@@ -100,10 +116,14 @@ services:
       DIST_MODE: name
       SELECTED_SCENARIO: ${SCENARIO:-dds_multi_node_moderate}
       NODE_BASE: runner5
+      NODE_HOST_OVERRIDE: ${NODE5_HOST_OVERRIDE:-}
       ADD_NODE_TO_SUFFIX: ${ADD_NODE_TO_SUFFIX:-false}
       RELEASE_COOKIE: ${RELEASE_COOKIE:-ps_bench_cookie}
       RUN_TAG: ${RUN_TAG:-dds_test}
-      SCEN_DIR: /app/configs/initial_tests/scenarios
+      SCEN_DIR: /app/configs/builtin-test-suites/testcases
+      DEVICE_DIR: /app/configs/builtin-test-suites/devices
+      DEPLOY_DIR: /app/configs/builtin-test-suites/deployments
+      SCENARIO: scalabilitysuite_smart_home_dds
     volumes:
       - ./out/runnerDDS5:/app/out
       - ./results:/app/results

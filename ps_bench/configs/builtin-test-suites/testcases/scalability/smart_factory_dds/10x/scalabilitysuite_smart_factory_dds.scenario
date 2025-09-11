@@ -31,7 +31,8 @@
     {protocol_config,
     [
         {domain_id, 1},
-	    {nif_full_path, "/app/priv/dds_cplusplus/lib/libps_bench_default_dds_interface"}
+	    {nif_full_path, "/app/priv/dds_cplusplus/lib/libps_bench_default_dds_interface"},
+        {config_file, "/app/configs/dds_configs/ps_bench_default_dds_interface.ini"}
     ]},
     
     {metric_config,

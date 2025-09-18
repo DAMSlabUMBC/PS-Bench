@@ -4,11 +4,14 @@ FROM emqx/nanomq:0.24.2-full
 USER root
 
 # Install node_exporter
-RUN apk add --no-cache wget tar && \
+RUN apt-get update && \
+    apt-get install -y wget tar && \
     wget https://github.com/prometheus/node_exporter/releases/download/v1.8.2/node_exporter-1.8.2.linux-amd64.tar.gz && \
     tar -xzf node_exporter-1.8.2.linux-amd64.tar.gz && \
     mv node_exporter-1.8.2.linux-amd64/node_exporter /usr/local/bin/ && \
-    rm -rf node_exporter-1.8.2.linux-amd64*
+    rm -rf node_exporter-1.8.2.linux-amd64* && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 # Create a startup script that runs both node_exporter and NanoMQ
 RUN echo '#!/bin/bash' > /entrypoint.sh && \

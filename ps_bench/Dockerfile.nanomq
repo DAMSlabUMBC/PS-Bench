@@ -1,4 +1,4 @@
-FROM emqx/nanomq:latest
+FROM emqx/nanomq:0.24.2-full
 
 # Switch to root user to install packages
 USER root

@@ -1,4 +1,4 @@
-FROM emqx/emqx:5.8
+FROM emqx/emqx:5.10
 
 # Switch to root user to install packages
 USER root

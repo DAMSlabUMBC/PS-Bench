@@ -1,4 +1,4 @@
-FROM vernemq/vernemq:latest
+FROM vernemq/vernemq:2.1.1
 
 # Switch to root user to install packages
 USER root

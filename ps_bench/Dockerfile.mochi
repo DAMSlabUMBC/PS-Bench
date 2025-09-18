@@ -1,4 +1,4 @@
-FROM ghcr.io/mochi-mqtt/server:latest
+FROM docker.io/mochimqtt/server:2.7
 
 # Switch to root user to install packages
 USER root

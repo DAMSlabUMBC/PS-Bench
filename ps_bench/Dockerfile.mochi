@@ -1,25 +1,29 @@
-FROM emqx/nanomq:latest
+FROM ghcr.io/mochi-mqtt/server:latest
 
 # Switch to root user to install packages
 USER root
 
 # Install node_exporter
-RUN apk add --no-cache wget tar && \
+RUN apt-get update && \
+    apt-get install -y wget tar && \
+    cd /tmp && \
     wget https://github.com/prometheus/node_exporter/releases/download/v1.8.2/node_exporter-1.8.2.linux-amd64.tar.gz && \
     tar -xzf node_exporter-1.8.2.linux-amd64.tar.gz && \
     mv node_exporter-1.8.2.linux-amd64/node_exporter /usr/local/bin/ && \
-    rm -rf node_exporter-1.8.2.linux-amd64*
+    rm -rf /tmp/node_exporter-* && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
-# Create a startup script that runs both node_exporter and NanoMQ
+# Create a startup script that runs both node_exporter and Mochi MQTT
 RUN echo '#!/bin/bash' > /entrypoint.sh && \
     echo '# Start node_exporter in background with redirected output' >> /entrypoint.sh && \
     echo '/usr/local/bin/node_exporter --collector.disable-defaults --collector.cpu --collector.meminfo > /dev/null 2>&1 &' >> /entrypoint.sh && \
     echo 'echo "Started node_exporter on port 9100"' >> /entrypoint.sh && \
-    echo '# Start NanoMQ in foreground' >> /entrypoint.sh && \
-    echo 'exec nanomq start -c /etc/nanomq.conf' >> /entrypoint.sh && \
+    echo '# Start Mochi MQTT in foreground' >> /entrypoint.sh && \
+    echo 'exec mochi' >> /entrypoint.sh && \
     chmod +x /entrypoint.sh
 
-# Expose node_exporter port in addition to NanoMQ ports
+# Expose node_exporter port in addition to broker ports
 EXPOSE 1883 8883 9100
 
 ENTRYPOINT ["/entrypoint.sh"]

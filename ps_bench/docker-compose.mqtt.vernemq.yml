@@ -17,8 +17,9 @@ services:
     ports: ["1883:1883"]
     environment:
       DOCKER_VERNEMQ_ACCEPT_EULA: "yes"
+      DOCKER_VERNEMQ_ALLOW_ANONYMOUS: "on"
     healthcheck:
-      test: ["CMD-SHELL","nc -z 127.0.0.1 1883"]
+      test: ["CMD-SHELL","vernemq ping"]
       interval: 15s
       timeout: 1s
       retries: 20

@@ -10,13 +10,26 @@ RUN apk add --no-cache wget tar && \
     mv node_exporter-1.8.2.linux-amd64/node_exporter /usr/local/bin/ && \
     rm -rf node_exporter-1.8.2.linux-amd64*
 
+# Create a minimal mochi config file
+RUN printf '%s\n' \
+  'listeners:' \
+  '  - type: "tcp"' \
+  '    id: "tcp1"' \
+  '    address: ":1883"' \
+  'hooks:' \
+  '  auth:' \
+  '    allow_all: true' \
+  'options:' \
+  '  inline_client: true' \
+  > /config.yaml
+
 # Create a startup script that runs both node_exporter and Mochi MQTT
-RUN echo '#!/bin/bash' > /entrypoint.sh && \
+RUN echo '#!/bin/sh' > /entrypoint.sh && \
     echo '# Start node_exporter in background with redirected output' >> /entrypoint.sh && \
     echo '/usr/local/bin/node_exporter --collector.disable-defaults --collector.cpu --collector.meminfo > /dev/null 2>&1 &' >> /entrypoint.sh && \
     echo 'echo "Started node_exporter on port 9100"' >> /entrypoint.sh && \
     echo '# Start Mochi MQTT in foreground' >> /entrypoint.sh && \
-    echo 'exec mochi' >> /entrypoint.sh && \
+    echo 'exec /mochi --config /config.yaml' >> /entrypoint.sh && \
     chmod +x /entrypoint.sh
 
 # Expose node_exporter port in addition to broker ports

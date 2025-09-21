@@ -1,0 +1,213 @@
+[
+    {name, smart_city_8_node},
+    {nodes,
+    [
+        {runner1,
+        [
+            {devices,                                                                  
+            [
+                {smart_meter, 100},
+                {vehicle_counter, 50},
+                {traffic_speed_calculator, 50},
+                {road_occupancy_calculator, 50},
+                {traffic_light, 70},
+                {weather_station, 1},
+                {parking_sensor, 80},
+                {co2_sensor, 10},
+                {energy_sensor, 30},
+                {humidity_sensor, 10},
+                {light_sensor, 10},
+                {no_sensor, 10},
+                {no2_sensor, 10},
+                {ozone_sensor, 10},
+                {pm10_sensor, 10},
+                {sound_sensor, 10},
+                {temperature_sensor, 10},
+                {uv_sensor, 10},
+                {air_pressure_sensor, 10}
+
+            ]}
+        ]},
+        {runner2,
+        [
+            {devices,                                                           
+            [                                                                   
+                {smart_meter, 100},
+                {vehicle_counter, 50},
+                {traffic_speed_calculator, 50},
+                {road_occupancy_calculator, 50},
+                {traffic_light, 70},
+                {weather_station, 1},
+                {parking_sensor, 80},
+                {co2_sensor, 10},
+                {energy_sensor, 30},
+                {humidity_sensor, 10},
+                {light_sensor, 10},
+                {no_sensor, 10},
+                {no2_sensor, 10},
+                {ozone_sensor, 10},
+                {pm10_sensor, 10},
+                {sound_sensor, 10},
+                {temperature_sensor, 10},
+                {uv_sensor, 10},
+                {air_pressure_sensor, 10}
+            ]}
+        ]},
+        {runner3,
+        [
+            {devices,                                                           
+            [                                                                   
+                {smart_meter, 100},
+                {vehicle_counter, 50},
+                {traffic_speed_calculator, 50},
+                {road_occupancy_calculator, 50},
+                {traffic_light, 70},
+                {weather_station, 1},
+                {parking_sensor, 80},
+                {co2_sensor, 10},
+                {energy_sensor, 30},
+                {humidity_sensor, 10},
+                {light_sensor, 10},
+                {no_sensor, 10},
+                {no2_sensor, 10},
+                {ozone_sensor, 10},
+                {pm10_sensor, 10},
+                {sound_sensor, 10},
+                {temperature_sensor, 10},
+                {uv_sensor, 10},
+                {air_pressure_sensor, 10}
+
+            ]}
+        ]},
+        {runner4,
+        [
+            {devices,                                                           
+            [                                                                   
+                {smart_meter, 100},
+                {vehicle_counter, 50},
+                {traffic_speed_calculator, 50},
+                {road_occupancy_calculator, 50},
+                {traffic_light, 70},
+                {weather_station, 1},
+                {parking_sensor, 80},
+                {co2_sensor, 10},
+                {energy_sensor, 30},
+                {humidity_sensor, 10},
+                {light_sensor, 10},
+                {no_sensor, 10},
+                {no2_sensor, 10},
+                {ozone_sensor, 10},
+                {pm10_sensor, 10},
+                {sound_sensor, 10},
+                {temperature_sensor, 10},
+                {uv_sensor, 10},
+                {air_pressure_sensor, 10}
+
+            ]}
+        ]},
+        {runner5,
+        [
+            {devices,                                                           
+            [                                                                   
+                {smart_meter, 100},
+                {vehicle_counter, 50},
+                {traffic_speed_calculator, 50},
+                {road_occupancy_calculator, 50},
+                {traffic_light, 70},
+                {weather_station, 1},
+                {parking_sensor, 80},
+                {co2_sensor, 10},
+                {energy_sensor, 30},
+                {humidity_sensor, 10},
+                {light_sensor, 10},
+                {no_sensor, 10},
+                {no2_sensor, 10},
+                {ozone_sensor, 10},
+                {pm10_sensor, 10},
+                {sound_sensor, 10},
+                {temperature_sensor, 10},
+                {uv_sensor, 10},
+                {air_pressure_sensor, 10}
+
+            ]}
+        ]},
+        {runner6,
+        [
+            {devices,                                                           
+            [                                                                   
+                {smart_meter, 100},
+                {vehicle_counter, 50},
+                {traffic_speed_calculator, 50},
+                {road_occupancy_calculator, 50},
+                {traffic_light, 70},
+                {weather_station, 1},
+                {parking_sensor, 80},
+                {co2_sensor, 10},
+                {energy_sensor, 30},
+                {humidity_sensor, 10},
+                {light_sensor, 10},
+                {no_sensor, 10},
+                {no2_sensor, 10},
+                {ozone_sensor, 10},
+                {pm10_sensor, 10},
+                {sound_sensor, 10},
+                {temperature_sensor, 10},
+                {uv_sensor, 10},
+                {air_pressure_sensor, 10}
+
+            ]}
+        ]},
+        {runner7,
+        [
+            {devices,                                                           
+            [                                                                   
+                {smart_meter, 100},
+                {vehicle_counter, 50},
+                {traffic_speed_calculator, 50},
+                {road_occupancy_calculator, 50},
+                {traffic_light, 70},
+                {weather_station, 1},
+                {parking_sensor, 80},
+                {co2_sensor, 10},
+                {energy_sensor, 30},
+                {humidity_sensor, 10},
+                {light_sensor, 10},
+                {no_sensor, 10},
+                {no2_sensor, 10},
+                {ozone_sensor, 10},
+                {pm10_sensor, 10},
+                {sound_sensor, 10},
+                {temperature_sensor, 10},
+                {uv_sensor, 10},
+                {air_pressure_sensor, 10}
+
+            ]}
+        ]},
+        {runner8,
+        [
+            {devices,                                                           
+            [                                                                   
+                {smart_meter, 100},
+                {vehicle_counter, 50},
+                {traffic_speed_calculator, 50},
+                {road_occupancy_calculator, 50},
+                {traffic_light, 70},
+                {weather_station, 1},
+                {parking_sensor, 80},
+                {co2_sensor, 10},
+                {energy_sensor, 30},
+                {humidity_sensor, 10},
+                {light_sensor, 10},
+                {no_sensor, 10},
+                {no2_sensor, 10},
+                {ozone_sensor, 10},
+                {pm10_sensor, 10},
+                {sound_sensor, 10},
+                {temperature_sensor, 10},
+                {uv_sensor, 10},
+                {air_pressure_sensor, 10}
+
+            ]}
+        ]}
+    ]}
+].

@@ -1,0 +1,63 @@
+[
+    {name, scalabilitysuite_smart_factory_mqttv5_8_node},
+    {duration, {10, minutes}},
+    {protocol, mqttv5},
+    {deployment_name, smart_factory_8_node},
+    {hosts,
+    [
+        {runner1, 
+        [
+            {hostname, 'REPLACE_RUNNER1_HOSTNAME'}
+        ]},
+        {runner2, 
+        [
+            {hostname, 'REPLACE_RUNNER2_HOSTNAME'}
+        ]},
+        {runner3, 
+        [
+            {hostname, 'REPLACE_RUNNER3_HOSTNAME'}
+        ]},
+        {runner4, 
+        [
+            {hostname, 'REPLACE_RUNNER4_HOSTNAME'}
+        ]},
+        {runner5, 
+        [
+            {hostname, 'REPLACE_RUNNER5_HOSTNAME'}
+        ]},
+        {runner6, 
+        [
+            {hostname, 'REPLACE_RUNNER6_HOSTNAME'}
+        ]},
+        {runner7, 
+        [
+            {hostname, 'REPLACE_RUNNER7_HOSTNAME'}
+        ]},
+        {runner8, 
+        [
+            {hostname, 'REPLACE_RUNNER8_HOSTNAME'}
+        ]}
+    ]},
+
+    {protocol_config,
+    [
+        {broker, "REPLACE_BROKER_IP"},
+        {port, 1883},
+        {qos, 
+        [
+            {default_qos, 0}
+        ]}
+    ]},
+    
+    {metric_config,
+    [
+        {output_dir, "results"},
+        {hw_stats_poll_period_ms, 1000},
+        {metric_plugins, 
+        [
+            {ps_bench_throughput_calc_plugin, erlang},
+            {ps_bench_latency_calc_plugin, erlang},
+            {ps_bench_dropped_message_calc_plugin, erlang}
+        ]}
+    ]}
+].

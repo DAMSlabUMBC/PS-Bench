@@ -1,0 +1,58 @@
+[
+    {name, smart_city_2x_2_node},
+    {nodes,
+    [
+        {runner1,
+        [
+            {devices,                                                                  
+            [
+                {smart_meter, 200},
+                {vehicle_counter, 100},
+                {traffic_speed_calculator, 100},
+                {road_occupancy_calculator, 100},
+                {traffic_light, 140},
+                {weather_station, 2},
+                {parking_sensor, 160},
+                {co2_sensor, 20},
+                {energy_sensor, 60},
+                {humidity_sensor, 20},
+                {light_sensor, 20},
+                {no_sensor, 20},
+                {no2_sensor, 20},
+                {ozone_sensor, 20},
+                {pm10_sensor, 20},
+                {sound_sensor, 20},
+                {temperature_sensor, 20},
+                {uv_sensor, 20},
+                {air_pressure_sensor, 20}
+
+            ]}
+        ]},
+        {runner2,
+        [
+            {devices,                                                           
+            [                                                                   
+                {smart_meter, 200},
+                {vehicle_counter, 100},
+                {traffic_speed_calculator, 100},
+                {road_occupancy_calculator, 100},
+                {traffic_light, 140},
+                {weather_station, 2},
+                {parking_sensor, 160},
+                {co2_sensor, 20},
+                {energy_sensor, 60},
+                {humidity_sensor, 20},
+                {light_sensor, 20},
+                {no_sensor, 20},
+                {no2_sensor, 20},
+                {ozone_sensor, 20},
+                {pm10_sensor, 20},
+                {sound_sensor, 20},
+                {temperature_sensor, 20},
+                {uv_sensor, 20},
+                {air_pressure_sensor, 20}
+
+            ]}
+        ]}
+    ]}
+].

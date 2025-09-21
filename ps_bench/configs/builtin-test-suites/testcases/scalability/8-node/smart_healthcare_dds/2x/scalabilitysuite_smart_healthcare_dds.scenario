@@ -1,0 +1,60 @@
+[
+    {name, scalabilitysuite_smart_healthcare_dds_2x_8_node},
+    {duration, {10, minutes}},
+    {protocol, dds},
+    {deployment_name, smart_healthcare_2x_8_node},
+    {hosts,
+    [
+        {runner1, 
+        [
+            {hostname, 'REPLACE_RUNNER1_HOSTNAME'}
+        ]},
+        {runner2, 
+        [
+            {hostname, 'REPLACE_RUNNER2_HOSTNAME'}
+        ]},
+        {runner3, 
+        [
+            {hostname, 'REPLACE_RUNNER3_HOSTNAME'}
+        ]},
+        {runner4, 
+        [
+            {hostname, 'REPLACE_RUNNER4_HOSTNAME'}
+        ]},
+        {runner5, 
+        [
+            {hostname, 'REPLACE_RUNNER5_HOSTNAME'}
+        ]},
+        {runner6, 
+        [
+            {hostname, 'REPLACE_RUNNER6_HOSTNAME'}
+        ]},
+        {runner7, 
+        [
+            {hostname, 'REPLACE_RUNNER7_HOSTNAME'}
+        ]},
+        {runner8, 
+        [
+            {hostname, 'REPLACE_RUNNER8_HOSTNAME'}
+        ]}
+    ]},
+
+    {protocol_config,
+    [
+        {domain_id, 1},
+	    {nif_full_path, "/app/priv/dds_cplusplus/lib/libps_bench_default_dds_interface"},
+        {config_file, "/app/configs/dds_configs/ps_bench_default_dds_interface.ini"}
+    ]},
+    
+    {metric_config,
+    [
+        {output_dir, "results"},
+        {hw_stats_poll_period_ms, 1000},
+        {metric_plugins, 
+        [
+            {ps_bench_throughput_calc_plugin, erlang},
+            {ps_bench_latency_calc_plugin, erlang},
+            {ps_bench_dropped_message_calc_plugin, erlang}
+        ]}
+    ]}
+].

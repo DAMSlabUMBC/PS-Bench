@@ -115,7 +115,7 @@ patch_hostnames_in_scenarios() {
     perl -0777 -pe '
       my $suf = $ENV{FQDN_SUFFIX} // "";
       my $pfx = $ENV{HOST_PREFIX} // "runner";
-      for my $n (1..5) {
+      for my $n (1..8) {
         my $host = $pfx.$n.$suf;
         s/(\x27)REPLACE_RUNNER${n}_HOSTNAME\1/$1$host$1/g;  # single-quoted
         s/(")REPLACE_RUNNER${n}_HOSTNAME\1/$1$host$1/g;     # double-quoted
@@ -141,7 +141,7 @@ patch_hostnames_in_scenarios() {
 
         # Detect entering a runner block (e.g., "{ runner3 ,", "{runner2,", "runner4 =>", "\"runner1\"", etc.)
         if (!$runner) {
-          if (/\{\s*runner([1-5])\s*,/ || /\brunner([1-5])\b\s*=>/ || /"runner([1-5])"/ || /\brunner([1-5])\b\s*:/) {
+          if (/\{\s*runner([1-8])\s*,/ || /\brunner([1-8])\b\s*=>/ || /"runner([1-8])"/ || /\brunner([1-8])\b\s*:/) {
             $runner = $1;
             $runner_depth = $brace_depth + $opens - $closes; # depth at this line
           }
@@ -174,17 +174,17 @@ patch_hostnames_in_scenarios() {
   # Guardrail: fail if any placeholders remain (but only check relevant ones)
   if [ "$IS_DDS" = "true" ]; then
     targets=$(ls "$SCEN_DIR"/dds_*.scenario 2>/dev/null || true)
-    if [ -n "$targets" ] && grep -R -n -E "REPLACE_(HOSTNAME|RUNNER[1-5]_HOSTNAME)" $targets >/dev/null; then
+    if [ -n "$targets" ] && grep -R -n -E "REPLACE_(HOSTNAME|RUNNER[1-8]_HOSTNAME)" $targets >/dev/null; then
       log "ERROR: hostname placeholder(s) still present in DDS scenarios:"
-      grep -R -n -E "REPLACE_(HOSTNAME|RUNNER[1-5]_HOSTNAME)" $targets || true
+      grep -R -n -E "REPLACE_(HOSTNAME|RUNNER[1-8]_HOSTNAME)" $targets || true
       exit 1
     fi
   else
     # MQTT: check hostname placeholders and broker placeholder in mqtt_* files
     targets=$(ls "$SCEN_DIR"/mqtt_*.scenario 2>/dev/null || true)
-    if [ -n "$targets" ] && grep -R -n -E "REPLACE_(HOSTNAME|RUNNER[1-5]_HOSTNAME|BROKER_IP)" $targets >/dev/null; then
+    if [ -n "$targets" ] && grep -R -n -E "REPLACE_(HOSTNAME|RUNNER[1-8]_HOSTNAME|BROKER_IP)" $targets >/dev/null; then
       log "ERROR: placeholder(s) still present in MQTT scenarios:"
-      grep -R -n -E "REPLACE_(HOSTNAME|RUNNER[1-5]_HOSTNAME|BROKER_IP)" $targets || true
+      grep -R -n -E "REPLACE_(HOSTNAME|RUNNER[1-8]_HOSTNAME|BROKER_IP)" $targets || true
       exit 1
     fi
   fi
@@ -216,7 +216,7 @@ maybe_become_idle_if_not_listed() {
   fi
 
   # Treat scenario as "explicit" if it names any runner1..runner5 anywhere:
-  if grep -Eq "runner[1-5]@|\"runner[1-5]\"|'runner[1-5]'|(^|[^[:alnum:]_])runner[1-5]([^[:alnum:]_]|$)" "$scen_file"; then
+  if grep -Eq "runner[1-8]@|\"runner[1-8]\"|'runner[1-8]'|(^|[^[:alnum:]_])runner[1-8]([^[:alnum:]_]|$)" "$scen_file"; then
     # Participate only if THIS runner is referenced (long, short, quoted, or bare)
     if grep -Fq "$my_id_long"  "$scen_file" || \
        grep -Fq "$my_id_short" "$scen_file" || \

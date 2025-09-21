@@ -1,0 +1,63 @@
+[
+    {name, smart_healthcare_8_node},
+    {nodes,
+    [
+        {runner1,
+        [
+            {devices,                                                                  
+            [
+                {health_sensor, 24}
+
+            ]}
+        ]},
+        {runner2,
+        [
+            {devices,                                                          
+            [                                                                  
+                {health_sensor, 24}
+            ]}
+        ]},
+        {runner3,
+        [
+            {devices,                                                           
+            [                                                                  
+                {health_sensor, 24}
+            ]}
+        ]},
+        {runner4,
+        [
+            {devices,                                                           
+            [                                                                   
+                {health_sensor, 24}
+            ]}
+        ]},
+        {runner5,
+        [
+            {devices,                                                           
+            [                                                                   
+                {health_sensor, 24}
+            ]}
+        ]},
+        {runner6,
+        [
+            {devices,                                                           
+            [                                                                  
+                {health_sensor, 24}
+            ]}
+        ]},
+        {runner7,
+        [
+            {devices,                                                           
+            [                                                                   
+                {health_sensor, 24}
+            ]}
+        ]},
+        {runner8,
+        [
+            {devices,                                                           
+            [                                                                   
+                {health_sensor, 24}
+            ]}
+        ]}
+    ]}
+].

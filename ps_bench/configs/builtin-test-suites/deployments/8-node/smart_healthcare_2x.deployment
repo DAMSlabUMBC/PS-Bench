@@ -1,0 +1,63 @@
+[
+    {name, smart_healthcare_2x_8_node},
+    {nodes,
+    [
+        {runner1,
+        [
+            {devices,                                                                  
+            [
+                {health_sensor, 48}
+
+            ]}
+        ]},
+        {runner2,
+        [
+            {devices,                                                          
+            [                                                                  
+                {health_sensor, 48}
+            ]}
+        ]},
+        {runner3,
+        [
+            {devices,                                                           
+            [                                                                  
+                {health_sensor, 48}
+            ]}
+        ]},
+        {runner4,
+        [
+            {devices,                                                           
+            [                                                                   
+                {health_sensor, 48}
+            ]}
+        ]},
+        {runner5,
+        [
+            {devices,                                                           
+            [                                                                   
+                {health_sensor, 48}
+            ]}
+        ]},
+        {runner6,
+        [
+            {devices,                                                           
+            [                                                                  
+                {health_sensor, 48}
+            ]}
+        ]},
+        {runner7,
+        [
+            {devices,                                                           
+            [                                                                   
+                {health_sensor, 48}
+            ]}
+        ]},
+        {runner8,
+        [
+            {devices,                                                           
+            [                                                                   
+                {health_sensor, 48}
+            ]}
+        ]}
+    ]}
+].

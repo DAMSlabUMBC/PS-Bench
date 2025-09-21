@@ -1,0 +1,59 @@
+[
+    {name, smart_home_2x_2_node},
+    {nodes,
+    [
+        {runner1,
+        [
+            {devices,                                                                      
+            [
+                {smoke_sensor, 2},
+                {bp_sensor, 2},
+                {weather_sensor, 2},
+                {sleep_sensor, 2},
+                {scale_device, 2},
+                {amazon_echo, 2},
+                {smart_things, 2},
+                {light_bulb, 2},
+                {power_plug, 2},
+                {tplink_plug, 2},
+                {motion_sensor, 2},
+                {belkin_switch, 2},
+                {photo_sensor, 2},
+                {printer_device, 2},
+                {speaker_device, 2},
+                {samsung_camera, 2},
+                {netatmo_camera, 2},
+                {tplink_camera, 2},
+                {child_monitor, 2},
+                {dropcam_camera, 2}
+
+            ]}
+        ]},
+        {runner2,
+        [
+            {devices,                                                          
+            [                                                                  
+                {smoke_sensor, 2},
+                {bp_sensor, 2},
+                {weather_sensor, 2},
+                {sleep_sensor, 2},
+                {scale_device, 2},
+                {amazon_echo, 2},
+                {smart_things, 2},
+                {light_bulb, 2},
+                {power_plug, 2},
+                {tplink_plug, 2},
+                {motion_sensor, 2},
+                {belkin_switch, 2},
+                {photo_sensor, 2},
+                {printer_device, 2},
+                {speaker_device, 2},
+                {samsung_camera, 2},
+                {netatmo_camera, 2},
+                {tplink_camera, 2},
+                {child_monitor, 2},
+                {dropcam_camera, 2}
+            ]}
+        ]}
+    ]}
+].

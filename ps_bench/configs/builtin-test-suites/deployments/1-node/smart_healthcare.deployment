@@ -1,0 +1,14 @@
+[
+    {name, smart_healthcare_1_node},
+    {nodes,
+    [
+        {runner1,
+        [
+            {devices,                                                                  
+            [
+                {health_sensor, 24}
+
+            ]}
+        ]}
+    ]}
+].

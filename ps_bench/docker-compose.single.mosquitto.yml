@@ -24,25 +24,31 @@ services:
       retries: 20
       start_period: 2s
 
-  runner01:
+  runnerMQTT1:
     image: ps_bench-runner:latest
-    hostname: runner01
+    container_name: runnerMQTT1
+    hostname: runnerMQTT1
     domainname: benchnet
-    networks: [benchnet]
+    networks: 
+      benchnet:
+        aliases:
+          - runnerMQTT1.benchnet
     environment:
-      SELECTED_SCENARIO: mqtt_single_node_stress
-      BROKER_HOST: mqtt
-      BROKER_PORT: 1883
+      DIST_MODE: name 
       NODE_BASE: runner1
-      ADD_NODE_TO_SUFFIX: "false"
-      RELEASE_COOKIE: ps_bench_cookie
-      SCEN_DIR: /app/configs/initial_tests/scenarios
-      DEVICE_DIR: /app/configs/initial_tests/devices
-      DEPLOY_DIR: /app/configs/initial_tests/deployments
+      NODE_HOST_OVERRIDE: ${NODE1_HOST_OVERRIDE:-}
+      BROKER_HOST: mosquitto
+      BROKER_PORT: 1883
+      ADD_NODE_TO_SUFFIX: ${ADD_NODE_TO_SUFFIX:-false}
+      RELEASE_COOKIE: ${RELEASE_COOKIE:-ps_bench_cookie}
+      RUN_TAG: ${RUN_TAG:-mqtt_test}
+      SCEN_DIR: /app/configs/builtin-test-suites/testcases
+      DEVICE_DIR: /app/configs/builtin-test-suites/devices
+      DEPLOY_DIR: /app/configs/builtin-test-suites/deployments
+      SCENARIO: scalabilitysuite_smart_factory_mqttv5_1_node
     volumes:
-      - ./out/runner01:/app/out
-      - ./results:/app/results 
-      - ./configs:/app/configs:ro 
+      - ./out/runnerMQTT1:/app/out
+      - ./results:/app/results
     depends_on:
       mosquitto:
         condition: service_healthy

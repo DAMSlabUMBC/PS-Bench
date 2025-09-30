@@ -1,0 +1,10 @@
+[
+    {type, road_occupancy_calculator},
+    {publication_frequency_ms, 5000},
+    {payload_bytes_mean, 170},
+    {payload_bytes_variance, 17},
+    {disconnect_check_period_ms, 5000},
+    {disconnect_chance_pct, 0.2},
+    {reconnect_check_period_ms, 5000},
+    {reconnect_chance_pct, 0.5}
+].

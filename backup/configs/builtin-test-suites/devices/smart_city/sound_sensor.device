@@ -1,0 +1,10 @@
+[
+    {type, sound_sensor},
+    {publication_frequency_ms, 15000},
+    {payload_bytes_mean, 183},
+    {payload_bytes_variance, 19},
+    {disconnect_check_period_ms, 5000},
+    {disconnect_chance_pct, 0.2},
+    {reconnect_check_period_ms, 5000},
+    {reconnect_chance_pct, 0.5}
+].

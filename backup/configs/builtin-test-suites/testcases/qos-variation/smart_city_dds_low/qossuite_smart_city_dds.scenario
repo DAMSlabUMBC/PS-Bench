@@ -1,0 +1,48 @@
+[
+    {name, qossuite_smart_city_dds_low},
+    {duration, {10, minutes}},
+    {protocol, dds},
+    {deployment_name, smart_city},
+    {hosts,
+    [
+        {runner1, 
+        [
+            {hostname, 'REPLACE_RUNNER1_HOSTNAME'}
+        ]},
+        {runner2, 
+        [
+            {hostname, 'REPLACE_RUNNER2_HOSTNAME'}
+        ]},
+        {runner3, 
+        [
+            {hostname, 'REPLACE_RUNNER3_HOSTNAME'}
+        ]},
+        {runner4, 
+        [
+            {hostname, 'REPLACE_RUNNER4_HOSTNAME'}
+        ]},
+        {runner5, 
+        [
+            {hostname, 'REPLACE_RUNNER5_HOSTNAME'}
+        ]}
+        
+    ]},
+
+    {protocol_config,
+    [
+        {domain_id, 1},
+        {qos_profile, "configs/dds_configs/qos#PsBenchLowProfile"}
+    ]},
+    
+    {metric_config,
+    [
+        {output_dir, "results"},
+        {hw_stats_poll_period_ms, 1000},
+        {metric_plugins, 
+        [
+            {ps_bench_throughput_calc_plugin, erlang},
+            {ps_bench_latency_calc_plugin, erlang},
+            {ps_bench_dropped_message_calc_plugin, erlang}
+        ]}
+    ]}
+].

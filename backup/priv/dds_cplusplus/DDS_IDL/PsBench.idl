@@ -1,0 +1,8 @@
+module PsBench {
+    @topic
+    struct DeviceMessage {
+        unsigned long long seq_id;
+        string publisher_id;
+        sequence<octet> payload;
+    };
+};

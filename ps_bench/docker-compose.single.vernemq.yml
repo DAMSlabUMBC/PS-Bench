@@ -18,8 +18,10 @@ services:
     environment:
       DOCKER_VERNEMQ_ACCEPT_EULA: "yes"
       DOCKER_VERNEMQ_ALLOW_ANONYMOUS: "on"
+      DOCKER_VERNEMQ_LISTENER__TCP__DEFAULT: "0.0.0.0:1883"
+      DOCKER_VERNEMQ_LISTENER__TCP__ALLOWED_PROTOCOL_VERSIONS: "3,4,5"
     healthcheck:
-      test: ["CMD-SHELL","vernemq ping"]
+      test: ["CMD-SHELL", "ss -ltn | grep -q ':1883'"]
       interval: 15s
       timeout: 1s
       retries: 20
@@ -43,10 +45,10 @@ services:
       ADD_NODE_TO_SUFFIX: ${ADD_NODE_TO_SUFFIX:-false}
       RELEASE_COOKIE: ${RELEASE_COOKIE:-ps_bench_cookie}
       RUN_TAG: ${RUN_TAG:-mqtt_test}
-      SCEN_DIR: /app/configs/builtin-test-suites/testcases
+      SCEN_DIR: /app/configs/builtin-test-suites/testcases/qos-variation/1-node/smart_home_mqttv5_high
       DEVICE_DIR: /app/configs/builtin-test-suites/devices
       DEPLOY_DIR: /app/configs/builtin-test-suites/deployments
-      SCENARIO: scalabilitysuite_smart_factory_mqttv5_1_node
+      SCENARIO: qossuite_smart_home_mqttv5_high_1_node
     volumes:
       - ./out/runnerMQTT1:/app/out
       - ./results:/app/results

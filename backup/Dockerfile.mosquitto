@@ -1,0 +1,18 @@
+FROM eclipse-mosquitto:2
+
+# Install node_exporter
+RUN apk add --no-cache wget tar && \
+    wget https://github.com/prometheus/node_exporter/releases/download/v1.8.2/node_exporter-1.8.2.linux-amd64.tar.gz && \
+    tar -xzf node_exporter-1.8.2.linux-amd64.tar.gz && \
+    mv node_exporter-1.8.2.linux-amd64/node_exporter /usr/local/bin/ && \
+    rm -rf node_exporter-1.8.2.linux-amd64*
+
+# Create a startup script that redirects node_exporter output
+RUN echo '#!/bin/sh' > /entrypoint.sh && \
+    echo '# Start node_exporter in background with redirected output' >> /entrypoint.sh && \
+    echo 'node_exporter > /dev/null 2>&1 &' >> /entrypoint.sh && \
+    echo '# Start mosquitto in foreground' >> /entrypoint.sh && \
+    echo 'exec /usr/sbin/mosquitto -c /mosquitto/config/mosquitto.conf' >> /entrypoint.sh && \
+    chmod +x /entrypoint.sh
+
+ENTRYPOINT ["/entrypoint.sh"]

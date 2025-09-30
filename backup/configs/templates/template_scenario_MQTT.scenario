@@ -1,0 +1,37 @@
+[
+    {name, REPLACE_SNAKECASE_SCENARIO_NAME},                                % Format: Erlang atom
+    {duration, {REPLACE_DURATION_TIME, REPLACE_DURATION_UNITS}},            % Format: REPLACE_DURATION_TIME is an integer > 0, REPLACE_DURATION_UNITS must be millseconds, seconds, or minutes
+    {protocol, REPLACE_PROTOCOL_TYPE},                                      % Format: Erlang atom, must be a supported protocol
+    {deployment_name, REPLACE_DEPLOYMENT_NAME}                              % Format: Erlang atom, must match the name field in a deployment definition file
+    {hosts,
+    [
+        {REPLACE_NODE_1_NAME,                                               % Format: Erlang atom, REPLACE_NODE_1_NAME must match a node in the deployment file
+        [
+            {hostname, 'REPLACE_HOSTNAME'},                                 % Format: Erlang atom, REPLACE_NODE_1_HOSTNAME must be the atom hostname for REPLACE_NODE_1_NAME
+            {rng_seed, REPLACE_RNG_SEED}                                    % Format: Erlang RNG seed in the form {PART_1, PART_2, PART_3} (See https://www.erlang.org/doc/apps/stdlib/rand.html#t:seed/0)
+        ]}
+    ]},
+    
+    {protocol_config,                                                       % Protocol specific configuration, see README for details on protocol configuration
+    [
+        {client_interface_module, ps_bench_default_mqtt_interface},         % Defaults to: ps_bench_default_mqtt_interface
+        {broker, REPLACE_BROKER_IP},                                        % Format: String
+        {port, REPLACE_BROKER_PORT},                                        % Format: Integer
+        {qos, 
+        [
+            {default_qos, REPLACE_OVERALL_QOS},
+            {REPLACE_DEVICE_NAME, REPLACE_DEVICE_QOS}                       % Format: {Erlang atom, Integer between 0-2}, Device name must match the name field in a device definition file
+        ]},
+    ]},
+    
+    {metric_config,                                                         % Metric specific configuration, see README for details on metric configuration
+    [
+        {output_dir, REPLACE_OUTPUT_DIR},
+        {hw_stats_poll_period_ms, HW_STATS_POLL_PERIOD},                    % Optional
+        {metric_plugins, 
+        [
+            {REPLACE_PLUGIN_1, erlang},
+            {REPLACE_PLUGIN_2, erlang}
+        ]},
+    ]}
+].

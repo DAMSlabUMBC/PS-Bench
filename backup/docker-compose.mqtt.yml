@@ -1,0 +1,170 @@
+networks:
+  benchnet:
+    driver: bridge
+
+services:
+  mosquitto:
+    build:
+      context: .
+      dockerfile: Dockerfile.mosquitto
+    image: mosquitto-with-exporter
+    container_name: mosquitto
+    hostname: mosquitto
+    domainname: benchnet
+    networks:
+      benchnet:
+        aliases: ["mosquitto", "mqtt", "broker"]
+    ports: ["1883:1883"]
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+    healthcheck:
+      test: ["CMD-SHELL","nc -z 127.0.0.1 1883"]
+      interval: 15s
+      timeout: 1s
+      retries: 20
+      start_period: 2s
+
+  runnerMQTT1:
+    image: ps_bench-runner:latest
+    container_name: runnerMQTT1
+    hostname: runnerMQTT1
+    domainname: benchnet
+    networks: 
+      benchnet:
+        aliases:
+          - runnerMQTT1.benchnet   
+    environment:
+      DIST_MODE: name 
+      NODE_BASE: runner1
+      NODE_HOST_OVERRIDE: ${NODE1_HOST_OVERRIDE:-}
+      BROKER_HOST: mosquitto
+      BROKER_PORT: 1883
+      ADD_NODE_TO_SUFFIX: ${ADD_NODE_TO_SUFFIX:-false}
+      RELEASE_COOKIE: ${RELEASE_COOKIE:-ps_bench_cookie}
+      RUN_TAG: ${RUN_TAG:-mqtt_test}
+      SCENARIO: scalabilitysuite_smart_home_mqttv5_0_5x
+      TEST_SUITE_TYPE: scalability
+      TEST_SUITE_SUBDIR: smart_home_mqttv5/0_5x
+      TEST_SCENARIO: "smart_home#scalability-suite#mqtt-v5.0#5x" 
+    volumes:
+      - ./out/runnerMQTT1:/app/out
+      - ./results:/app/results
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+
+  runnerMQTT2:
+    image: ps_bench-runner:latest
+    container_name: runnerMQTT2
+    hostname: runnerMQTT2
+    domainname: benchnet
+    networks: 
+      benchnet:
+        aliases:
+          - runnerMQTT2.benchnet   
+    environment:
+      DIST_MODE: name 
+      NODE_BASE: runner2
+      NODE_HOST_OVERRIDE: ${NODE2_HOST_OVERRIDE:-}
+      BROKER_HOST: mosquitto
+      BROKER_PORT: 1883
+      ADD_NODE_TO_SUFFIX: ${ADD_NODE_TO_SUFFIX:-false}
+      RELEASE_COOKIE: ${RELEASE_COOKIE:-ps_bench_cookie}
+      RUN_TAG: ${RUN_TAG:-mqtt_test}
+      SCENARIO: scalabilitysuite_smart_home_mqttv5_0_5x
+      TEST_SUITE_TYPE: scalability
+      TEST_SUITE_SUBDIR: smart_home_mqttv5/0_5x
+      TEST_SCENARIO: "smart_home#scalability-suite#mqtt-v5.0#5x" 
+    volumes:
+      - ./out/runnerMQTT2:/app/out
+      - ./results:/app/results
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+
+  runnerMQTT3:
+    image: ps_bench-runner:latest
+    container_name: runnerMQTT3
+    hostname: runnerMQTT3
+    domainname: benchnet
+    networks: 
+      benchnet:
+        aliases:
+          - runnerMQTT3.benchnet
+    environment:
+      DIST_MODE: name 
+      NODE_BASE: runner3
+      NODE_HOST_OVERRIDE: ${NODE3_HOST_OVERRIDE:-}
+      BROKER_HOST: mosquitto
+      BROKER_PORT: 1883
+      ADD_NODE_TO_SUFFIX: ${ADD_NODE_TO_SUFFIX:-false}
+      RELEASE_COOKIE: ${RELEASE_COOKIE:-ps_bench_cookie}
+      RUN_TAG: ${RUN_TAG:-mqtt_test}
+      SCENARIO: scalabilitysuite_smart_home_mqttv5_0_5x
+      TEST_SUITE_TYPE: scalability
+      TEST_SUITE_SUBDIR: smart_home_mqttv5/0_5x
+      TEST_SCENARIO: "smart_home#scalability-suite#mqtt-v5.0#5x" 
+    volumes:
+      - ./out/runnerMQTT3:/app/out
+      - ./results:/app/results
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+
+  runnerMQTT4:
+    image: ps_bench-runner:latest
+    container_name: runnerMQTT4
+    hostname: runnerMQTT4
+    domainname: benchnet
+    networks: 
+      benchnet:
+        aliases:
+          - runnerMQTT4.benchnet
+    environment:
+      DIST_MODE: name 
+      NODE_BASE: runner4
+      NODE_HOST_OVERRIDE: ${NODE4_HOST_OVERRIDE:-}
+      BROKER_HOST: mosquitto
+      BROKER_PORT: 1883
+      ADD_NODE_TO_SUFFIX: ${ADD_NODE_TO_SUFFIX:-false}
+      RELEASE_COOKIE: ${RELEASE_COOKIE:-ps_bench_cookie}
+      RUN_TAG: ${RUN_TAG:-mqtt_test}
+      SCENARIO: scalabilitysuite_smart_home_mqttv5_0_5x
+      TEST_SUITE_TYPE: scalability
+      TEST_SUITE_SUBDIR: smart_home_mqttv5/0_5x
+      TEST_SCENARIO: "smart_home#scalability-suite#mqtt-v5.0#5x" 
+    volumes:
+      - ./out/runnerMQTT4:/app/out
+      - ./results:/app/results
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+
+  runnerMQTT5:
+    image: ps_bench-runner:latest
+    container_name: runnerMQTT5
+    hostname: runnerMQTT5
+    domainname: benchnet
+    networks: 
+      benchnet:
+        aliases:
+          - runnerMQTT5.benchnet
+    environment:
+      DIST_MODE: name 
+      NODE_BASE: runner5
+      NODE_HOST_OVERRIDE: ${NODE5_HOST_OVERRIDE:-}
+      BROKER_HOST: mosquitto
+      BROKER_PORT: 1883
+      ADD_NODE_TO_SUFFIX: ${ADD_NODE_TO_SUFFIX:-false}
+      RELEASE_COOKIE: ${RELEASE_COOKIE:-ps_bench_cookie}
+      RUN_TAG: ${RUN_TAG:-mqtt_test}
+      SCENARIO: scalabilitysuite_smart_home_mqttv5_0_5x
+      TEST_SUITE_TYPE: scalability
+      TEST_SUITE_SUBDIR: smart_home_mqttv5/0_5x
+      TEST_SCENARIO: "smart_home#scalability-suite#mqtt-v5.0#5x" 
+    volumes:
+      - ./out/runnerMQTT5:/app/out
+      - ./results:/app/results
+    depends_on:
+      mosquitto:
+        condition: service_healthy

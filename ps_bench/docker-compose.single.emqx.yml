@@ -15,6 +15,12 @@ services:
       benchnet:
         aliases: ["emqx", "mqtt", "broker"]
     ports: ["1883:1883"]
+    environment:
+      EMQX_LOG__LEVEL: debug            
+      EMQX_MQTT__KEEPALIVE: 120s        
+      EMQX_MQTT__IDLE_TIMEOUT: 60s
+      EMQX_MQTT__MAX_PACKET_SIZE: 10MB  
+      EMQX_ALLOW_ANONYMOUS: "true" 
     healthcheck:
       test: ["CMD-SHELL","emqx ping"]
       interval: 15s
@@ -37,13 +43,13 @@ services:
       NODE_HOST_OVERRIDE: ${NODE1_HOST_OVERRIDE:-}
       BROKER_HOST: emqx
       BROKER_PORT: 1883
-      ADD_NODE_TO_SUFFIX: ${ADD_NODE_TO_SUFFIX:-false}
+      ADD_NODE_TO_SUFFIX: "true"
       RELEASE_COOKIE: ${RELEASE_COOKIE:-ps_bench_cookie}
       RUN_TAG: ${RUN_TAG:-mqtt_test}
-      SCEN_DIR: /app/configs/builtin-test-suites/testcases
+      SCEN_DIR: /app/configs/builtin-test-suites/testcases/qos-variation/1-node/smart_home_mqttv5_high
       DEVICE_DIR: /app/configs/builtin-test-suites/devices
       DEPLOY_DIR: /app/configs/builtin-test-suites/deployments
-      SCENARIO: scalabilitysuite_smart_factory_mqttv5_1_node
+      SCENARIO: qossuite_smart_home_mqttv5_high_1_node
     volumes:
       - ./out/runnerMQTT1:/app/out
       - ./results:/app/results

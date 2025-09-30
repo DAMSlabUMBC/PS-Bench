@@ -1,3 +1,0 @@
-Receiver,Sender,SumTotalLatency,TotalMessagesRecv,AverageLatencyMs
-runner1,overall,120511952816,86824,1.388002773610983
-runner1,runner1,120511952816,86824,1.388002773610983

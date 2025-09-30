@@ -1,3 +1,0 @@
-Receiver,Sender,DurationSeconds,TotalMessagesRecv,AverageThroughput
-runner1,overall,595.000333002,2729,4.586552054905869
-runner1,runner1,595.000333002,2729,4.586552054905869

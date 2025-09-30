@@ -1,7 +1,0 @@
-Receiver,Sender,TotalMessagesSentFromSender,PubsDroppedFromSender
-runner2,overall,42902,0
-runner2,runner1,8682,0
-runner2,runner2,8561,0
-runner2,runner3,8518,0
-runner2,runner4,8560,0
-runner2,runner5,8581,0

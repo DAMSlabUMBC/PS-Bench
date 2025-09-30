@@ -1,7 +1,0 @@
-project(DDS_IDL) : dcps {
-	TypeSupport_Files {
-		PsBench.idl
-	}
-	
-	custom_only = 1
-}

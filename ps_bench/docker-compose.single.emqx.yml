@@ -46,10 +46,10 @@ services:
       ADD_NODE_TO_SUFFIX: "true"
       RELEASE_COOKIE: ${RELEASE_COOKIE:-ps_bench_cookie}
       RUN_TAG: ${RUN_TAG:-mqtt_test}
-      SCEN_DIR: /app/configs/builtin-test-suites/testcases/qos-variation/1-node/smart_home_mqttv5_high
+      SCEN_DIR: ${SCEN_DIR:-/app/configs/builtin-test-suites/testcases/scalability/1-node/smart_home_mqttv5/1x}
       DEVICE_DIR: /app/configs/builtin-test-suites/devices
       DEPLOY_DIR: /app/configs/builtin-test-suites/deployments
-      SCENARIO: qossuite_smart_home_mqttv5_high_1_node
+      SCENARIO: ${SCENARIO:-scalabilitysuite_smart_home_mqttv5_1_node}
     volumes:
       - ./out/runnerMQTT1:/app/out
       - ./results:/app/results

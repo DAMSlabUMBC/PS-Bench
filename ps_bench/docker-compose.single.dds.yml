@@ -19,10 +19,10 @@ services:
       ADD_NODE_TO_SUFFIX: ${ADD_NODE_TO_SUFFIX:-false}
       RELEASE_COOKIE: ${RELEASE_COOKIE:-ps_bench_cookie}
       RUN_TAG: ${RUN_TAG:-dds_test}
-      SCEN_DIR: /app/configs/builtin-test-suites/testcases/qos-variation/1-node/smart_home_dds_high
+      SCEN_DIR: ${SCEN_DIR:-/app/configs/builtin-test-suites/testcases/scalability/1-node/smart_home_dds/1x}
       DEVICE_DIR: /app/configs/builtin-test-suites/devices
       DEPLOY_DIR: /app/configs/builtin-test-suites/deployments
-      SCENARIO: qossuite_smart_home_dds_high_1_node
+      SCENARIO: ${SCENARIO:-scalabilitysuite_smart_home_dds_1_node}
     volumes:
       - ./out/runnerDDS1:/app/out
       - ./results:/app/results

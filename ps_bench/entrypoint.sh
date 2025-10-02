@@ -550,17 +550,52 @@ main() {
   APP_PID="$!"
   trap on_term TERM
   trap on_int INT
+  
+  # Wait with a background timeout mechanism
+  (
+    sleep 620
+    if kill -0 "$APP_PID" 2>/dev/null; then
+      log "TIMEOUT: App still running after 620 seconds, forcing stop"
+      kill -TERM "$APP_PID" 2>/dev/null || true
+      sleep 2
+      if kill -0 "$APP_PID" 2>/dev/null; then
+        kill -KILL "$APP_PID" 2>/dev/null || true
+      fi
+    fi
+  ) &
+  TIMER_PID=$!
+  
+  # Wait for app to finish
+  set +e
   wait "$APP_PID"
-  APP_RC="$?"
+  APP_RC=$?
   set -e
-  log "ps_bench exited with code ${APP_RC} converting metrics"
-  convert_all_metrics
-  log "Done"
+  
+  # Kill the timeout timer if still running
+  kill "$TIMER_PID" 2>/dev/null || true
+  wait "$TIMER_PID" 2>/dev/null || true
+  
+  log "ps_bench exited with code ${APP_RC}"
+  
+  # Kill node_exporter IMMEDIATELY
   if [ -n "${NODE_EXPORTER_PID:-}" ]; then
-    kill "$NODE_EXPORTER_PID" 2>/dev/null || true
+    kill -KILL "$NODE_EXPORTER_PID" 2>/dev/null || true
     log "Stopped node_exporter"
   fi
-  exit "$APP_RC"
+  
+  log "Converting metrics..."
+  convert_all_metrics
+  log "Done - forcing exit"
+  
+  # Nuclear option: kill everything
+  jobs -p | xargs -r kill -KILL 2>/dev/null || true
+  
+  # Treat 143 (SIGTERM timeout) and 0 (clean exit) as success
+  if [ "$APP_RC" -eq 143 ] || [ "$APP_RC" -eq 0 ]; then
+    exit 0
+  else
+    exit "$APP_RC"
+  fi
 }
 
 

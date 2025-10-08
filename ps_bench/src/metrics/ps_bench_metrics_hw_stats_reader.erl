@@ -182,7 +182,7 @@ parse_value_from_line(Line) ->
                   FloatValue
       end.
 
-calculate_average_cpu_usage(NodeType) ->
+calculate_cpu_stats(NodeType) ->
       AllCpuUsageEvents = case NodeType of
                               local ->
                                     ps_bench_store:fetch_cpu_usage();
@@ -193,9 +193,14 @@ calculate_average_cpu_usage(NodeType) ->
       TotalEvents = length(AllCpuUsageEvents),
       TotalUsage = lists:foldl(fun({_, UsageVal}, Total) -> Total + UsageVal end, 0, AllCpuUsageEvents),
       AvgUsage = TotalUsage / TotalEvents,
-      AvgUsage.
 
-calculate_average_memory_usage(NodeType) ->
+      % Bootstrap these with out of range values to ensure the first one takes the real value
+      MaxUsage = lists:foldl(fun({_, UsageVal}, CurrMax) -> max(UsageVal, CurrMax) end, -1, AllCpuUsageEvents), 
+      MinUsage = lists:foldl(fun({_, UsageVal}, CurrMin) -> min(UsageVal, CurrMin) end, 101, AllCpuUsageEvents),
+      
+      {MinUsage, MaxUsage, AvgUsage}.
+
+calculate_mem_stats(NodeType) ->
       AllMemoryUsageEvents = case NodeType of
                               local ->
                                     ps_bench_store:fetch_memory_usage();
@@ -206,25 +211,31 @@ calculate_average_memory_usage(NodeType) ->
       TotalEvents = length(AllMemoryUsageEvents),
       TotalUsage = lists:foldl(fun({_, UsageVal}, Total) -> Total + UsageVal end, 0, AllMemoryUsageEvents),
       AvgUsage = TotalUsage / TotalEvents,
-      AvgUsage.
+
+      % Bootstrap these with out of range values to ensure the first one takes the real value
+      MaxUsage = lists:foldl(fun({_, UsageVal}, CurrMax) -> max(UsageVal, CurrMax) end, -1, AllMemoryUsageEvents), 
+      MinUsage = lists:foldl(fun({_, UsageVal}, CurrMin) -> min(UsageVal, CurrMin) end, 101, AllMemoryUsageEvents),
+      
+      {MinUsage, MaxUsage, AvgUsage}.
 
 calculate_and_write_local_stats(OutFile) ->
       {ok, NodeName} = ps_bench_config_manager:fetch_node_name(),
-      AvgCpuUsage = calculate_average_cpu_usage(local),
-      AvgMemUsage = calculate_average_memory_usage(local),
+      {MinCpuUsage, MaxCpuUsage, AvgCpuUsage} = calculate_cpu_stats(local),
+      {MinMemUsage, MaxMemUsage, AvgMemUsage} = calculate_mem_stats(local),
 
       % Open file and write the results
       {ok, File} = file:open(OutFile, [write]),
-      io:format(File, "Node,AverageCPUUsage,AverageMemoryUsage~n", []),
-      io:format(File, "~p,~p,~p~n",[NodeName, AvgCpuUsage, AvgMemUsage]),
+      io:format(File, "Node,MinCPUUsage,MaxCPUUsage,AverageCPUUsage,MinMemoryUsage,MaxMemoryUsage,AverageMemoryUsage~n", []),
+      io:format(File, "~p,~p,~p,~p,~p,~p,~p~n",[NodeName, MinCpuUsage, MaxCpuUsage, AvgCpuUsage, MinMemUsage, MaxMemUsage, AvgMemUsage]),
       file:close(File).
 
 calculate_and_write_broker_stats(OutFile) ->
-      AvgCpuUsage = calculate_average_cpu_usage(broker),
-      AvgMemUsage = calculate_average_memory_usage(broker),
+      NodeName = "broker",
+      {MinCpuUsage, MaxCpuUsage, AvgCpuUsage} = calculate_cpu_stats(broker),
+      {MinMemUsage, MaxMemUsage, AvgMemUsage} = calculate_mem_stats(broker),
 
       % Open file and write the results
       {ok, File} = file:open(OutFile, [write]),
-      io:format(File, "Node,AverageCPUUsage,AverageMemoryUsage~n", []),
-      io:format(File, "broker,~p,~p~n",[AvgCpuUsage, AvgMemUsage]),
+      io:format(File, "Node,MinCPUUsage,MaxCPUUsage,AverageCPUUsage,MinMemoryUsage,MaxMemoryUsage,AverageMemoryUsage~n", []),
+      io:format(File, "~p,~p,~p,~p,~p,~p,~p~n",[NodeName, MinCpuUsage, MaxCpuUsage, AvgCpuUsage, MinMemUsage, MaxMemUsage, AvgMemUsage]),
       file:close(File).

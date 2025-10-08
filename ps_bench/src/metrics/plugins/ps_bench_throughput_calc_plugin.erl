@@ -53,8 +53,38 @@ calculate_pairwise_throughput_for_one_node(ThisNode, TargetNode) ->
 
                   DurationS = (OverallMaxTimNs - OverallMinTimeNs) / 1000000000.0,
                   Throughput = TotalMessages / DurationS,
-                  {ThisNode, TargetNode, DurationS, TotalMessages, Throughput}
+
+                  % Now partition recieved messages based on seconds
+                  PartitionedList = partition_throughput_list(AllRecvEvents, OverallMinTimeNs, OverallMaxTimNs, []),
+
+                  % Now compute sum of squared means
+                  SumOfSquaredMeans = lists:foldl(fun(InnerList, CurrSum) -> 
+                                                            MessagesInWindow = length(InnerList),
+                                                            Difference = MessagesInWindow - Throughput,
+                                                            SquaredDifference = math:pow(Difference, 2),
+                                                            CurrSum + SquaredDifference
+                                                      end, 0, PartitionedList),
+                  Variance = SumOfSquaredMeans / DurationS,
+
+                  {ThisNode, TargetNode, DurationS, TotalMessages, Throughput, Variance}
       end.
+
+partition_throughput_list(List, CurrTime, EndTime, Acc) ->
+
+      EndTimeForPartition = min(CurrTime + 1000000000, EndTime),
+      MessagesInTime = lists:filter(fun(Event) -> 
+                                          {_, _, _, _, _, _, TRecvNs, _} = Event,
+                                          TRecvNs =< EndTimeForPartition andalso TRecvNs >= CurrTime
+                                          end, List),
+      NewAcc = Acc ++ [MessagesInTime],
+
+      case EndTimeForPartition of 
+            Value when EndTimeForPartition =/= EndTime ->
+                  partition_throughput_list(List, CurrTime + 1000000000, EndTime, NewAcc);
+            _ ->
+                  NewAcc
+      end.
+
 
 write_csv(Results) -> 
       OutDir = persistent_term:get({?MODULE, out_dir}),
@@ -62,10 +92,10 @@ write_csv(Results) ->
 
       % Open file and write the results
       {ok, File} = file:open(FullPath, [write]),
-      io:format(File, "Receiver,Sender,DurationSeconds,TotalMessagesRecv,AverageThroughput~n", []),
+      io:format(File, "Receiver,Sender,DurationSeconds,TotalMessagesRecv,AverageThroughput,Variance~n", []),
       lists:foreach(
-            fun({SourceNode, DestNode, DurationS, TotalMessages, Throughput}) ->
-                  io:format(File, "~p,~p,~p,~p,~p~n",[SourceNode, DestNode, DurationS, TotalMessages, Throughput])
+            fun({SourceNode, DestNode, DurationS, TotalMessages, Throughput, Variance}) ->
+                  io:format(File, "~p,~p,~p,~p,~p,~p~n",[SourceNode, DestNode, DurationS, TotalMessages, Throughput, Variance])
             end, Results),
       file:close(File), 
       ok.

@@ -32,21 +32,34 @@ calculate_pairwise_latency_for_one_node(ThisNode, TargetNode) ->
                   ps_bench_store:fetch_recv_events_by_filter({ThisNode, '_', TargetNode, '_', '_', '_', '_', '_'})
       end,
 
-      % Find the overall latency of the entire set of messages
-      OverallLatency = lists:foldl(fun(Event, CurrLatencyAcc) -> 
-                                                {_, _, _, _, _, TPubNs, TRecvNs, _} = Event,
-                                                PacketLatency = TRecvNs - TPubNs,
-                                                CurrLatencyAcc + PacketLatency
-                                          end, 0, AllRecvEvents),
       TotalMessages = length(AllRecvEvents),
 
       case TotalMessages of
             0 ->
                   {ThisNode, TargetNode, 0, 0, 0};
             _ ->
+                  % Find the overall latency of the entire set of messages
+                  OverallLatency = lists:foldl(fun(Event, CurrLatencyAcc) -> 
+                                                            {_, _, _, _, _, TPubNs, TRecvNs, _} = Event,
+                                                            PacketLatency = TRecvNs - TPubNs,
+                                                            CurrLatencyAcc + PacketLatency
+                                                      end, 0, AllRecvEvents),
+
                   AvgLatencyNs = OverallLatency / TotalMessages,
                   AvgLatencyMs = AvgLatencyNs / 1000000.0,
-                  {ThisNode, TargetNode, OverallLatency, TotalMessages, AvgLatencyMs}
+
+                  % Now compute sum of squared means
+                  SumOfSquaredMeans = lists:foldl(fun(Event, CurrSum) -> 
+                                                            {_, _, _, _, _, TPubNs, TRecvNs, _} = Event,
+                                                            PacketLatency = TRecvNs - TPubNs,
+                                                            Difference = PacketLatency - AvgLatencyNs,
+                                                            SquaredDifference = math:pow(Difference, 2),
+                                                            CurrSum + SquaredDifference
+                                                      end, 0, AllRecvEvents),
+                  VarianceNs = SumOfSquaredMeans / TotalMessages,
+                  VarianceMs = VarianceNs / 1000000.0,
+
+                  {ThisNode, TargetNode, OverallLatency, TotalMessages, AvgLatencyMs, VarianceMs}
       end.
 
 write_csv(Results) -> 
@@ -55,10 +68,10 @@ write_csv(Results) ->
 
       % Open file and write the results
       {ok, File} = file:open(FullPath, [write]),
-      io:format(File, "Receiver,Sender,SumTotalLatency,TotalMessagesRecv,AverageLatencyMs~n", []),
+      io:format(File, "Receiver,Sender,SumTotalLatency,TotalMessagesRecv,AverageLatencyMs,VarianceMs~n", []),
       lists:foreach(
-            fun({SourceNode, DestNode, OverallLatency, TotalMessages, AvgLatencyMs}) ->
-                  io:format(File, "~p,~p,~p,~p,~p~n",[SourceNode, DestNode, OverallLatency, TotalMessages, AvgLatencyMs])
+            fun({SourceNode, DestNode, OverallLatency, TotalMessages, AvgLatencyMs, VarianceMs}) ->
+                  io:format(File, "~p,~p,~p,~p,~p,~p~n",[SourceNode, DestNode, OverallLatency, TotalMessages, AvgLatencyMs, VarianceMs])
             end, Results),
       file:close(File), 
       ok.

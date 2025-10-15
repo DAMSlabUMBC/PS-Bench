@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mosquitto
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mosquitto
+  template:
+    metadata:
+      labels:
+        app: mosquitto
+    spec:
+      nodeSelector:
+        worker: "1"
+      containers:
+        - name: mosquitto
+          image: docker.io/library/mosquitto-with-exporter
+          imagePullPolicy: Never
+          ports:
+            - name: mqtt
+              containerPort: 1883
+            - name: metrics
+              containerPort: 9100
+          volumeMounts:
+            - name: config
+              mountPath: /mosquitto/config/mosquitto.conf
+              subPath: mosquitto.conf
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: mosquitto-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mosquitto
+spec:
+  selector:
+    app: mosquitto
+  ports:
+    - name: mosquitto
+      port: 1883
+      targetPort: 1883
+    - name: metrics
+      port: 9100
+      targetPort: 9100

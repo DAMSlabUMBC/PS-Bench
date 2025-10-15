@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: emqx
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: emqx
+  template:
+    metadata:
+      labels:
+        app: emqx
+    spec:
+      nodeSelector:
+        worker: "1"
+      containers:
+        - name: emqx
+          image: docker.io/library/emqx-with-exporter
+          imagePullPolicy: Never
+          ports:
+            - name: mqtt
+              containerPort: 1883
+            - name: metrics
+              containerPort: 9100
+          env:
+            - name: EMQX_FORCE_SHUTDOWN__ENABLE
+              value: "false"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: emqx
+spec:
+  selector:
+    app: emqx
+  ports:
+    - name: emqx
+      port: 1883
+      targetPort: 1883
+    - name: metrics
+      port: 9100
+      targetPort: 9100

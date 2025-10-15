@@ -1,6 +1,6 @@
-# PS-Bench Custom Protocol Interfaces
+# PSMark Custom Protocol Interfaces
 
-PS-Bench separates workload orchestration from protocol client implementations via adapters. You can provide custom interfaces for MQTT (Erlang) and DDS (NIF), and select them per-scenario.
+PSMark separates workload orchestration from protocol client implementations via adapters. You can provide custom interfaces for MQTT (Erlang) and DDS (NIF), and select them per-scenario.
 
 ## MQTT: Custom Erlang Client Interface
 Configure your module under `protocol_config.client_interface_module` in the scenario. Your module should be a `gen_server` with this contract (see `ps_bench_default_mqtt_interface` for a full reference implementation):

@@ -1,7 +1,7 @@
 ps_bench
 =====
 
-PS-Bench Erlang application. See the top-level `README.md` for an overview, configuration model, and how-tos for metric plugins and interfaces.
+PSMark Erlang application. See the top-level `README.md` for an overview, configuration model, and how-tos for metric plugins and interfaces.
 
 Build
 -----

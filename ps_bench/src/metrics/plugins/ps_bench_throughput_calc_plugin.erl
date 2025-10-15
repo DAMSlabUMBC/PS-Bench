@@ -97,5 +97,7 @@ write_csv(Results) ->
             fun({SourceNode, DestNode, DurationS, TotalMessages, Throughput, Variance}) ->
                   io:format(File, "~p,~p,~p,~p,~p,~p~n",[SourceNode, DestNode, DurationS, TotalMessages, Throughput, Variance])
             end, Results),
+      % Ensure data is written to disk; ignore errors on platforms where sync is not supported
+      _ = file:sync(File),
       file:close(File), 
       ok.

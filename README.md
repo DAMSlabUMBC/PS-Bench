@@ -1,6 +1,6 @@
-# PS-Bench
+# PSMark
 
-Pub/Sub Benchmark for Large-Scale IoT Deployments. PS-Bench orchestrates synthetic device workloads across one or more Erlang nodes, publishes and subscribes via pluggable protocol clients (MQTT v5/v3.1.1 and DDS included), and calculates metrics via a simple plugin system.
+Pub/Sub Benchmark for Large-Scale IoT Deployments. PSMark orchestrates synthetic device workloads across one or more Erlang nodes, publishes and subscribes via pluggable protocol clients (MQTT v5/v3.1.1 and DDS included), and calculates metrics via a simple plugin system.
 
 This repo contains the Erlang application, default protocol interfaces, example scenarios/devices/deployments, and Docker tooling to run locally or in distributed mode.
 
@@ -39,7 +39,14 @@ This repo contains the Erlang application, default protocol interfaces, example 
 - Default scenarios used by the compose files are the built-in scalability test suites. Override with `SCENARIO=<name>` or edit `ps_bench/.env`.
 - Distribution uses long names (`-name`) and a bridge network `benchnet` compose handles hostname wiring.
 
-There are no single-node compose experiments in this repo. All provided compose stacks run 5 benchmark runners.
+Single-node compose stacks live under `ps_bench/docker-compose.single.*.yml`; see the automation script below to run them in bulk.
+
+## Automated Single-Node Runs
+- MQTT (scalability): `./ps_bench/scripts/run-single-scalability-suite.sh` iterates the single-node scalability scenarios across `docker-compose.single.{emqx|mosquitto|nanomq|vernemq|mochi}.yml`, repeating each scenario three times by default (override with `REPEAT_COUNT=<n>`). Results are regrouped into broker folders under `ps_bench/results/<broker>/…`.
+- MQTT (QoS variation): `./ps_bench/scripts/run-single-qos-suite.sh` does the same for the QoS variation scenarios with the same knobs (`BROKER_LIST`, `SCEN_FILTER`, `REPEAT_COUNT`).
+- DDS: `./ps_bench/scripts/run-single-dds-suite.sh` walks the DDS scenarios from both suites with `docker-compose.single.dds.yml`, repeating each scenario three times by default (override with `REPEAT_COUNT=<n>`). Results land under `ps_bench/results/dds/<suite>/…`, keeping MQTT and DDS runs separate.
+- All scripts honour `RUN_TAG` (default is scenario-based) and rely on the compose files’ overridable `SCEN_DIR`/`SCENARIO` environment variables if you need to point at custom configs.
+- Each run blocks until the compose stack exits; interrupting a script tears down the active stack automatically.
 
 ## Configuration Model (files under `ps_bench/configs`)
 - Devices (`*.device`): defines device type payload size, frequency, disconnect/reconnect behavior.

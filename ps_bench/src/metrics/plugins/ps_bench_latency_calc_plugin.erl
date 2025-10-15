@@ -49,7 +49,7 @@ calculate_pairwise_latency_for_one_node(ThisNode, TargetNode) ->
                   {ThisNode, TargetNode, OverallLatency, TotalMessages, AvgLatencyMs}
       end.
 
-write_csv(Results) -> 
+write_csv(Results) ->
       OutDir = persistent_term:get({?MODULE, out_dir}),
       FullPath = filename:join(OutDir, "latency.csv"),
 
@@ -60,5 +60,7 @@ write_csv(Results) ->
             fun({SourceNode, DestNode, OverallLatency, TotalMessages, AvgLatencyMs}) ->
                   io:format(File, "~p,~p,~p,~p,~p~n",[SourceNode, DestNode, OverallLatency, TotalMessages, AvgLatencyMs])
             end, Results),
-      file:close(File), 
+      % Ensure data is written to disk; ignore errors on platforms where sync is not supported
+      _ = file:sync(File),
+      file:close(File),
       ok.

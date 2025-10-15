@@ -217,6 +217,8 @@ calculate_and_write_local_stats(OutFile) ->
       {ok, File} = file:open(OutFile, [write]),
       io:format(File, "Node,AverageCPUUsage,AverageMemoryUsage~n", []),
       io:format(File, "~p,~p,~p~n",[NodeName, AvgCpuUsage, AvgMemUsage]),
+      % Ensure data is written to disk; ignore errors on platforms where sync is not supported
+      _ = file:sync(File),
       file:close(File).
 
 calculate_and_write_broker_stats(OutFile) ->
@@ -227,4 +229,6 @@ calculate_and_write_broker_stats(OutFile) ->
       {ok, File} = file:open(OutFile, [write]),
       io:format(File, "Node,AverageCPUUsage,AverageMemoryUsage~n", []),
       io:format(File, "broker,~p,~p~n",[AvgCpuUsage, AvgMemUsage]),
+      % Ensure data is written to disk; ignore errors on platforms where sync is not supported
+      _ = file:sync(File),
       file:close(File).

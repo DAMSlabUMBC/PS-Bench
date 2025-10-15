@@ -1,6 +1,6 @@
-# PS-Bench Built In Test Cases
+# PSMark Built In Test Cases
 
-PS-Bench provides built in test cases which benchmark four real-world datasets across three categories of scenarios. Each test case is designed to distribute the dataset across five benchmark runners (representing data aggregation gateways).
+PSMark provides built in test cases which benchmark four real-world datasets across three categories of scenarios. Each test case is designed to distribute the dataset across five benchmark runners (representing data aggregation gateways).
 
 One scenario and five configuration files are provided for each test case described in [Scenarios](#scenarios). For each test case, the hostnames of the runners must be configured in the scenario file. If using MQTT, the broker IP or hostname must also be configured. Each runner should be started with the config files provided in the test case and executed from the top level directory in this repository.
 

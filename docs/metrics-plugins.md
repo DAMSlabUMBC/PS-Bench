@@ -1,9 +1,9 @@
-# PS-Bench Metric Plugins (Erlang)
+# PSMark Metric Plugins (Erlang)
 
 This guide shows how to create and register Erlang-based metric plugins. Python plugins are scaffolded in the codebase but disabled by default; use Erlang for now.
 
 ## Plugin Lifecycle
-- PS-Bench creates a per-run, timestamped output directory under the base `output_dir` (default `results/`). Example: `results/run_20240908_153010_mqtt_single_node_light_runner1/`.
+- PSMark creates a per-run, timestamped output directory under the base `output_dir` (default `results/`). Example: `results/run_20240908_153010_mqtt_single_node_light_runner1/`.
 - The metric manager calls `Module:init(OutDir)` once per run, where `OutDir` is that per-run directory. Use it to initialize state or remember `OutDir` (often via `persistent_term`).
 - After the scenario completes, the metric manager calls `Module:calc()` for each registered plugin. Do your analysis and write outputs (e.g., CSV) in `calc/0`.
 

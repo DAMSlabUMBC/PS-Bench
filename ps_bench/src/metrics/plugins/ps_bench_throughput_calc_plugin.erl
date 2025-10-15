@@ -56,7 +56,7 @@ calculate_pairwise_throughput_for_one_node(ThisNode, TargetNode) ->
                   {ThisNode, TargetNode, DurationS, TotalMessages, Throughput}
       end.
 
-write_csv(Results) -> 
+write_csv(Results) ->
       OutDir = persistent_term:get({?MODULE, out_dir}),
       FullPath = filename:join(OutDir, "throughput.csv"),
 
@@ -67,5 +67,7 @@ write_csv(Results) ->
             fun({SourceNode, DestNode, DurationS, TotalMessages, Throughput}) ->
                   io:format(File, "~p,~p,~p,~p,~p~n",[SourceNode, DestNode, DurationS, TotalMessages, Throughput])
             end, Results),
-      file:close(File), 
+      % Ensure data is written to disk; ignore errors on platforms where sync is not supported
+      _ = file:sync(File),
+      file:close(File),
       ok.

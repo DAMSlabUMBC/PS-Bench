@@ -1,0 +1,54 @@
+networks:
+  benchnet:
+    driver: bridge
+
+services:
+  dams-mosquitto:
+    build:
+      context: .
+      dockerfile: Dockerfile.dams-mosquitto
+    image: dams-mosquitto-with-exporter
+    container_name: dams-mosquitto
+    hostname: dams-mosquitto
+    domainname: benchnet
+    networks:
+      benchnet:
+        aliases: ["dams-mosquitto", "mqtt", "broker"]
+    ports: ["1883:1883"]
+    volumes:
+      - ./mosquitto.dams.conf:/mosquitto/config/mosquitto.conf:ro
+    healthcheck:
+      test: ["CMD-SHELL","nc -z 127.0.0.1 1883"]
+      interval: 15s
+      timeout: 1s
+      retries: 20
+      start_period: 5s
+
+  runnerMQTT1:
+    image: ps_bench-runner:latest
+    container_name: runnerMQTT1
+    hostname: runnerMQTT1
+    domainname: benchnet
+    networks:
+      benchnet:
+        aliases:
+          - runnerMQTT1.benchnet
+    environment:
+      DIST_MODE: name
+      NODE_BASE: runner1
+      NODE_HOST_OVERRIDE: ${NODE1_HOST_OVERRIDE:-}
+      BROKER_HOST: dams-mosquitto
+      BROKER_PORT: 1883
+      ADD_NODE_TO_SUFFIX: ${ADD_NODE_TO_SUFFIX:-false}
+      RELEASE_COOKIE: ${RELEASE_COOKIE:-ps_bench_cookie}
+      RUN_TAG: ${RUN_TAG:-mqttdap_test}
+      SCEN_DIR: /app/configs/mqttdap/scenarios
+      DEVICE_DIR: /app/configs/mqttdap/devices
+      DEPLOY_DIR: /app/configs/mqttdap/deployments
+      SCENARIO: ${SCENARIO:-factory_logistics_pbac_test}
+    volumes:
+      - ./out/runnerMQTT1:/app/out
+      - ./results:/app/results
+    depends_on:
+      dams-mosquitto:
+        condition: service_healthy

@@ -1,0 +1,11 @@
+[
+    {name, smart_city_1node},
+    {nodes, [
+        {runner1, [
+            {devices, [
+                {smart_city_sensor, 5},
+                {subscriber, 4}
+            ]}
+        ]}
+    ]}
+].

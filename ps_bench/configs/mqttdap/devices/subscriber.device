@@ -1,0 +1,14 @@
+% Subscriber device (purpose set per-instance in scenario)
+{type, subscriber}.
+{subscribe_topics, ["factory/+/production", "city/+/data"]}.
+{subscribe_qos, 1}.
+{subscription_purpose_filter, "default-purpose"}.
+{disconnect_check_period_ms, 10000}.
+{disconnect_chance_pct, 0.01}.
+{reconnect_check_period_ms, 3000}.
+{reconnect_chance_pct, 0.9}.
+{track_message_count, true}.
+{message_count_report_interval_ms, 5000}.
+{operations_enabled, true}.
+{operation_response_delay_ms, 100}.
+

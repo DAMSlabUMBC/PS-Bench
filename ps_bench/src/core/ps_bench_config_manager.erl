@@ -8,8 +8,9 @@
 % Retrieval exports
 -export([fetch_node_name/0, fetch_selected_scenario/0, fetch_scenario_duration/0, fetch_deployment_name/0, fetch_node_name_list/0,
     fetch_host_for_node_name/1, fetch_host_for_node_name/2, fetch_rng_seed_for_node/1, fetch_node_list/0, fetch_protocol_type/0, fetch_devices_for_this_node/0,
-    fetch_device_publication_frequency/1, fetch_device_payload_info/1, fetch_device_disconnect_info/1, 
-    fetch_device_reconnect_info/1]).
+    fetch_device_publication_frequency/1, fetch_device_payload_info/1, fetch_device_disconnect_info/1,
+    fetch_device_reconnect_info/1, fetch_device_message_purpose/1, fetch_device_subscription_purpose/1,
+    fetch_scenario_purpose_mapping/0]).
 
 % MQTT exports
 -export([fetch_mqtt_client_module/0, fetch_mqtt_broker_information/0, fetch_mqtt_default_qos/0, fetch_mqtt_qos_for_device/1]).
@@ -623,6 +624,19 @@ fetch_device_reconnect_info(DeviceType) ->
     {ok, PeriodMs} = fetch_property_for_device(DeviceType, ?DEVICE_RECON_CHECK_MS_PROP),
     {ok, Pct} = fetch_property_for_device(DeviceType, ?DEVICE_RECON_PCT_PROP),
     {ok, PeriodMs, Pct}.
+
+%% Get message purpose from device config (for publishers)
+fetch_device_message_purpose(DeviceType) ->
+    fetch_property_for_device(DeviceType, ?DEVICE_MESSAGE_PURPOSE_PROP).
+
+%% Get subscription purpose from device config (for subscribers)
+fetch_device_subscription_purpose(DeviceType) ->
+    fetch_property_for_device(DeviceType, ?DEVICE_SUBSCRIPTION_PURPOSE_PROP).
+
+%% Get purpose mapping list from scenario config
+fetch_scenario_purpose_mapping() ->
+    {ok, ScenarioName} = fetch_selected_scenario(),
+    fetch_property_for_scenario(ScenarioName, ?SCENARIO_PURPOSE_MAPPING_PROP, undefined).
 
 
 fetch_property_for_scenario(ScenarioName, PropName) ->

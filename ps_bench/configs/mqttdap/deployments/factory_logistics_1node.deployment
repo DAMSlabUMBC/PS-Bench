@@ -1,0 +1,11 @@
+[
+    {name, factory_logistics_1node},
+    {nodes, [
+        {runner1, [
+            {devices, [
+                {factory_sensor, 5},
+                {subscriber, 3}
+            ]}
+        ]}
+    ]}
+].

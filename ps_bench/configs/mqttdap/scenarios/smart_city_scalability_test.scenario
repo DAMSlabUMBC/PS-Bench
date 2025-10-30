@@ -1,0 +1,62 @@
+[
+    {name, smart_city_scalability_test},
+    {duration, {20, minutes}},
+    {protocol, mqttv5},
+    {deployment_name, smart_city_1node},
+    {hosts,
+    [
+        {runner1,
+        [
+            {hostname, 'REPLACE_RUNNER1_HOSTNAME'}
+        ]}
+    ]},
+
+    {protocol_config,
+    [
+        {client_interface_module, ps_bench_mqttdap_interface},
+        {broker, "REPLACE_BROKER_IP"},
+        {port, 1883},
+        {qos, [{default_qos, 0}]},
+
+        % Smart city purpose mappings
+        {purpose_mapping,
+        [
+            % City sensors
+            {smart_city_sensor, [{message_purpose, "city-operations/{transportation,energy,.}"}]},
+
+            % Authorized departments
+            {subscriber_01, [
+                {subscription_purpose, "city-operations/transportation"},
+                {expected_data_sources, [smart_city_sensor]}
+            ]},
+            {subscriber_02, [
+                {subscription_purpose, "city-operations/energy"},
+                {expected_data_sources, [smart_city_sensor]}
+            ]},
+            {subscriber_03, [
+                {subscription_purpose, "city-operations"},
+                {expected_data_sources, [smart_city_sensor]}
+            ]},
+
+            % Unauthorized department (should be blocked)
+            {subscriber_04, [
+                {subscription_purpose, "public-safety"},
+                {expected_data_sources, []}
+            ]}
+        ]}
+    ]},
+
+    {metric_config,
+    [
+        {output_dir, "results"},
+        {hw_stats_poll_period_ms, 2000},
+        {metric_plugins, [
+            {ps_bench_pbac_correctness_plugin, erlang},
+            {ps_bench_operational_coverage_plugin, erlang},
+            {ps_bench_throughput_calc_plugin, erlang},
+            {ps_bench_latency_calc_plugin, erlang},
+            {ps_bench_dropped_message_calc_plugin, erlang}
+        ]}
+    ]}
+].
+

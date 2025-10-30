@@ -1,0 +1,68 @@
+[
+    {name, factory_logistics_pbac_test},
+    {duration, {10, minutes}},
+    {protocol, mqttv5},
+    {deployment_name, factory_logistics_1node},
+    {hosts,
+    [
+        {runner1,
+        [
+            {hostname, 'REPLACE_RUNNER1_HOSTNAME'}
+        ]}
+    ]},
+
+    {protocol_config,
+    [
+        {client_interface_module, ps_bench_mqttdap_interface},
+        {broker, "REPLACE_BROKER_IP"},
+        {port, 1883},
+        {qos, [{default_qos, 1}]},
+
+        % Purpose mappings for PBAC testing
+        {purpose_mapping,
+        [
+            % Publishers
+            {factory_sensor, [{message_purpose, "production-metrics/{output,quality,.}"}]},
+
+            % Authorized subscribers
+            {subscriber_01, [
+                {subscription_purpose, "production-metrics/quality"},
+                {expected_data_sources, [factory_sensor]}
+            ]},
+            {subscriber_02, [
+                {subscription_purpose, "production-metrics"},
+                {expected_data_sources, [factory_sensor]}
+            ]},
+
+            % Unauthorized subscriber (should be blocked)
+            {subscriber_03, [
+                {subscription_purpose, "inventory-tracking"},
+                {expected_data_sources, []}
+            ]}
+        ]},
+
+        % GDPR compliance operations
+        {operations_config, [
+            {c1_operations_enabled, true},
+            {c1_registration_interval_ms, 30000},
+            {c2_operations_enabled, true},
+            {c2_trigger_after_messages, 100},
+            {c3_operations_enabled, true},
+            {c3_trigger_probability, 0.01}
+        ]}
+    ]},
+
+    {metric_config,
+    [
+        {output_dir, "results"},
+        {hw_stats_poll_period_ms, 1000},
+        {metric_plugins, [
+            {ps_bench_pbac_correctness_plugin, erlang},
+            {ps_bench_operational_coverage_plugin, erlang},
+            {ps_bench_throughput_calc_plugin, erlang},
+            {ps_bench_latency_calc_plugin, erlang},
+            {ps_bench_dropped_message_calc_plugin, erlang}
+        ]}
+    ]}
+].
+

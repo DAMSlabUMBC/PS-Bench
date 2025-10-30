@@ -1,0 +1,10 @@
+% Smart city sensor for transportation and energy data
+{type, smart_city_sensor}.
+{publication_frequency_ms, 2000}.
+{payload_bytes_mean, 384}.
+{payload_bytes_variance, 150}.
+{disconnect_check_period_ms, 8000}.
+{disconnect_chance_pct, 0.05}.
+{reconnect_check_period_ms, 3000}.
+{reconnect_chance_pct, 0.75}.
+{message_purpose_filter, "city-operations/{transportation,energy,.}"}.

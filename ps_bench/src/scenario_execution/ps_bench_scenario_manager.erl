@@ -10,10 +10,13 @@
 
 % Currently we only support one scenario a run
 initialize_scenario() ->
-    
+
     {ok, ScenarioName} = ps_bench_config_manager:fetch_selected_scenario(),
     ps_bench_utils:log_state_change("Initializing Scenario: ~p", [ScenarioName]),
-    
+
+    % Load MQTT-DAP purpose mappings before spawning clients
+    load_purpose_mappings_from_scenario(),
+
     initialize_clients(),
     print_clients(),
     connect_clients(),
@@ -152,3 +155,17 @@ print_clients() ->
     ps_bench_utils:log_state_change("All Clients"),
     PrintFunction = fun({ClientName, ClientPid}) -> ps_bench_utils:log_message("~p - ~p", [ClientName, ClientPid]) end,
     lists:foreach(PrintFunction, ClientList).
+
+%% Load MQTT-DAP purpose mappings from scenario (if present)
+load_purpose_mappings_from_scenario() ->
+    case ps_bench_config_manager:fetch_scenario_purpose_mapping() of
+        {ok, PurposeMappings} when PurposeMappings =/= undefined, PurposeMappings =/= [] ->
+            ps_bench_purpose_store:init(),
+            ps_bench_pbac_correctness_plugin:load_purpose_mappings(PurposeMappings),
+            MappingCount = length(PurposeMappings),
+            ps_bench_utils:log_message("MQTT-DAP: Loaded ~p purpose mappings from scenario", [MappingCount]),
+            ok;
+        _ ->
+            ps_bench_utils:log_message("MQTT-DAP: No purpose mappings found in scenario (not using MQTT-DAP)"),
+            ok
+    end.

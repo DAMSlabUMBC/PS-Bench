@@ -37,6 +37,9 @@ init([TestName, InterfaceName, ClientName, DeviceType]) ->
     {ok, _Pid} = ServerMod:start_link(TestName, ServerName, self()),
     ServerRef   = ServerName,
 
+    % Set MQTT-DAP purposes on the interface (if configured)
+    configure_client_purposes(ServerRef, ClientName, DeviceType),
+
     Tid = ensure_subs_table(),
     {ok, #{ test_name        => TestName
           , device_type      => DeviceType
@@ -47,12 +50,118 @@ init([TestName, InterfaceName, ClientName, DeviceType]) ->
           , tid              => Tid
           }}.
 
-%% helpers 
+%% helpers
 
 ensure_subs_table() ->
     case ets:whereis(?SUBSCRIPTION_ETS_TABLE_NAME) of
         undefined -> ets:new(?SUBSCRIPTION_ETS_TABLE_NAME, [set, public, named_table]);
         Tid       -> Tid
+    end.
+
+%% Set MQTT-DAP purposes on client during init
+configure_client_purposes(ServerRef, ClientName, DeviceType) ->
+    ClientNameBin = ps_bench_utils:convert_to_binary(ClientName),
+
+    case DeviceType of
+        subscriber ->
+            % Set subscription purpose (SP) if configured
+            case get_subscription_purpose_for_client(ClientNameBin, DeviceType) of
+                {ok, SP} ->
+                    catch gen_server:call(ServerRef, {set_subscription_purpose, SP}),
+                    ok;
+                {error, _} ->
+                    ok
+            end;
+        _ ->
+            % Set message purpose (MP) if configured
+            case get_message_purpose_for_client(ClientNameBin, DeviceType) of
+                {ok, MP} ->
+                    catch gen_server:call(ServerRef, {set_message_purpose, MP}),
+                    ok;
+                {error, _} ->
+                    ok
+            end
+    end.
+
+%% Get MP for publisher - tries 4 fallback strategies:
+%% 1. Exact: "runner1_factory_sensor_1"
+%% 2. Simplified: "factory_sensor_01" (strip node, zero-pad)
+%% 3. Device type: "factory_sensor"
+%% 4. Device config fallback
+get_message_purpose_for_client(ClientNameBin, DeviceType) ->
+    case ps_bench_purpose_store:get_message_purpose(ClientNameBin) of
+        {ok, MP} ->
+            {ok, MP};
+        {error, not_found} ->
+            SimplifiedName = extract_simplified_client_name(ClientNameBin),
+            case ps_bench_purpose_store:get_message_purpose(SimplifiedName) of
+                {ok, MP} ->
+                    {ok, MP};
+                {error, not_found} ->
+                    DeviceTypeBin = atom_to_binary(DeviceType, utf8),
+                    case ps_bench_purpose_store:get_message_purpose(DeviceTypeBin) of
+                        {ok, MP} ->
+                            {ok, MP};
+                        {error, not_found} ->
+                            case ps_bench_config_manager:fetch_device_message_purpose(DeviceType) of
+                                {ok, MP} when MP =/= undefined ->
+                                    {ok, MP};
+                                _ ->
+                                    {error, no_message_purpose_configured}
+                            end
+                    end
+            end
+    end.
+
+%% Get SP for subscriber - same fallback strategy
+get_subscription_purpose_for_client(ClientNameBin, DeviceType) ->
+    case ps_bench_purpose_store:get_subscription_purpose(ClientNameBin) of
+        {ok, SP} ->
+            {ok, SP};
+        {error, not_found} ->
+            SimplifiedName = extract_simplified_client_name(ClientNameBin),
+            case ps_bench_purpose_store:get_subscription_purpose(SimplifiedName) of
+                {ok, SP} ->
+                    {ok, SP};
+                {error, not_found} ->
+                    DeviceTypeBin = atom_to_binary(DeviceType, utf8),
+                    case ps_bench_purpose_store:get_subscription_purpose(DeviceTypeBin) of
+                        {ok, SP} ->
+                            {ok, SP};
+                        {error, not_found} ->
+                            case ps_bench_config_manager:fetch_device_subscription_purpose(DeviceType) of
+                                {ok, SP} when SP =/= undefined ->
+                                    {ok, SP};
+                                _ ->
+                                    {error, no_subscription_purpose_configured}
+                            end
+                    end
+            end
+    end.
+
+%% Strip node prefix and zero-pad index
+%% "runner1_factory_sensor_1" -> "factory_sensor_01"
+extract_simplified_client_name(ClientNameBin) ->
+    ClientNameStr = binary_to_list(ClientNameBin),
+    Parts = string:split(ClientNameStr, "_", all),
+    case Parts of
+        [_NodeName | DeviceParts] ->
+            case lists:reverse(DeviceParts) of
+                [IndexStr | RestReversed] ->
+                    case string:to_integer(IndexStr) of
+                        {Index, ""} when Index < 10 ->
+                            % Zero-pad single digits
+                            PaddedIndex = lists:flatten(io_lib:format("~2.10.0B", [Index])),
+                            Reconstructed = string:join(lists:reverse(RestReversed) ++ [PaddedIndex], "_"),
+                            list_to_binary(Reconstructed);
+                        _ ->
+                            list_to_binary(string:join(DeviceParts, "_"))
+                    end;
+                _ ->
+                    ClientNameBin
+            end;
+        _ ->
+            ClientNameBin
     end.
 
 % For direct commands, we just forward these messages to the actual client

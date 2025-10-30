@@ -5,8 +5,8 @@ networks:
 services:
   dams-mosquitto:
     build:
-      context: .
-      dockerfile: Dockerfile.dams-mosquitto
+      context: ../dams-mosquitto
+      dockerfile: ../ps_bench/Dockerfile.dams-mosquitto
     image: dams-mosquitto-with-exporter
     container_name: dams-mosquitto
     hostname: dams-mosquitto

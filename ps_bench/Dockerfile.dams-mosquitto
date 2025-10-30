@@ -22,10 +22,10 @@ RUN apt-get update && apt-get install -y \
  && rm -rf /var/lib/apt/lists/*
 
 # Set working directory to project root
-WORKDIR /opt/mqtt_brokers/dams-mosquitto
+WORKDIR /ps_bench/dams-mosquitto
 
 # Copy the entire repository into the container
-COPY . /opt/mqtt_brokers/dams-mosquitto
+COPY .. /ps_bench/dams-mosquitto/
 
 # Build the broker with LTO disabled and ENGINE_cleanup disabled
 RUN cmake -DWITH_LTO=OFF \

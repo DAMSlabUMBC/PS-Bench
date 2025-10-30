@@ -1,0 +1,68 @@
+ifeq ($(WITH_ADNS),yes)
+	LOCAL_LDADD+=-lanl
+	LOCAL_CPPFLAGS+=-DWITH_ADNS
+endif
+
+ifeq ($(WITH_BRIDGE),yes)
+	LOCAL_CPPFLAGS+=-DWITH_BRIDGE
+endif
+
+ifeq ($(WITH_CONTROL),yes)
+	LOCAL_CPPFLAGS+=-DWITH_CONTROL
+endif
+
+ifeq ($(WITH_EC),yes)
+	LOCAL_CPPFLAGS+=-DWITH_EC
+endif
+
+ifeq ($(WITH_EPOLL),yes)
+	ifeq ($(UNAME),Linux)
+		LOCAL_CPPFLAGS+=-DWITH_EPOLL
+	endif
+endif
+
+ifeq ($(WITH_MEMORY_TRACKING),yes)
+	ifneq ($(UNAME),SunOS)
+		LOCAL_CPPFLAGS+=-DWITH_MEMORY_TRACKING
+	endif
+endif
+
+ifeq ($(WITH_OLD_KEEPALIVE),yes)
+	LOCAL_CPPFLAGS+=-DWITH_OLD_KEEPALIVE
+endif
+
+ifeq ($(WITH_PERSISTENCE),yes)
+	LOCAL_CPPFLAGS+=-DWITH_PERSISTENCE
+endif
+
+ifeq ($(WITH_SYS_TREE),yes)
+	LOCAL_CPPFLAGS+=-DWITH_SYS_TREE
+endif
+
+ifeq ($(WITH_SYSTEMD),yes)
+	LOCAL_CPPFLAGS+=-DWITH_SYSTEMD
+	LOCAL_LDADD+=-lsystemd
+endif
+
+ifeq ($(WITH_THREADING),yes)
+	LOCAL_CFLAGS+=-pthread
+	LOCAL_LDFLAGS+=-pthread
+endif
+
+ifeq ($(WITH_TLS),yes)
+	LOCAL_LDADD+=-lssl -lcrypto
+endif
+
+ifeq ($(WITH_WEBSOCKETS),lws)
+	LOCAL_CPPFLAGS+=-DWITH_WEBSOCKETS=WS_IS_LWS
+	LOCAL_LDADD+=-lwebsockets
+endif
+
+ifeq ($(WITH_WRAP),yes)
+	LOCAL_LDADD+=-lwrap
+	LOCAL_CPPFLAGS+=-DWITH_WRAP
+endif
+
+ifeq ($(WITH_XTREPORT),yes)
+	LOCAL_CPPFLAGS+=-DWITH_XTREPORT
+endif

@@ -1,0 +1,47 @@
+name: Mosquitto - Make
+
+on:
+  push:
+    branches:
+      - develop
+      - fixes
+  pull_request:
+    branches:
+      - develop
+      - fixes
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+    - name: Install third party dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          docbook-xsl \
+          lcov \
+          libargon2-dev \
+          libc-ares-dev \
+          libcjson-dev \
+          libcjson1 \
+          libcunit1-dev \
+          libssl-dev \
+          libwrap0-dev \
+          microsocks \
+          python3-all \
+          python3-paho-mqtt \
+          python3-psutil \
+          uthash-dev \
+          xsltproc
+    -
+      uses: actions/checkout@v4
+      with:
+        submodules: 'true'
+    -
+      name: make
+      run: make
+    -
+      name: make test
+      run: |
+        make ptest

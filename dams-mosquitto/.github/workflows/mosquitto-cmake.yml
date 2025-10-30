@@ -1,0 +1,51 @@
+name: Mosquitto - CMake
+
+on:
+  push:
+    branches:
+      - develop
+      - fixes
+  pull_request:
+    branches:
+      - develop
+      - fixes
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+    - name: Install third party dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          docbook-xsl \
+          lcov \
+          libargon2-dev \
+          libc-ares-dev \
+          libcjson-dev \
+          libcjson1 \
+          libcunit1-dev \
+          libssl-dev \
+          libwrap0-dev \
+          microsocks \
+          python3-all \
+          python3-paho-mqtt \
+          python3-psutil \
+          uthash-dev \
+          xsltproc
+
+    - uses: actions/checkout@v4
+
+    - run: cmake -E make_directory build
+
+    - run: |
+        cmake \
+          -DCMAKE_BUILD_TYPE=Debug \
+          -S . \
+          -B build
+
+    - run: cmake --build build --parallel $(nproc)
+
+    - working-directory: build/
+      run: ctest --output-on-failure --repeat until-pass:5

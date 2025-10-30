@@ -16,9 +16,9 @@ services:
         aliases: ["dams-mosquitto", "mqtt", "broker"]
     ports: ["1883:1883"]
     volumes:
-      - ./mosquitto.dams.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./mosquitto.dams.conf:/etc/mosquitto/mosquitto.conf:ro
     healthcheck:
-      test: ["CMD-SHELL","nc -z 127.0.0.1 1883"]
+      test: ["CMD-SHELL", "pgrep mosquitto || exit 1"]
       interval: 15s
       timeout: 1s
       retries: 20

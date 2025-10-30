@@ -1,74 +1,33 @@
-# Multi-stage build for DAMS-Mosquitto
-# Stage 1: Clone the DAMS-Mosquitto repository
-FROM alpine/git:latest as clone
-RUN git clone --depth 1 --branch develop https://github.com/DAMSlabUMBC/dams-mosquitto.git /dams-mosquitto
+# Build DAMS-Mosquitto using make, then add node_exporter
+FROM ubuntu:20.04
 
-# Stage 2: Build using DAMS-Mosquitto's Dockerfile
-FROM ubuntu:22.04 as builder
+ENV DEBIAN_FRONTEND=noninteractive
 
-# Install build dependencies
 RUN apt-get update && apt-get install -y \
-    build-essential \
-    cmake \
-    git \
-    libssl-dev \
-    libcjson-dev \
-    libwebsockets-dev \
-    libc-ares-dev \
-    uuid-dev \
-    xsltproc \
-    docbook-xsl \
-    wget \
-    && rm -rf /var/lib/apt/lists/*
+    git make build-essential libssl-dev ca-certificates \
+    libcjson-dev libargon2-dev libsqlite3-dev pkg-config \
+    libcunit1-dev xsltproc docbook-xsl wget \
+ && rm -rf /var/lib/apt/lists/*
 
-# Copy the cloned repository
-COPY --from=clone /dams-mosquitto /dams-mosquitto
+WORKDIR /opt/mqtt_brokers/dams-mosquitto
+RUN git clone --depth 1 --branch develop https://github.com/DAMSlabUMBC/dams-mosquitto.git . && \
+    make && \
+    make install && \
+    mkdir -p /etc/mosquitto && \
+    cp mosquitto.conf /etc/mosquitto/mosquitto.conf
 
-# Build DAMS-Mosquitto
-WORKDIR /dams-mosquitto
-RUN cmake -DWITH_WEBSOCKETS=ON -DWITH_CJSON=ON . && \
-    make -j$(nproc) && \
-    make install
-
-# Stage 3: Runtime image
-FROM ubuntu:22.04
-
-# Install runtime dependencies
-RUN apt-get update && apt-get install -y \
-    libssl3 \
-    libcjson1 \
-    libwebsockets17 \
-    libc-ares2 \
-    uuid-runtime \
-    netcat \
-    wget \
-    tar \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy DAMS-Mosquitto binaries from builder
-COPY --from=builder /usr/local/sbin/mosquitto /usr/sbin/mosquitto
-COPY --from=builder /usr/local/lib/libmosquitto* /usr/lib/
-COPY --from=builder /usr/local/include/mosquitto* /usr/include/
-RUN ldconfig
-
-# Install node_exporter for metrics collection
+# Add node_exporter for metrics
 RUN wget https://github.com/prometheus/node_exporter/releases/download/v1.8.2/node_exporter-1.8.2.linux-amd64.tar.gz && \
     tar -xzf node_exporter-1.8.2.linux-amd64.tar.gz && \
     mv node_exporter-1.8.2.linux-amd64/node_exporter /usr/local/bin/ && \
     rm -rf node_exporter-1.8.2.linux-amd64*
 
-# Create mosquitto directories
-RUN mkdir -p /mosquitto/config /mosquitto/data /mosquitto/log && \
-    chmod -R 755 /mosquitto
-
-# Create startup script that runs both node_exporter and mosquitto
+# Wrapper script to run both node_exporter and mosquitto
 RUN echo '#!/bin/bash' > /entrypoint.sh && \
-    echo '# Start node_exporter in background with redirected output' >> /entrypoint.sh && \
     echo 'node_exporter > /dev/null 2>&1 &' >> /entrypoint.sh && \
-    echo '# Start DAMS-Mosquitto in foreground' >> /entrypoint.sh && \
-    echo 'exec /usr/sbin/mosquitto -c /mosquitto/config/mosquitto.conf' >> /entrypoint.sh && \
+    echo 'exec /usr/local/sbin/mosquitto -c /etc/mosquitto/mosquitto.conf' >> /entrypoint.sh && \
     chmod +x /entrypoint.sh
 
 EXPOSE 1883
 
-ENTRYPOINT ["/entrypoint.sh"]
+CMD ["/entrypoint.sh"]

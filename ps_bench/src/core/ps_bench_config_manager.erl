@@ -132,11 +132,25 @@ load_device_definitions(DirPath) ->
 
 process_device_definition(Def) ->
 
+    % Get device type to determine required keys
+    Type = proplists:get_value(?DEVICE_TYPE_PROP, Def),
+
+    % Subscriber devices don't need publication fields
+    RequiredKeys = case Type of
+        subscriber ->
+            % Subscribers only need type and connection management fields
+            [?DEVICE_TYPE_PROP, ?DEVICE_DISCON_CHECK_MS_PROP, ?DEVICE_DISCON_PCT_PROP,
+             ?DEVICE_RECON_CHECK_MS_PROP, ?DEVICE_RECON_PCT_PROP];
+        _ ->
+            % Publishers need all standard fields
+            ?DEVICE_KEY_LIST
+    end,
+
     % Validate needed keys are here
     PropListKeys = proplists:get_keys(Def),
-    ExtraKeys = PropListKeys -- ?DEVICE_KEY_LIST,
-    MissingKeys = ?DEVICE_KEY_LIST -- PropListKeys,
-    
+    ExtraKeys = PropListKeys -- RequiredKeys,
+    MissingKeys = RequiredKeys -- PropListKeys,
+
     % Having extra keys is just a warning, disregard return of the case
     case ExtraKeys of
         [] -> ok;
@@ -146,8 +160,7 @@ process_device_definition(Def) ->
     % Missing keys is fatal
     case MissingKeys of
         [] ->
-            % Store proplist in persistent_term since it won't be edited 
-            Type = proplists:get_value(?DEVICE_TYPE_PROP, Def),
+            % Store proplist in persistent_term since it won't be edited
             persistent_term:put({?MODULE, Type}, Def);
         _ ->
             Reason = io_lib:format("Missings key(s) ~p in definition.", [MissingKeys]),
@@ -318,7 +331,8 @@ process_mqtt_config(ProtocolProps, ProtocolVersion, ScenarioName) ->
     % Validate needed keys are here
     PropListKeys = proplists:get_keys(ProtocolProps),
     NonReqKeys = PropListKeys -- ?MQTT_REQ_KEY_LIST,
-    ExtraKeys = NonReqKeys -- [?MQTT_CLIENT_INTERFACE_MODULE_PROP, ?MQTT_QOS_PROP],
+    ExtraKeys = NonReqKeys -- [?MQTT_CLIENT_INTERFACE_MODULE_PROP, ?MQTT_QOS_PROP,
+                                ?MQTT_PURPOSE_MAPPING_PROP, ?MQTT_OPERATIONS_CONFIG_PROP],
     MissingKeys = ?MQTT_REQ_KEY_LIST -- PropListKeys,
 
     % Having extra keys is just a warning, disregard return of the case
@@ -330,8 +344,14 @@ process_mqtt_config(ProtocolProps, ProtocolVersion, ScenarioName) ->
     % Missing keys is fatal
     case MissingKeys of
         [] ->
-            % Store proplist in persistent_term since it won't be edited 
-            persistent_term:put({?MODULE, ScenarioName, ProtocolVersion}, ProtocolProps);
+            % Store proplist in persistent_term since it won't be edited
+            persistent_term:put({?MODULE, ScenarioName, ProtocolVersion}, ProtocolProps),
+            % Log if purpose_mapping is provided (will be loaded during scenario init)
+            case proplists:get_value(?MQTT_PURPOSE_MAPPING_PROP, ProtocolProps) of
+                undefined -> ok;
+                PurposeMapping ->
+                    ps_bench_utils:log_message("\tMQTT-DAP: Found ~p purpose mappings (will load during scenario init)", [length(PurposeMapping)])
+            end;
         _ ->
             Reason = io_lib:format("Missings key(s) ~p in MQTT properties.", [MissingKeys]),
             {error, Reason}
@@ -635,8 +655,8 @@ fetch_device_subscription_purpose(DeviceType) ->
 
 %% Get purpose mapping list from scenario config
 fetch_scenario_purpose_mapping() ->
-    {ok, ScenarioName} = fetch_selected_scenario(),
-    fetch_property_for_scenario(ScenarioName, ?SCENARIO_PURPOSE_MAPPING_PROP, undefined).
+    % Purpose mapping is stored in protocol_config, not at scenario level
+    fetch_protocol_property(?MQTT_PURPOSE_MAPPING_PROP, undefined).
 
 
 fetch_property_for_scenario(ScenarioName, PropName) ->

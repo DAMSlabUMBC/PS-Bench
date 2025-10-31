@@ -23,12 +23,11 @@
 -define(DEVICE_DISCON_PCT_PROP, disconnect_chance_pct).
 -define(DEVICE_RECON_CHECK_MS_PROP, reconnect_check_period_ms).
 -define(DEVICE_RECON_PCT_PROP, reconnect_chance_pct).
-% MQTT-DAP purpose properties
+% MQTT-DAP purpose properties (optional - only for MQTT-DAP scenarios)
 -define(DEVICE_MESSAGE_PURPOSE_PROP, message_purpose_filter).
 -define(DEVICE_SUBSCRIPTION_PURPOSE_PROP, subscription_purpose_filter).
 -define(DEVICE_KEY_LIST, [?DEVICE_TYPE_PROP, ?DEVICE_PUB_FREQ_PROP, ?DEVICE_SIZE_MEAN_PROP, ?DEVICE_SIZE_VARIANCE_PROP,
-                            ?DEVICE_DISCON_CHECK_MS_PROP, ?DEVICE_DISCON_PCT_PROP, ?DEVICE_RECON_CHECK_MS_PROP, ?DEVICE_RECON_PCT_PROP,
-                            ?DEVICE_MESSAGE_PURPOSE_PROP, ?DEVICE_SUBSCRIPTION_PURPOSE_PROP]).
+                            ?DEVICE_DISCON_CHECK_MS_PROP, ?DEVICE_DISCON_PCT_PROP, ?DEVICE_RECON_CHECK_MS_PROP, ?DEVICE_RECON_PCT_PROP]).
 
 % Deployment file fields
 -define(DEPLOYMENT_NAME_PROP, name).
@@ -63,6 +62,8 @@
 -define(MQTT_BROKER_IP_PROP, broker).
 -define(MQTT_BROKER_PORT_PROP, port).
 -define(MQTT_QOS_PROP, qos).
+-define(MQTT_PURPOSE_MAPPING_PROP, purpose_mapping).
+-define(MQTT_OPERATIONS_CONFIG_PROP, operations_config).
 % NOTE: We do not require a client interface module as we fall back to a default one
 % NOTE: We do not require a default MQTT QoS as we fall back to 0
 -define(MQTT_REQ_KEY_LIST, [?MQTT_BROKER_IP_PROP, ?MQTT_BROKER_PORT_PROP]).

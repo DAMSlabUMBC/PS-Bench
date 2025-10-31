@@ -25,7 +25,11 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /opt/mqtt_brokers/dams-mosquitto
 
 # Copy the entire repository into the container
-COPY dams-mosquitto /opt/mqtt_brokers/dams-mosquitto
+COPY . /opt/mqtt_brokers/dams-mosquitto
+
+# Debug: List what was copied
+RUN ls -la /opt/mqtt_brokers/dams-mosquitto/deps/ && \
+    ls -la /opt/mqtt_brokers/dams-mosquitto/deps/picohttpparser/ || echo "picohttpparser dir missing"
 
 # Build the broker with LTO disabled and ENGINE_cleanup disabled
 RUN cmake -DWITH_LTO=OFF \

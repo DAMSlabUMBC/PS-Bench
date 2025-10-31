@@ -37,10 +37,13 @@ WORKDIR /app
 COPY . /app
 
 # clean any host artifacts, ensure output dir exists
-RUN rm -rf _build deps && mkdir -p /app/out
+RUN rm -rf _build deps rebar.lock && mkdir -p /app/out
+
+# Force clean build with no cache
+RUN rebar3 clean -a
 
 # build the release
-RUN rebar3 release
+RUN rebar3 compile && rebar3 release
 
 # make configs/out visible to the release
 RUN set -eux; rel="/app/_build/default/rel/ps_bench"; \

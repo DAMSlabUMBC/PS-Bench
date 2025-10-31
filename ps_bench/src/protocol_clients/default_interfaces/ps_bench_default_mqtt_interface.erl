@@ -37,11 +37,21 @@ handle_call(reconnect, _From, State) ->
     do_connect(true, State);
 
 handle_call({subscribe, Properties, Topics}, _From, State = #{client_pid := ClientPid, connected := Connected}) when Connected == true ->
-    _ = emqtt:subscribe(ClientPid, Properties, Topics),
+    io:format("~n[DEFAULT-MQTT] default_mqtt_interface subscribe called. ClientPid=~p Connected=~p Topics=~p~n",
+              [ClientPid, Connected, Topics]),
+    Result = emqtt:subscribe(ClientPid, Properties, Topics),
+    io:format("~n[DEFAULT-MQTT] emqtt:subscribe returned: ~p~n", [Result]),
     {reply, ok, State};
 
 handle_call({subscribe, _Properties, _Topics}, _From, State = #{connected := Connected}) when Connected == false ->
     % Do nothing if not connected
+    io:format("~n[DEFAULT-MQTT] Subscribe called but not connected, ignoring~n"),
+    {reply, ok, State};
+
+handle_call({subscribe, Properties, Topics}, _From, State) ->
+    % Catch-all for debugging
+    io:format("~n[DEFAULT-MQTT] Subscribe catch-all reached! Properties=~p Topics=~p State=~p~n",
+              [Properties, Topics, State]),
     {reply, ok, State};
 
 handle_call({publish, Properties, Topic, Payload, PubOpts},
@@ -81,7 +91,9 @@ handle_call(stop, _From, State) ->
     % Do nothing
     {reply, ok, State};
 
-handle_call(_, _, State) ->
+handle_call(Message, From, State) ->
+    io:format("~n[DEFAULT-MQTT] CATCH-ALL handler reached! Message=~p From=~p State=~p~n",
+              [Message, From, State]),
     {reply, ok, State}.
 
 handle_cast(_, State) ->

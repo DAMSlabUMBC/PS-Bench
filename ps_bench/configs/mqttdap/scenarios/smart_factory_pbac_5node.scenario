@@ -1,14 +1,15 @@
 [
-    {name, factory_logistics_pbac_test},
-    {duration, {1, minutes}},
+    {name, smart_factory_pbac_5node},
+    {duration, {10, minutes}},
     {protocol, mqttv5},
-    {deployment_name, factory_logistics_1node},
+    {deployment_name, smart_factory_5node},
     {hosts,
     [
-        {runner1,
-        [
-            {hostname, 'REPLACE_RUNNER1_HOSTNAME'}
-        ]}
+        {runner1, [{hostname, 'REPLACE_RUNNER1_HOSTNAME'}]},
+        {runner2, [{hostname, 'REPLACE_RUNNER2_HOSTNAME'}]},
+        {runner3, [{hostname, 'REPLACE_RUNNER3_HOSTNAME'}]},
+        {runner4, [{hostname, 'REPLACE_RUNNER4_HOSTNAME'}]},
+        {runner5, [{hostname, 'REPLACE_RUNNER5_HOSTNAME'}]}
     ]},
 
     {protocol_config,

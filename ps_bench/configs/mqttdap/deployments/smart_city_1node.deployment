@@ -3,8 +3,8 @@
     {nodes, [
         {runner1, [
             {devices, [
-                {smart_city_sensor, 5},
-                {subscriber, 4}
+                {smart_city_sensor, 425},
+                {subscriber, 106}
             ]}
         ]}
     ]}

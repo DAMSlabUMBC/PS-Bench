@@ -61,24 +61,29 @@ ensure_subs_table() ->
 %% Set MQTT-DAP purposes on client during init
 configure_client_purposes(ServerRef, ClientName, DeviceType) ->
     ClientNameBin = ps_bench_utils:convert_to_binary(ClientName),
+    io:format("~n[MQTT-DAP-ADAPTER] configure_client_purposes called: Client=~p DeviceType=~p~n", [ClientName, DeviceType]),
 
     case DeviceType of
         subscriber ->
             % Set subscription purpose (SP) if configured
             case get_subscription_purpose_for_client(ClientNameBin, DeviceType) of
                 {ok, SP} ->
+                    io:format("~n[MQTT-DAP-ADAPTER] Setting SP=~p for subscriber ~p~n", [SP, ClientName]),
                     catch gen_server:call(ServerRef, {set_subscription_purpose, SP}),
                     ok;
-                {error, _} ->
+                {error, Reason} ->
+                    io:format("~n[MQTT-DAP-ADAPTER] Failed to get SP for ~p: ~p~n", [ClientName, Reason]),
                     ok
             end;
         _ ->
             % Set message purpose (MP) if configured
             case get_message_purpose_for_client(ClientNameBin, DeviceType) of
                 {ok, MP} ->
+                    io:format("~n[MQTT-DAP-ADAPTER] Setting MP=~p for publisher ~p~n", [MP, ClientName]),
                     catch gen_server:call(ServerRef, {set_message_purpose, MP}),
                     ok;
-                {error, _} ->
+                {error, Reason} ->
+                    io:format("~n[MQTT-DAP-ADAPTER] Failed to get MP for ~p: ~p~n", [ClientName, Reason]),
                     ok
             end
     end.
@@ -89,24 +94,33 @@ configure_client_purposes(ServerRef, ClientName, DeviceType) ->
 %% 3. Device type: "factory_sensor"
 %% 4. Device config fallback
 get_message_purpose_for_client(ClientNameBin, DeviceType) ->
+    io:format("~n[MQTT-DAP-ADAPTER] get_message_purpose: ClientName=~p DeviceType=~p~n", [ClientNameBin, DeviceType]),
     case ps_bench_purpose_store:get_message_purpose(ClientNameBin) of
         {ok, MP} ->
+            io:format("~n[MQTT-DAP-ADAPTER] Found MP via exact match: ~p~n", [MP]),
             {ok, MP};
         {error, not_found} ->
             SimplifiedName = extract_simplified_client_name(ClientNameBin),
+            io:format("~n[MQTT-DAP-ADAPTER] Trying simplified: ~p~n", [SimplifiedName]),
             case ps_bench_purpose_store:get_message_purpose(SimplifiedName) of
                 {ok, MP} ->
+                    io:format("~n[MQTT-DAP-ADAPTER] Found MP via simplified: ~p~n", [MP]),
                     {ok, MP};
                 {error, not_found} ->
                     DeviceTypeBin = atom_to_binary(DeviceType, utf8),
+                    io:format("~n[MQTT-DAP-ADAPTER] Trying device type: ~p~n", [DeviceTypeBin]),
                     case ps_bench_purpose_store:get_message_purpose(DeviceTypeBin) of
                         {ok, MP} ->
+                            io:format("~n[MQTT-DAP-ADAPTER] Found MP via device type: ~p~n", [MP]),
                             {ok, MP};
                         {error, not_found} ->
+                            io:format("~n[MQTT-DAP-ADAPTER] Trying device config~n"),
                             case ps_bench_config_manager:fetch_device_message_purpose(DeviceType) of
                                 {ok, MP} when MP =/= undefined ->
+                                    io:format("~n[MQTT-DAP-ADAPTER] Found MP via device config: ~p~n", [MP]),
                                     {ok, MP};
                                 _ ->
+                                    io:format("~n[MQTT-DAP-ADAPTER] No MP found!~n"),
                                     {error, no_message_purpose_configured}
                             end
                     end
@@ -224,11 +238,15 @@ handle_call(_Msg, _From, State) ->
     {reply, ok, State}.
 
 % Calls to start the actual timer functions
-handle_cast(start_client_loops, State = #{device_type := DeviceType, server_reference := ServerReference}) ->
+handle_cast(start_client_loops, State = #{device_type := DeviceType, server_reference := ServerReference, tid := Tid}) ->
 
-    % Subscriber clients don't have client loops
+    % Subscriber clients subscribe to topics, publishers start publication loops
     case DeviceType of
         subscriber ->
+            % Subscribe to all topics for MQTT-DAP testing
+            io:format("~n[MQTT-DAP] Subscriber calling do_subscribe on ServerRef ~p~n", [ServerReference]),
+            do_subscribe([], ServerReference, Tid),
+            io:format("~n[MQTT-DAP] do_subscribe completed~n"),
             {noreply, State};
         _ ->
             {ok, PubTaskRef} = start_publication_loop(DeviceType, ServerReference),
@@ -261,20 +279,51 @@ handle_info({?DISCONNECTED_MSG, {TimeNs, Reason}, ClientName}, State) ->
             {noreply, State}
     end;
 
-handle_info({?PUBLISH_RECV_MSG, {RecvTimeNs, Topic, Payload}, ClientName}, State) ->
+%% Handle message receipt from MQTT-DAP interface (includes DAP properties)
+handle_info({?PUBLISH_RECV_MSG, {RecvTimeNs, Topic, Payload, DAPProps}, ClientName}, State) ->
+    io:format("~n[MQTT-DAP-ADAPTER] MESSAGE RECEIVED (MQTT-DAP)! Client=~p Topic=~p~n", [ClientName, Topic]),
     % Extracted needed info and store
     Bytes = byte_size(Payload),
-    
+
+    % Extract sequence number and publish time from payload
+    {Seq, PubTimeNs} = case ps_bench_utils:decode_seq_header(Payload) of
+        {S, T, _Rest} -> {S, T};
+        _ -> {0, RecvTimeNs}  % Fallback if decode fails
+    end,
+
+    % Get PublisherID from MQTT-DAP User-Property (DAP-ClientID)
+    % This is the CORRECT source - it's set by the publisher in the MQTT packet
+    PublisherID = case maps:get(<<"DAP-ClientID">>, DAPProps, undefined) of
+        undefined ->
+            io:format("~n[MQTT-DAP-ADAPTER] WARNING: No DAP-ClientID in properties!~n"),
+            unknown;
+        PubID ->
+            % Convert binary to atom for consistency with rest of system
+            binary_to_atom(PubID, utf8)
+    end,
+
+    io:format("~n[MQTT-DAP-ADAPTER] Recording receive: Seq=~p Pub=~p DAPProps=~p~n", [Seq, PublisherID, DAPProps]),
+    % Updated call with PublisherID
+    ps_bench_store:record_recv(ClientName, Topic, Seq, PubTimeNs, RecvTimeNs, Bytes, PublisherID),
+    {noreply, State};
+
+%% Handle message receipt from default MQTT interface (no DAP properties)
+handle_info({?PUBLISH_RECV_MSG, {RecvTimeNs, Topic, Payload}, ClientName}, State) ->
+    io:format("~n[MQTT-DAP-ADAPTER] MESSAGE RECEIVED (default)! Client=~p Topic=~p~n", [ClientName, Topic]),
+    % Extracted needed info and store
+    Bytes = byte_size(Payload),
+
     % Try to decode with publisher ID
-    {Seq, PubTimeNs, PublisherID, _Rest} = 
+    {Seq, PubTimeNs, PublisherID, _Rest} =
         case ps_bench_utils:decode_seq_header_with_publisher(Payload) of
             {S, T, P, R} -> {S, T, P, R};
-            _ -> 
+            _ ->
                 % Fallback to old format
                 {S, T, R} = ps_bench_utils:decode_seq_header(Payload),
                 {S, T, unknown, R}
         end,
-    
+
+    io:format("~n[MQTT-DAP-ADAPTER] Recording receive: Seq=~p Pub=~p~n", [Seq, PublisherID]),
     % Updated call with PublisherID
     ps_bench_store:record_recv(ClientName, Topic, Seq, PubTimeNs, RecvTimeNs, Bytes, PublisherID),
     {noreply, State};
@@ -327,8 +376,10 @@ start_publication_loop(DeviceType, ServerReference) ->
 
 publication_loop(ServerReference, Topic, QoS, PayloadSizeMean, PayloadSizeVariance) ->
     {Seq, Payload} = ps_bench_utils:generate_mqtt_payload_data(PayloadSizeMean, PayloadSizeVariance, Topic),
+    io:format("~n[MQTT-DAP-ADAPTER] publication_loop: ServerRef=~p Topic=~p Seq=~p~n", [ServerReference, Topic, Seq]),
     {ok, Result} = gen_server:call(ServerReference, {publish, #{}, Topic, Payload, [{qos, QoS}]}),
-    case Result of 
+    io:format("~n[MQTT-DAP-ADAPTER] publish result: ~p~n", [Result]),
+    case Result of
         published ->
             ps_bench_store:record_publish(ServerReference, Topic, Seq);
         not_connected ->

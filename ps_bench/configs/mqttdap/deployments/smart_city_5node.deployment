@@ -1,0 +1,35 @@
+[
+    {name, smart_city_5node},
+    {nodes, [
+        {runner1, [
+            {devices, [
+                {smart_city_sensor, 425},
+                {subscriber, 106}
+            ]}
+        ]},
+        {runner2, [
+            {devices, [
+                {smart_city_sensor, 425},
+                {subscriber, 106}
+            ]}
+        ]},
+        {runner3, [
+            {devices, [
+                {smart_city_sensor, 425},
+                {subscriber, 106}
+            ]}
+        ]},
+        {runner4, [
+            {devices, [
+                {smart_city_sensor, 425},
+                {subscriber, 106}
+            ]}
+        ]},
+        {runner5, [
+            {devices, [
+                {smart_city_sensor, 425},
+                {subscriber, 106}
+            ]}
+        ]}
+    ]}
+].

@@ -1,0 +1,35 @@
+[
+    {name, smart_factory_5node},
+    {nodes, [
+        {runner1, [
+            {devices, [
+                {factory_sensor, 32},
+                {subscriber, 8}
+            ]}
+        ]},
+        {runner2, [
+            {devices, [
+                {factory_sensor, 32},
+                {subscriber, 8}
+            ]}
+        ]},
+        {runner3, [
+            {devices, [
+                {factory_sensor, 32},
+                {subscriber, 8}
+            ]}
+        ]},
+        {runner4, [
+            {devices, [
+                {factory_sensor, 32},
+                {subscriber, 8}
+            ]}
+        ]},
+        {runner5, [
+            {devices, [
+                {factory_sensor, 32},
+                {subscriber, 8}
+            ]}
+        ]}
+    ]}
+].

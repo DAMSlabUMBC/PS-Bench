@@ -1,8 +1,8 @@
 [
-    {name, factory_logistics_pbac_test},
-    {duration, {1, minutes}},
+    {name, smart_factory_pbac_test},
+    {duration, {10, minutes}},
     {protocol, mqttv5},
-    {deployment_name, factory_logistics_1node},
+    {deployment_name, smart_factory_1node},
     {hosts,
     [
         {runner1,
@@ -65,3 +65,4 @@
         ]}
     ]}
 ].
+

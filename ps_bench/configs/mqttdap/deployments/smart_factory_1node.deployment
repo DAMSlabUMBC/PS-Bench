@@ -1,0 +1,11 @@
+[
+    {name, smart_factory_1node},
+    {nodes, [
+        {runner1, [
+            {devices, [
+                {factory_sensor, 30},
+                {subscriber, 10}
+            ]}
+        ]}
+    ]}
+].

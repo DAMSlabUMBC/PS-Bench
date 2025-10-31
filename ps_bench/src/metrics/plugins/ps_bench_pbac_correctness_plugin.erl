@@ -113,8 +113,8 @@ calculate_pbac_correctness(PublishEvents, RecvEvents) ->
 group_recv_by_publisher_topic(RecvEvents) ->
     lists:foldl(fun(RecvEvent, Acc) ->
         % Parse the receive event
-        % Format: {RecvNode, RecvClient, PubNode, PubClient, Topic, Seq, PubTimeNs, RecvTimeNs, Bytes, PublisherID}
-        {_RecvNode, RecvClient, _PubNode, _PubClient, Topic, Seq, _PubTime, _RecvTime, _Bytes, PublisherID} = RecvEvent,
+        % Format: {RecvNode, RecvClient, PublisherID, Topic, Seq, PubTimeNs, RecvTimeNs, Bytes}
+        {_RecvNode, RecvClient, PublisherID, Topic, Seq, _PubTime, _RecvTime, _Bytes} = RecvEvent,
 
         % Build key = unique identifier for this message
         Key = {PublisherID, Topic, Seq},
@@ -134,6 +134,12 @@ analyze_publish_event(PubEvent, RecvByPubTopic, Acc) ->
     % Look up who actually received this message
     Key = {ClientName, Topic, SeqId},
     ActualReceivers = maps:get(Key, RecvByPubTopic, []),
+
+    % DEBUG: Only log first message to avoid spam
+    case SeqId of
+        1 -> io:format("~n[PBAC-DEBUG] Analyzing Publisher=~p Seq=~p ActualReceivers=~p~n", [ClientName, SeqId, ActualReceivers]);
+        _ -> ok
+    end,
 
     % Now the KEY question: Who SHOULD have received it based on purpose compatibility?
     % We need to compare:
@@ -173,11 +179,58 @@ analyze_publish_event(PubEvent, RecvByPubTopic, Acc) ->
 %% - Correct: # of expected subscribers who received it ✅
 %% - ErrReject: # of expected subscribers who DIDN'T receive it ❌
 check_expected_subscribers(ExpectedSubscribers, ActualReceivers) ->
-    % Count how many are in both lists
-    Correct = length([S || S <- ExpectedSubscribers, lists:member(S, ActualReceivers)]),
+    % Extract device types from actual receivers for fuzzy matching
+    % e.g., "runner1_subscriber_1" -> "subscriber"
+    ActualReceiverTypes = lists:map(fun(Receiver) ->
+        extract_device_type_from_name(Receiver)
+    end, ActualReceivers),
+
+    % Also extract device types from expected subscribers
+    % e.g., "subscriber_01" -> "subscriber"
+    ExpectedTypes = lists:map(fun(Expected) ->
+        extract_device_type_from_name(Expected)
+    end, ExpectedSubscribers),
+
+    % Count how many expected types are in the actual receiver types
+    Correct = length([E || E <- ExpectedTypes, lists:member(E, ActualReceiverTypes)]),
     % The rest didn't get it even though they should have
     ErrReject = length(ExpectedSubscribers) - Correct,
     {Correct, ErrReject}.
+
+%% Extract device type from a client name (for fuzzy matching)
+%% "runner1_subscriber_1" -> "subscriber"
+%% "subscriber_01" -> "subscriber"
+extract_device_type_from_name(NameBin) when is_binary(NameBin) ->
+    NameStr = binary_to_list(NameBin),
+    Parts = string:split(NameStr, "_", all),
+    case Parts of
+        [_NodeOrFirst | RestParts] ->
+            % Remove numeric suffix if present
+            case lists:reverse(RestParts) of
+                [LastPart | RestReversed] ->
+                    case string:to_integer(LastPart) of
+                        {_Index, ""} ->
+                            % Last part is a number, remove it
+                            DeviceType = string:join(lists:reverse(RestReversed), "_"),
+                            list_to_binary(DeviceType);
+                        _ ->
+                            % Last part is not a number, keep all parts except first
+                            list_to_binary(string:join(RestParts, "_"))
+                    end;
+                [] ->
+                    % Only one part after first, return it
+                    case RestParts of
+                        [SinglePart] -> list_to_binary(SinglePart);
+                        _ -> NameBin
+                    end
+            end;
+        _ ->
+            NameBin
+    end;
+extract_device_type_from_name(Name) when is_atom(Name) ->
+    extract_device_type_from_name(atom_to_binary(Name, utf8));
+extract_device_type_from_name(Name) ->
+    Name.
 
 %% Get message metadata: MP and list of expected subscribers
 %% This is the CRITICAL function for PBAC checking!
@@ -186,7 +239,8 @@ get_message_metadata(ClientName, _Topic, _SeqId) ->
     ClientNameBin = ps_bench_utils:convert_to_binary(ClientName),
 
     % Step 1: Get the MP (Message Purpose) for this publisher
-    case ps_bench_purpose_store:get_message_purpose(ClientNameBin) of
+    % Use fallback to handle name mismatches (e.g., runner1_factory_sensor_1 -> factory_sensor)
+    case ps_bench_purpose_store:get_message_purpose_with_fallback(ClientNameBin) of
         {ok, MP} ->
             % Step 2: Parse the MP to get all allowed purposes
             MPPurposes = parse_purpose_filter(MP),
@@ -196,16 +250,20 @@ get_message_metadata(ClientName, _Topic, _SeqId) ->
 
             % Step 4: For each subscriber, check if their SP is compatible with this MP
             ExpectedSubscribers = lists:filtermap(fun(SubscriberName) ->
-                case ps_bench_purpose_store:get_subscription_purpose(SubscriberName) of
+                % Use fallback for subscriber lookups too
+                case ps_bench_purpose_store:get_subscription_purpose_with_fallback(SubscriberName) of
                     {ok, SP} ->
                         % Check if this subscription purpose is compatible
                         case is_purpose_compatible(MP, SP) of
                             true ->
                                 % Also check if this publisher is in the expected_data_sources
-                                case ps_bench_purpose_store:get_expected_sources(SubscriberName) of
+                                case ps_bench_purpose_store:get_expected_sources_with_fallback(SubscriberName) of
                                     {ok, Sources} ->
                                         % Check if this publisher is an expected source
-                                        case lists:member(ClientNameBin, Sources) of
+                                        % Need to check both exact name and device type since Sources might be stored as device types
+                                        IsExpectedSource = lists:member(ClientNameBin, Sources) orelse
+                                                          is_publisher_in_sources(ClientNameBin, Sources),
+                                        case IsExpectedSource of
                                             true -> {true, SubscriberName};
                                             false -> false
                                         end;
@@ -221,12 +279,47 @@ get_message_metadata(ClientName, _Topic, _SeqId) ->
                 end
             end, AllSubscribers),
 
+            % DEBUG: Log what we found
+            io:format("~n[PBAC-DEBUG] Publisher=~p MP=~p~n", [ClientName, MP]),
+            io:format("~n[PBAC-DEBUG] AllSubscribers=~p~n", [AllSubscribers]),
+            io:format("~n[PBAC-DEBUG] ExpectedSubscribers=~p~n", [ExpectedSubscribers]),
+
             % Return the MP and list of expected subscribers
             {ok, MP, ExpectedSubscribers};
         {error, not_found} ->
             % No MP configured for this publisher
             {error, no_message_purpose_configured}
     end.
+
+%% Check if a publisher matches any of the expected sources
+%% Handles case where Sources contains device types (e.g., "factory_sensor")
+%% and PublisherName is full name (e.g., "runner1_factory_sensor_1")
+is_publisher_in_sources(PublisherNameBin, Sources) ->
+    % Extract device type from publisher name
+    % e.g., "runner1_factory_sensor_1" -> "factory_sensor"
+    PublisherStr = binary_to_list(PublisherNameBin),
+    Parts = string:split(PublisherStr, "_", all),
+    DeviceType = case Parts of
+        [_NodeName | DeviceParts] ->
+            % Remove numeric suffix if present
+            case lists:reverse(DeviceParts) of
+                [LastPart | RestReversed] ->
+                    case string:to_integer(LastPart) of
+                        {_Index, ""} ->
+                            % Last part is a number, remove it
+                            list_to_binary(string:join(lists:reverse(RestReversed), "_"));
+                        _ ->
+                            % Last part is not a number, keep all device parts
+                            list_to_binary(string:join(DeviceParts, "_"))
+                    end;
+                _ ->
+                    PublisherNameBin
+            end;
+        _ ->
+            PublisherNameBin
+    end,
+    % Check if device type is in the sources list
+    lists:member(DeviceType, Sources).
 
 %% Write results to a CSV file
 %% This is what you'll look at to see if PBAC is working!

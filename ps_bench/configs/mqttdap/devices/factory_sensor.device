@@ -1,11 +1,13 @@
 % Factory sensor publishing production metrics
-{type, factory_sensor}.
-{publication_frequency_ms, 1000}.
-{payload_bytes_mean, 256}.
-{payload_bytes_variance, 50}.
-{disconnect_check_period_ms, 5000}.
-{disconnect_chance_pct, 0.02}.
-{reconnect_check_period_ms, 2000}.
-{reconnect_chance_pct, 0.8}.
-{message_purpose_filter, "production-metrics/{output,quality,.}"}.
+[
+    {type, factory_sensor},
+    {publication_frequency_ms, 1000},
+    {payload_bytes_mean, 256},
+    {payload_bytes_variance, 50},
+    {disconnect_check_period_ms, 5000},
+    {disconnect_chance_pct, 0.02},
+    {reconnect_check_period_ms, 2000},
+    {reconnect_chance_pct, 0.8},
+    {message_purpose_filter, "production-metrics/{output,quality,.}"}
+].
 

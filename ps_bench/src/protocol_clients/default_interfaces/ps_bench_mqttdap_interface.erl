@@ -54,16 +54,27 @@ handle_call(reconnect, _From, State) ->
 %% The broker should only deliver messages where SP is compatible with the message's MP
 handle_call({subscribe, Properties, Topics}, _From,
             State = #{client_pid := ClientPid, connected := Connected, subscription_purpose := SP}) when Connected == true ->
-    % Add DAP-SP property to the subscription if we have one configured
+    io:format("~n[MQTT-DAP] mqttdap_interface subscribe called. ClientPid=~p Connected=~p SP=~p Topics=~p~n",
+              [ClientPid, Connected, SP, Topics]),
+    % Add DAP-SP property to subscription if configured (as User-Property)
     DAPProperties = case SP of
         <<"">> -> Properties;  % No purpose set, just use regular properties
-        _ -> Properties#{'DAP-SP' => SP}  % Add our subscription purpose
+        _ -> Properties#{'User-Property' => [{<<"DAP-SP">>, SP}]}  % Add subscription purpose
     end,
-    _ = emqtt:subscribe(ClientPid, DAPProperties, Topics),
+    io:format("~n[MQTT-DAP] Calling emqtt:subscribe with DAPProperties=~p~n", [DAPProperties]),
+    Result = emqtt:subscribe(ClientPid, DAPProperties, Topics),
+    io:format("~n[MQTT-DAP] emqtt:subscribe returned: ~p~n", [Result]),
     {reply, ok, State};
 
 handle_call({subscribe, _Properties, _Topics}, _From, State = #{connected := Connected}) when Connected == false ->
     % Not connected, ignore subscription request
+    io:format("~n[MQTT-DAP] Subscribe called but not connected, ignoring~n"),
+    {reply, ok, State};
+
+handle_call({subscribe, Properties, Topics}, _From, State) ->
+    % Catch-all for debugging - this shouldn't normally be reached
+    io:format("~n[MQTT-DAP] Subscribe catch-all reached! Properties=~p Topics=~p State=~p~n",
+              [Properties, Topics, State]),
     {reply, ok, State};
 
 %% Publish a message with MQTT-DAP properties
@@ -79,21 +90,26 @@ handle_call({publish, Properties, Topic, Payload, PubOpts},
             TimeNs = erlang:system_time(nanosecond),
             Payload1 = <<TimeNs:64/unsigned, Payload/binary>>,
 
-            % Add MQTT-DAP user properties to the message
-            % These properties tell the broker how to protect this data
-            DAPProperties = Properties#{
-                'DAP-Allow' => <<"1">>,           % Required: Explicit consent to process data
-                'DAP-ClientID' => ClientName      % Required: Who is publishing (for tracking)
-            },
+            % Build MQTT-DAP user properties list
+            % In MQTT v5, custom properties must be in 'User-Property' list
+            UserProps = [
+                {<<"DAP-Allow">>, <<"1">>},        % Required: Explicit consent to process data
+                {<<"DAP-ClientID">>, ClientName}   % Required: Who is publishing (for tracking)
+            ],
 
-            % Add the message purpose (MP) if we have one
+            % Add message purpose (MP) if configured
             % MP says: "This data can ONLY be used for these purposes"
-            % Example: MP="production-metrics/{output,quality,.}"
-            % Broker should only deliver to subscribers with compatible SP
-            FinalProperties = case MP of
-                <<"">> -> DAPProperties;  % No purpose filtering
-                _ -> DAPProperties#{'DAP-MP' => MP}  % Add purpose filter
+            UserPropsWithMP = case MP of
+                <<"">> ->
+                    io:format("~n[MQTT-DAP] PUBLISH Client=~p Topic=~p MP=EMPTY~n", [ClientName, Topic]),
+                    UserProps;  % No purpose filtering
+                _ ->
+                    io:format("~n[MQTT-DAP] PUBLISH Client=~p Topic=~p MP=~p~n", [ClientName, Topic, MP]),
+                    UserProps ++ [{<<"DAP-MP">>, MP}]  % Add purpose filter
             end,
+
+            % Merge user properties with any existing properties
+            FinalProperties = Properties#{'User-Property' => UserPropsWithMP},
 
             % Actually publish the message with all the MQTT-DAP properties
             emqtt:publish(ClientPid, Topic, FinalProperties, Payload1, PubOpts),
@@ -105,8 +121,10 @@ handle_call({publish, Properties, Topic, Payload, PubOpts},
 
 %% API: Set what purpose I want to publish with (MP)
 %% Example: gen_server:call(ClientPid, {set_message_purpose, "production-metrics/output"})
-handle_call({set_message_purpose, PurposeFilter}, _From, State) ->
-    {reply, ok, State#{message_purpose := ps_bench_utils:convert_to_binary(PurposeFilter)}};
+handle_call({set_message_purpose, PurposeFilter}, _From, State = #{client_name := ClientName}) ->
+    MPBin = ps_bench_utils:convert_to_binary(PurposeFilter),
+    io:format("~n[MQTT-DAP] set_message_purpose: Client=~p MP=~p~n", [ClientName, MPBin]),
+    {reply, ok, State#{message_purpose := MPBin}};
 
 %% API: Set what purpose I want to subscribe with (SP)
 %% Example: gen_server:call(ClientPid, {set_subscription_purpose, "analytics"})
@@ -121,10 +139,12 @@ handle_call({register_operation, OperationName, OperationData}, _From,
     % Build the registration topic (e.g., "dap/reg/SP/FetchContact")
     RegTopic = construct_registration_topic(OperationName),
 
-    % Add operation metadata - tells broker this is a registration
+    % Add operation metadata as User-Property
     Properties = #{
-        'DAP-Operation' => ps_bench_utils:convert_to_binary(OperationName),
-        'DAP-ClientID' => maps:get(client_name, State)
+        'User-Property' => [
+            {<<"DAP-Operation">>, ps_bench_utils:convert_to_binary(OperationName)},
+            {<<"DAP-ClientID">>, maps:get(client_name, State)}
+        ]
     },
 
     % Publish the registration request
@@ -143,14 +163,16 @@ handle_call({invoke_operation, OperationName, OpInfo, Payload}, _From,
     % Subscribe to my personal response topic (so broker can send results back to me)
     _ = emqtt:subscribe(ClientPid, #{}, [{ResponseTopic, [{qos, 1}]}]),
 
-    % Build the operation request with all the required MQTT-DAP properties
+    % Build the operation request with all required MQTT-DAP properties as User-Property
     OpTopic = <<"dap/operation/request">>,
     Properties = #{
-        'DAP-Operation' => ps_bench_utils:convert_to_binary(OperationName),  % What operation (delete, access, etc.)
-        'DAP-ClientID' => maps:get(client_name, State),                      % Who is requesting
-        'DAP-OpInfo' => ps_bench_utils:convert_to_binary(OpInfo),            % Additional operation info
-        'Response-Topic' => ResponseTopic,                                    % Where to send response
-        'Correlation-Data' => CorrData                                        % ID to match response
+        'User-Property' => [
+            {<<"DAP-Operation">>, ps_bench_utils:convert_to_binary(OperationName)},
+            {<<"DAP-ClientID">>, maps:get(client_name, State)},
+            {<<"DAP-OpInfo">>, ps_bench_utils:convert_to_binary(OpInfo)}
+        ],
+        'Response-Topic' => ResponseTopic,
+        'Correlation-Data' => CorrData
     },
 
     % Send the operation request to the broker
@@ -185,7 +207,9 @@ handle_call(stop, _From, State) ->
     {reply, ok, State};
 
 %% Catch-all for any other calls we don't handle
-handle_call(_, _, State) ->
+handle_call(Message, From, State) ->
+    io:format("~n[MQTT-DAP] CATCH-ALL handler reached! Message=~p From=~p State=~p~n",
+              [Message, From, State]),
     {reply, ok, State}.
 
 %% Cast messages (asynchronous calls) - we don't use these
@@ -337,21 +361,33 @@ publish_event(OwnerPid, #{topic := Topic, payload := Payload}, ClientName) ->
     ok.
 
 %% Extract only the MQTT-DAP specific properties from a message
-%% We filter out regular MQTT properties and only keep the DAP-* ones
+%% MQTT-DAP properties come in the 'User-Property' list
 %% This makes it easier for metrics plugins to check PBAC correctness
 extract_dap_properties(Properties) when is_map(Properties) ->
-    % These are all the MQTT-DAP properties we care about
-    DAPKeys = ['DAP-Allow', 'DAP-ClientID', 'DAP-MP', 'DAP-SP',
-               'DAP-Operation', 'DAP-OpInfo', 'DAP-Status',
-               'DAP-Reason', 'DAP-Deadline', 'DAP-Retroactive'],
+    % Check if there are User-Property entries
+    case maps:get('User-Property', Properties, []) of
+        [] ->
+            #{};
+        UserProps when is_list(UserProps) ->
+            % DAP property names we care about (as binaries)
+            DAPKeys = [<<"DAP-Allow">>, <<"DAP-ClientID">>, <<"DAP-MP">>, <<"DAP-SP">>,
+                       <<"DAP-Operation">>, <<"DAP-OpInfo">>, <<"DAP-Status">>,
+                       <<"DAP-Reason">>, <<"DAP-Deadline">>, <<"DAP-Retroactive">>],
 
-    % Go through all properties and only keep the DAP-* ones
-    maps:fold(fun(K, V, Acc) ->
-        case lists:member(K, DAPKeys) of
-            true -> Acc#{K => V};   % This is a DAP property, keep it
-            false -> Acc            % Not a DAP property, ignore it
-        end
-    end, #{}, Properties);
+            % Filter User-Property list to only DAP-* properties
+            % Convert to map for easier access
+            lists:foldl(fun({Key, Value}, Acc) ->
+                case lists:member(Key, DAPKeys) of
+                    true ->
+                        % Keep as binary key for consistency
+                        Acc#{Key => Value};
+                    false ->
+                        Acc
+                end
+            end, #{}, UserProps);
+        _ ->
+            #{}
+    end;
 
 extract_dap_properties(_) ->
     % Properties weren't a map? Return empty map

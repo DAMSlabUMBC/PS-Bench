@@ -191,6 +191,15 @@ patch_hostnames_in_scenarios() {
   log "Hostnames patched in scenarios"
 }
 
+# Replace hostnames per runner, whitespace tolerant, and correct prefix 
+patch_hostnames_in_dds_config() {
+
+  FQDN="$(hostname -f 2>/dev/null || true)"
+  sed -i -e "s/REPLACE_LOCAL_HOSTNAME/${FQDN}/g" /app/configs/dds_configs/ps_bench_default_dds_interface.ini || true
+ 
+  log "Hostnames patched in DDS config"
+}
+
 # If scenario lists specific runners, idle if not listed
 maybe_become_idle_if_not_listed() {
   # Scenario file after staging/patching:
@@ -491,6 +500,7 @@ main() {
   create_app_config
 
   if [ "$IS_DDS" = "true" ]; then
+    patch_hostnames_in_dds_config
     build_dds_nif
   fi
 

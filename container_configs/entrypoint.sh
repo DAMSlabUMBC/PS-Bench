@@ -377,7 +377,8 @@ EOF
 
 build_dds_nif() {
     # Do required replaces
-    sed -i -e 's@REPLACE_ERTS_ROOT@/usr/local/lib/erlang/erts-15.2.7.2@g' /app/priv/dds_cplusplus/build.sh || true
+    ERL_PATH=$(realpath /usr/local/lib/erlang/erts*)
+    sed -i -e "s@REPLACE_ERTS_ROOT@${ERL_PATH}@g" /app/priv/dds_cplusplus/build.sh || true
     sed -i -e 's@REPLACE_XERCES_ROOT@/usr/lib@g' /app/priv/dds_cplusplus/build.sh || true
     
     source /opt/OpenDDS-3.33.0/setenv.sh

@@ -111,8 +111,9 @@ fetch_and_store_hw_usage(Url, NodeType) ->
                   io:format("ERROR: Could not fetch HW stats with reason ~p", [Reason]),
                   ok;
             {ok, ResponseLines} ->
-                  parse_and_store_cpu_usage(ResponseLines, NodeType),
-                  parse_and_store_memory_usage(ResponseLines, NodeType)
+                  TimeNs = erlang:system_time(nanosecond),
+                  parse_and_store_cpu_usage(ResponseLines, NodeType, TimeNs),
+                  parse_and_store_memory_usage(ResponseLines, NodeType, TimeNs)
       end.
 
 query_node_exporter(Url) ->
@@ -126,7 +127,7 @@ query_node_exporter(Url) ->
                   {ok, Lines}
       end.
 
-parse_and_store_cpu_usage(NodeExporterResponseLines, NodeType) ->
+parse_and_store_cpu_usage(NodeExporterResponseLines, NodeType, TimeNs) ->
       CpuLines = lists:filter(fun(Line) -> string:find(Line, ?CPU_LINE_START) =/= nomatch andalso string:find(Line, ?HELP_LINE_START) =:= nomatch end, NodeExporterResponseLines),
       IdleCpuLines = lists:filter(fun(Line) -> string:find(Line, ?CPU_LINE_IDLE) =/= nomatch end, CpuLines),
       ActiveCpuLines = lists:filter(fun(Line) -> string:find(Line, ?CPU_LINE_IDLE) =:= nomatch end, CpuLines),
@@ -152,10 +153,10 @@ parse_and_store_cpu_usage(NodeExporterResponseLines, NodeType) ->
                   CpuUsage = (DeltaActive / (DeltaActive + DeltaIdle)) * 100,
 
                   % Store usage metric
-                  ps_bench_store:record_cpu_usage(NodeType, CpuUsage)
+                  ps_bench_store:record_cpu_usage(NodeType, CpuUsage, TimeNs)
       end.
 
-parse_and_store_memory_usage(NodeExporterResponseLines, NodeType) ->
+parse_and_store_memory_usage(NodeExporterResponseLines, NodeType, TimeNs) ->
       MemUseLine = lists:filter(fun(Line) -> string:find(Line, ?MEM_USE_LINE_START) =/= nomatch andalso string:find(Line, ?HELP_LINE_START) =:= nomatch end, NodeExporterResponseLines),
       MemTotalLine = lists:filter(fun(Line) -> string:find(Line, ?MEM_TOTAL_LINE_START) =/= nomatch andalso string:find(Line, ?HELP_LINE_START) =:= nomatch end, NodeExporterResponseLines),
 
@@ -164,7 +165,7 @@ parse_and_store_memory_usage(NodeExporterResponseLines, NodeType) ->
       MemUsagePct = (MemUseValue / MemTotalValue) * 100,
       
       % Store usage metric
-      ps_bench_store:record_memory_usage(NodeType, MemUsagePct).
+      ps_bench_store:record_memory_usage(NodeType, MemUsagePct, TimeNs).
 
 parse_value_from_line(Line) ->
       [_, StrValue] = string:tokens(Line, " "),
@@ -191,12 +192,12 @@ calculate_cpu_stats(NodeType) ->
                         end,
 
       TotalEvents = length(AllCpuUsageEvents),
-      TotalUsage = lists:foldl(fun({_, UsageVal}, Total) -> Total + UsageVal end, 0, AllCpuUsageEvents),
+      TotalUsage = lists:foldl(fun({_, _, UsageVal}, Total) -> Total + UsageVal end, 0, AllCpuUsageEvents),
       AvgUsage = TotalUsage / TotalEvents,
 
       % Bootstrap these with out of range values to ensure the first one takes the real value
-      MaxUsage = lists:foldl(fun({_, UsageVal}, CurrMax) -> max(UsageVal, CurrMax) end, -1, AllCpuUsageEvents), 
-      MinUsage = lists:foldl(fun({_, UsageVal}, CurrMin) -> min(UsageVal, CurrMin) end, 101, AllCpuUsageEvents),
+      MaxUsage = lists:foldl(fun({_, _, UsageVal}, CurrMax) -> max(UsageVal, CurrMax) end, -1, AllCpuUsageEvents), 
+      MinUsage = lists:foldl(fun({_, _, UsageVal}, CurrMin) -> min(UsageVal, CurrMin) end, 101, AllCpuUsageEvents),
       
       {MinUsage, MaxUsage, AvgUsage}.
 
@@ -209,12 +210,12 @@ calculate_mem_stats(NodeType) ->
                         end,
 
       TotalEvents = length(AllMemoryUsageEvents),
-      TotalUsage = lists:foldl(fun({_, UsageVal}, Total) -> Total + UsageVal end, 0, AllMemoryUsageEvents),
+      TotalUsage = lists:foldl(fun({_, _, UsageVal}, Total) -> Total + UsageVal end, 0, AllMemoryUsageEvents),
       AvgUsage = TotalUsage / TotalEvents,
 
       % Bootstrap these with out of range values to ensure the first one takes the real value
-      MaxUsage = lists:foldl(fun({_, UsageVal}, CurrMax) -> max(UsageVal, CurrMax) end, -1, AllMemoryUsageEvents), 
-      MinUsage = lists:foldl(fun({_, UsageVal}, CurrMin) -> min(UsageVal, CurrMin) end, 101, AllMemoryUsageEvents),
+      MaxUsage = lists:foldl(fun({_, _, UsageVal}, CurrMax) -> max(UsageVal, CurrMax) end, -1, AllMemoryUsageEvents), 
+      MinUsage = lists:foldl(fun({_, _, UsageVal}, CurrMin) -> min(UsageVal, CurrMin) end, 101, AllMemoryUsageEvents),
       
       {MinUsage, MaxUsage, AvgUsage}.
 

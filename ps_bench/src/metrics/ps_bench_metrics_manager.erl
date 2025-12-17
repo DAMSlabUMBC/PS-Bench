@@ -51,9 +51,8 @@ initialize_python_plugins(OutDir) ->
     ps_bench_utils:log_message("Initialized Python metric plugins: ~p", [Plugins]).
 
 run_metric_calculations() ->
-    run_python_plugins(),
-    run_erlang_plugins(),
 
+    % First we want to store the events so we can recreate the metrics if needed
     % Get the stored run directory instead of the base directory
     RunDir = persistent_term:get({?MODULE, run_dir}, undefined),
     OutDir = case RunDir of
@@ -64,6 +63,12 @@ run_metric_calculations() ->
         _ -> RunDir
     end,
 
+    save_events_to_disk(OutDir),
+
+    % Now run plugin calculations
+    run_python_plugins(),
+    run_erlang_plugins(),
+
     % Write hardware stats if we're using it
     case ps_bench_config_manager:using_hw_poll() of
         true ->
@@ -71,6 +76,24 @@ run_metric_calculations() ->
         false ->
             ok
     end.
+
+save_events_to_disk(OutDir) ->
+
+    % For each table, write the results
+    {ok, NodeName} = ps_bench_config_manager:fetch_node_name(),
+    FilePrefix = filename:join(OutDir, "raw_events"),
+
+    % Ensure directory exists
+    TempFile = filename:join(FilePrefix, "noop.txt"),
+    filelib:ensure_dir(TempFile),
+
+    ps_bench_store:write_publish_events_to_disk(filename:join(FilePrefix, ps_bench_utils:convert_to_list(NodeName) ++ "_pub_events.csv")),
+    ps_bench_store:write_recv_events_to_disk(filename:join(FilePrefix, ps_bench_utils:convert_to_list(NodeName) ++ "_recv_events.csv")),
+    ps_bench_store:write_connect_events_to_disk(filename:join(FilePrefix, ps_bench_utils:convert_to_list(NodeName) ++ "_connect_events.csv")),
+    ps_bench_store:write_disconnect_events_to_disk(filename:join(FilePrefix, ps_bench_utils:convert_to_list(NodeName) ++ "_disconnect_events.csv")),
+    ps_bench_store:write_cpu_usage_events_to_disk(filename:join(FilePrefix, ps_bench_utils:convert_to_list(NodeName) ++ "_cpu_events.csv")),
+    ps_bench_store:write_memory_usage_events_to_disk(filename:join(FilePrefix, ps_bench_utils:convert_to_list(NodeName) ++ "_mem_events.csv")),
+    ok.
 
 run_python_plugins() ->
 

@@ -6,17 +6,18 @@
 %% seq mgmt
 -export([get_next_seq_id/1]).
 %% recv event I/O
--export([record_recv/6, record_recv/7, record_publish/3, record_connect/2, record_disconnect/3, aggregate_publish_results/0, record_cpu_usage/2, record_memory_usage/2]).
+-export([record_recv/6, record_recv/7, record_publish/3, record_connect/2, record_disconnect/3, aggregate_publish_results/0, record_cpu_usage/3, record_memory_usage/3]).
 %% rollup helpers
 -export([get_last_recv_seq/1, put_last_recv_seq/2]).
 %% window summaries
 -export([fetch_recv_events/0, fetch_recv_events_by_filter/1, fetch_publish_events/0, fetch_publish_events_by_filter/1, fetch_connect_events/0, fetch_disconnect_events/0]).
+%% write to disk
+-export([write_publish_events_to_disk/1, write_recv_events_to_disk/1, write_connect_events_to_disk/1, write_disconnect_events_to_disk/1, write_cpu_usage_events_to_disk/1, write_memory_usage_events_to_disk/1]).
 -export([fetch_mnesia_publish_aggregation/0, fetch_mnesia_publish_aggregation_from_node/1, fetch_cpu_usage/0, fetch_broker_cpu_usage/0, fetch_memory_usage/0, fetch_broker_memory_usage/0]).
 
 
 -define(T_PUBSEQ, psb_pub_seq).      %% {pub_topic, TopicBin} -> Seq
 -define(T_RECVSEQ, psb_recv_seq).    %% {recv_topic, TopicBin} -> LastSeqSeen
--define(T_CONNECT, psb_recv_seq).    %% 
 -define(T_CONNECT_EVENTS, psb_connect_events).
 -define(T_DISCONNECT_EVENTS, psb_disconnect_events).
 -define(T_PUBLISH_EVENTS, psb_publish_events).       %% ordered by t_recv_ns key
@@ -175,34 +176,31 @@ record_publish(ClientName, Topic, Seq) ->
 
 record_connect(ClientName, TimeNs) ->
     ensure_tables(),
-    Key = {TimeNs, ClientName, connect},
-    ets:insert(?T_CONNECT_EVENTS, {Key, #{client=>ClientName, time=>TimeNs}}),
+    Event = {TimeNs, ClientName, connect},
+    ets:insert(?T_CONNECT_EVENTS, Event),
     
     % Reset sequence tracking for this client on connect
-    AllKeys = ets:select(?T_RECVSEQ, [{{'$1', '_'}, [], ['$1']}]),
-    lists:foreach(fun({C, _, _} = K) when C =:= ClientName -> 
-                      ets:delete(?T_RECVSEQ, K);
-                     (_) -> ok 
-                  end, AllKeys),
+    % AllKeys = ets:select(?T_RECVSEQ, [{{'$1', '_'}, [], ['$1']}]),
+    % lists:foreach(fun({C, _, _} = K) when C =:= ClientName -> 
+    %                   ets:delete(?T_RECVSEQ, K);
+    %                  (_) -> ok 
+    %               end, AllKeys),
     % ps_bench_utils:log_message("Client ~p connected at ~p", [ClientName, TimeNs]),
     ok.
 
 record_disconnect(ClientName, TimeNs, Type) ->
     ensure_tables(),
-    Key = {TimeNs, ClientName, disconnect},
-    ets:insert(?T_DISCONNECT_EVENTS, {Key, #{client=>ClientName, 
-                                              time=>TimeNs, 
-                                              type=>Type}}),
-    % ps_bench_utils:log_message("Client ~p disconnected (~p) at ~p", [ClientName, Type, TimeNs]),
+    Event = {TimeNs, ClientName, disconnect},
+    ets:insert(?T_DISCONNECT_EVENTS, Event),
     ok.
 
-record_cpu_usage(NodeType, CpuUsage) ->
+record_cpu_usage(NodeType, CpuUsage, TimeNs) ->
     ensure_tables(),
-    ets:insert(?T_CPU_EVENTS, {NodeType, CpuUsage}).
+    ets:insert(?T_CPU_EVENTS, {TimeNs, NodeType, CpuUsage}).
 
-record_memory_usage(NodeType, MemoryUsage) ->
+record_memory_usage(NodeType, MemoryUsage, TimeNs) ->
     ensure_tables(),
-    ets:insert(?T_MEM_EVENTS, {NodeType, MemoryUsage}).
+    ets:insert(?T_MEM_EVENTS, {TimeNs, NodeType, MemoryUsage}).
 
 fetch_recv_events() ->
     ets:tab2list(?T_RECV_EVENTS).
@@ -210,11 +208,43 @@ fetch_recv_events() ->
 fetch_recv_events_by_filter(ObjectFilter) ->
     ets:match_object(?T_RECV_EVENTS, ObjectFilter).
 
+write_recv_events_to_disk(OutFile) ->
+
+    % Fetch all events
+    RecvEvents = fetch_recv_events(),
+
+    % Open file and write the results
+    {ok, File} = file:open(OutFile, [write]),
+    io:format(File, "ReceiverID,ReceivingClient,SenderID,Topic,SeqId~n", []),
+    lists:foreach(
+         fun({NodeName, RecvClientName, PublisherID, TopicBin, Seq, TPubNs, TRecvNs, Bytes}) ->
+              io:format(File, "~p,~p,~p,~p,~p,~p,~p,~p~n",[NodeName, RecvClientName, PublisherID, TopicBin, Seq, TPubNs, TRecvNs, Bytes])
+          end, RecvEvents),
+    % Ensure data is written to disk; ignore errors on platforms where sync is not supported
+    _ = file:sync(File),
+    file:close(File).
+
 fetch_publish_events() ->
     ets:tab2list(?T_PUBLISH_EVENTS).
 
 fetch_publish_events_by_filter(ObjectFilter) ->
     ets:match_object(?T_PUBLISH_EVENTS, ObjectFilter).
+
+write_publish_events_to_disk(OutFile) ->
+
+    % Fetch all events
+    PubEvents = fetch_publish_events(),
+
+    % Open file and write the results
+    {ok, File} = file:open(OutFile, [write]),
+    io:format(File, "SenderID,SendingClient,Topic,SeqId~n", []),
+    lists:foreach(
+         fun({NodeName, ClientName, Topic, Seq}) ->
+              io:format(File, "~p,~p,~p,~p~n",[NodeName, ClientName, Topic, Seq])
+          end, PubEvents),
+    % Ensure data is written to disk; ignore errors on platforms where sync is not supported
+    _ = file:sync(File),
+    file:close(File).
 
 aggregate_publish_results() ->
     % We don't want to overload mnesia by storing every individual message,
@@ -252,20 +282,82 @@ fetch_mnesia_publish_aggregation_from_node(NodeName) ->
 fetch_connect_events() ->
     ets:tab2list(?T_CONNECT_EVENTS).
 
+write_connect_events_to_disk(OutFile) ->
+
+    % Fetch all events
+    ConnectEvents = fetch_connect_events(),
+
+    % Open file and write the results
+    {ok, File} = file:open(OutFile, [write]),
+    io:format(File, "ConnectTimeNs,ClientName,Type~n", []),
+    lists:foreach(
+         fun({TimeNs, ClientName, Type}) ->
+              io:format(File, "~p,~p,~p~n",[TimeNs, ClientName, Type])
+          end, ConnectEvents),
+    % Ensure data is written to disk; ignore errors on platforms where sync is not supported
+    _ = file:sync(File),
+    file:close(File).
+
 fetch_disconnect_events() ->
     ets:tab2list(?T_DISCONNECT_EVENTS).
 
+write_disconnect_events_to_disk(OutFile) ->
+
+    % Fetch all events
+    DisconnectEvents = fetch_disconnect_events(),
+
+    % Open file and write the results
+    {ok, File} = file:open(OutFile, [write]),
+    io:format(File, "DisconnectTimeNs,ClientName,Type~n", []),
+    lists:foreach(
+         fun({TimeNs, ClientName, Type}) ->
+              io:format(File, "~p,~p,~p~n",[TimeNs, ClientName, Type])
+          end, DisconnectEvents),
+    % Ensure data is written to disk; ignore errors on platforms where sync is not supported
+    _ = file:sync(File),
+    file:close(File).
+
 fetch_cpu_usage() ->
-    ets:match_object(?T_CPU_EVENTS, {local, '_'}).
+    ets:match_object(?T_CPU_EVENTS, {'_', local, '_'}).
 
 fetch_broker_cpu_usage() ->
-    ets:match_object(?T_CPU_EVENTS, {broker, '_'}).
+    ets:match_object(?T_CPU_EVENTS, {'_', broker, '_'}).
 
 fetch_memory_usage() ->
-    ets:match_object(?T_MEM_EVENTS, {local, '_'}).
+    ets:match_object(?T_MEM_EVENTS, {'_', local, '_'}).
 
 fetch_broker_memory_usage() ->
-    ets:match_object(?T_MEM_EVENTS, {broker, '_'}).
+    ets:match_object(?T_MEM_EVENTS, {'_', broker, '_'}).
+
+write_cpu_usage_events_to_disk(OutFile) ->
+    % Fetch all events
+    CPUEvents = ets:tab2list(?T_CPU_EVENTS),
+
+    % Open file and write the results
+    {ok, File} = file:open(OutFile, [write]),
+    io:format(File, "TimeNs,Type,Value~n", []),
+    lists:foreach(
+         fun({TimeNs, NodeType, CpuUsage}) ->
+              io:format(File, "~p,~p,~p~n",[TimeNs, NodeType, CpuUsage])
+          end, CPUEvents),
+    % Ensure data is written to disk; ignore errors on platforms where sync is not supported
+    _ = file:sync(File),
+    file:close(File).
+
+write_memory_usage_events_to_disk(OutFile) ->
+    % Fetch all events
+    MemEvents = ets:tab2list(?T_MEM_EVENTS),
+
+    % Open file and write the results
+    {ok, File} = file:open(OutFile, [write]),
+    io:format(File, "TimeNs,Type,Value~n", []),
+    lists:foreach(
+         fun({TimeNs, NodeType, MemUsage}) ->
+              io:format(File, "~p,~p,~p~n",[TimeNs, NodeType, MemUsage])
+          end, MemEvents),
+    % Ensure data is written to disk; ignore errors on platforms where sync is not supported
+    _ = file:sync(File),
+    file:close(File).
 
 get_last_recv_seq(TopicBin) ->
     case ets:lookup(?T_RECVSEQ, {recv_topic, TopicBin}) of

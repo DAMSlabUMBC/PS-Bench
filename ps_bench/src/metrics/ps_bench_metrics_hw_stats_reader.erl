@@ -183,65 +183,85 @@ parse_value_from_line(Line) ->
                   FloatValue
       end.
 
-calculate_cpu_stats(NodeType) ->
-      AllCpuUsageEvents = case NodeType of
+calculate_hw_stats(StatType, NodeType) ->
+      AllStatEvents = case NodeType of
                               local ->
-                                    ps_bench_store:fetch_cpu_usage();
+                                    case StatType of 
+                                          cpu ->
+                                                ps_bench_store:fetch_cpu_usage();
+                                          memory ->
+                                                ps_bench_store:fetch_memory_usage()
+                                    end;
                               broker ->
-                                    ps_bench_store:fetch_broker_cpu_usage()
+                                    case StatType of 
+                                          cpu ->
+                                                ps_bench_store:fetch_broker_cpu_usage();
+                                          memory ->
+                                                ps_bench_store:fetch_broker_memory_usage()
+                                    end
                         end,
 
-      TotalEvents = length(AllCpuUsageEvents),
-      TotalUsage = lists:foldl(fun({_, _, UsageVal}, Total) -> Total + UsageVal end, 0, AllCpuUsageEvents),
+      TotalEvents = length(AllStatEvents),
+      TotalUsage = lists:foldl(fun({_, _, UsageVal}, Total) -> Total + UsageVal end, 0, AllStatEvents),
       AvgUsage = TotalUsage / TotalEvents,
 
       % Bootstrap these with out of range values to ensure the first one takes the real value
-      MaxUsage = lists:foldl(fun({_, _, UsageVal}, CurrMax) -> max(UsageVal, CurrMax) end, -1, AllCpuUsageEvents), 
-      MinUsage = lists:foldl(fun({_, _, UsageVal}, CurrMin) -> min(UsageVal, CurrMin) end, 101, AllCpuUsageEvents),
+      MaxUsage = lists:foldl(fun({_, _, UsageVal}, CurrMax) -> max(UsageVal, CurrMax) end, -1, AllStatEvents), 
+      MinUsage = lists:foldl(fun({_, _, UsageVal}, CurrMin) -> min(UsageVal, CurrMin) end, 101, AllStatEvents),
+
+      % Now compute sum of squared means
+      SumOfSquaredMeans = lists:foldl(fun(Event, CurrSum) -> 
+                                                {_, _, UsageVal} = Event,
+                                                Difference = UsageVal - AvgUsage,
+                                                SquaredDifference = math:pow(Difference, 2),
+                                                CurrSum + SquaredDifference
+                                          end, 0, AllStatEvents),
+      Variance = SumOfSquaredMeans / TotalEvents,
+
+      % Now compute the median value
+      SortedEvents = lists:sort(fun(Event1, Event2) ->
+                                          {_, _, UsageVal1} = Event1,
+                                          {_, _, UsageVal2} = Event2,
+                                          UsageVal1 < UsageVal2
+                                    end, AllStatEvents),
+      MedianIndex = TotalEvents div 2, % Integer divison
+      {_, _, MedianUsage} = lists:nth(MedianIndex, SortedEvents),
+
+      % Now compute P90/95/99 values with the sorted events
+      % First calculate indexes as (TotalEvents * p_val)
+      % e.g. for 500 events, the 90th percentile index would be 450
+      % We round down for a more conservative measurement
+      P90Index = erlang:trunc(TotalEvents * 0.90),
+      P95Index = erlang:trunc(TotalEvents * 0.95),
+      P99Index = erlang:trunc(TotalEvents * 0.99),
+
+      {_, _, P90Usage} = lists:nth(P90Index, SortedEvents),
+      {_, _, P95Usage} = lists:nth(P95Index, SortedEvents),
+      {_, _, P99Usage} = lists:nth(P99Index, SortedEvents),
       
-      {MinUsage, MaxUsage, AvgUsage}.
-
-calculate_mem_stats(NodeType) ->
-      AllMemoryUsageEvents = case NodeType of
-                              local ->
-                                    ps_bench_store:fetch_memory_usage();
-                              broker ->
-                                    ps_bench_store:fetch_broker_memory_usage()
-                        end,
-
-      TotalEvents = length(AllMemoryUsageEvents),
-      TotalUsage = lists:foldl(fun({_, _, UsageVal}, Total) -> Total + UsageVal end, 0, AllMemoryUsageEvents),
-      AvgUsage = TotalUsage / TotalEvents,
-
-      % Bootstrap these with out of range values to ensure the first one takes the real value
-      MaxUsage = lists:foldl(fun({_, _, UsageVal}, CurrMax) -> max(UsageVal, CurrMax) end, -1, AllMemoryUsageEvents), 
-      MinUsage = lists:foldl(fun({_, _, UsageVal}, CurrMin) -> min(UsageVal, CurrMin) end, 101, AllMemoryUsageEvents),
-      
-      {MinUsage, MaxUsage, AvgUsage}.
+      {MinUsage, MaxUsage, AvgUsage, Variance, MedianUsage, P90Usage, P95Usage, P99Usage}.
 
 calculate_and_write_local_stats(OutFile) ->
       {ok, NodeName} = ps_bench_config_manager:fetch_node_name(),
-      {MinCpuUsage, MaxCpuUsage, AvgCpuUsage} = calculate_cpu_stats(local),
-      {MinMemUsage, MaxMemUsage, AvgMemUsage} = calculate_mem_stats(local),
-
-      % Open file and write the results
-      {ok, File} = file:open(OutFile, [write]),
-      io:format(File, "Node,MinCPUUsage,MaxCPUUsage,AverageCPUUsage,MinMemoryUsage,MaxMemoryUsage,AverageMemoryUsage~n", []),
-      io:format(File, "~p,~p,~p,~p,~p,~p,~p~n",[NodeName, MinCpuUsage, MaxCpuUsage, AvgCpuUsage, MinMemUsage, MaxMemUsage, AvgMemUsage]),
-	  
-	  % Ensure data is written to disk; ignore errors on platforms where sync is not supported
-      _ = file:sync(File),
-      file:close(File).
+      CPUResults = calculate_hw_stats(cpu, local),
+      MemResults = calculate_hw_stats(memory, local),
+      write_stats_to_file(OutFile, NodeName, CPUResults, MemResults).
 
 calculate_and_write_broker_stats(OutFile) ->
       NodeName = "broker",
-      {MinCpuUsage, MaxCpuUsage, AvgCpuUsage} = calculate_cpu_stats(broker),
-      {MinMemUsage, MaxMemUsage, AvgMemUsage} = calculate_mem_stats(broker),
+      CPUResults = calculate_hw_stats(cpu, broker),
+      MemResults = calculate_hw_stats(memory, broker),
+      write_stats_to_file(OutFile, NodeName, CPUResults, MemResults).
+
+write_stats_to_file(OutFile, NodeName, CPUResults, MemResults) ->
+      
+      {MinCpuUsage, MaxCpuUsage, AvgCpuUsage, CpuVariance, MedianCpuUsage, P90CpuUsage, P95CpuUsage, P99CpuUsage} = CPUResults,
+      {MinMemUsage, MaxMemUsage, AvgMemUsage, MemVariance, MedianMemUsage, P90MemUsage, P95MemUsage, P99MemUsage} = MemResults,
 
       % Open file and write the results
       {ok, File} = file:open(OutFile, [write]),
-      io:format(File, "Node,MinCPUUsage,MaxCPUUsage,AverageCPUUsage,MinMemoryUsage,MaxMemoryUsage,AverageMemoryUsage~n", []),
-      io:format(File, "~p,~p,~p,~p,~p,~p,~p~n",[NodeName, MinCpuUsage, MaxCpuUsage, AvgCpuUsage, MinMemUsage, MaxMemUsage, AvgMemUsage]),
+      io:format(File, "Node,MinCPUUsage,MaxCPUUsage,AverageCPUUsage,CPUUsageVariance,MedianCPUUsage,P90CPU,P95CPU,P99CPU,MinMemoryUsage,MaxMemoryUsage,AverageMemoryUsage,MemoryUsageVariance,MedianMemoryUsage,P90CMemory,P95Memory,P99Memory~n", []),
+      io:format(File, "~p,~p,~p,~p,~p,~p,~p,~p,~p,~p,~p,~p,~p,~p,~p,~p,~p~n",[NodeName, MinCpuUsage, MaxCpuUsage, AvgCpuUsage, CpuVariance, MedianCpuUsage, P90CpuUsage, P95CpuUsage, P99CpuUsage, MinMemUsage, MaxMemUsage, AvgMemUsage, MemVariance, MedianMemUsage, P90MemUsage, P95MemUsage, P99MemUsage]),
 	  
 	  % Ensure data is written to disk; ignore errors on platforms where sync is not supported
       _ = file:sync(File),

@@ -33,22 +33,23 @@ initialize_erlang_plugins(OutDir) ->
     lists:foreach(InitFunction, Plugins),
     ps_bench_utils:log_message("Initialized Erlang metric plugins: ~p", [Plugins]).
 
-initialize_python_plugins(OutDir) ->
+% Future feature
+% initialize_python_plugins(OutDir) ->
 
-    %% Build an absolute path to priv/py_engine that works in dev & release
-    PrivDir = code:priv_dir(ps_bench),
-    PyPath  = filename:join(PrivDir, "py_engine"),
+%     %% Build an absolute path to priv/py_engine that works in dev & release
+%     PrivDir = code:priv_dir(ps_bench),
+%     PyPath  = filename:join(PrivDir, "py_engine"),
 
-    % Fetch plugins
-    {ok, Plugins} = ps_bench_config_manager:fetch_python_metric_plugins(),
+%     % Fetch plugins
+%     {ok, Plugins} = ps_bench_config_manager:fetch_python_metric_plugins(),
     
-    BinaryOutDir  = unicode:characters_to_binary(OutDir),
-    {ok, Py} = python:start_link([{python_path, [PyPath]}, {python, ?DEFAULT_PYTHON_EXECUTABLE}]),
-    persistent_term:put({?MODULE, python_engine}, Py),
+%     BinaryOutDir  = unicode:characters_to_binary(OutDir),
+%     {ok, Py} = python:start_link([{python_path, [PyPath]}, {python, ?DEFAULT_PYTHON_EXECUTABLE}]),
+%     persistent_term:put({?MODULE, python_engine}, Py),
 
-    % Now call into python to initalize the plugins
-    ok = python:call(Py, plugin_engine, init, [Plugins, BinaryOutDir]),
-    ps_bench_utils:log_message("Initialized Python metric plugins: ~p", [Plugins]).
+%     % Now call into python to initalize the plugins
+%     ok = python:call(Py, plugin_engine, init, [Plugins, BinaryOutDir]),
+%     ps_bench_utils:log_message("Initialized Python metric plugins: ~p", [Plugins]).
 
 run_metric_calculations() ->
 

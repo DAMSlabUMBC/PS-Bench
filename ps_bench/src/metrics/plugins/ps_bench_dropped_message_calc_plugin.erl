@@ -58,10 +58,16 @@ write_csv(Results) ->
 
       % Open file and write the results
       {ok, File} = file:open(FullPath, [write]),
-      io:format(File, "Receiver,Sender,TotalMessagesSentFromSender,PubsDroppedFromSender~n", []),
+      io:format(File, "Receiver,Sender,TotalMessagesSentFromSender,PubsDroppedFromSender,DroppedAsPct~n", []),
       lists:foreach(
             fun({SourceNode, DestNode, DroppedPubsCount, AllPubsCount}) ->
-                  io:format(File, "~p,~p,~p,~p~n",[SourceNode, DestNode, DroppedPubsCount, AllPubsCount])
+                  PctDropped = case AllPubsCount of
+                        0 ->
+                              0;
+                        _ ->
+                              DroppedPubsCount / AllPubsCount
+                  end,
+                  io:format(File, "~p,~p,~p,~p,~p~n",[SourceNode, DestNode, DroppedPubsCount, AllPubsCount, PctDropped])
             end, Results),
       % Ensure data is written to disk; ignore errors on platforms where sync is not supported
       _ = file:sync(File),

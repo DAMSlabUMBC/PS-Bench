@@ -36,7 +36,7 @@ calculate_pairwise_throughput_for_one_node(ThisNode, TargetNode) ->
 
       case TotalMessages of
             0 ->
-                  {ThisNode, TargetNode, 0, 0, 0};
+                  {ThisNode, TargetNode, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
             _ ->
                  % Bootstrap the calculation by setting min/max equal to the first element of the list
                   [FirstElement | _] = AllRecvEvents,
@@ -66,7 +66,31 @@ calculate_pairwise_throughput_for_one_node(ThisNode, TargetNode) ->
                                                       end, 0, PartitionedList),
                   Variance = SumOfSquaredMeans / DurationS,
 
-                  {ThisNode, TargetNode, DurationS, TotalMessages, Throughput, Variance}
+                  % Now compute the median value
+                  SortedTimeframes = lists:sort(fun(InnerList1, InnerList2) ->
+                                                      length(InnerList1) < length(InnerList2)
+                                                end, PartitionedList),
+                  MedianIndex = length(PartitionedList) div 2, % Integer divison
+                  MedianValue = length(lists:nth(MedianIndex, SortedTimeframes)),
+
+                  % Now compute P90/95/99 values with the sorted throughputs
+                  % We want to know the LOWEST values here, not the highest, so we reverse the list first
+                  % First calculate indexes as (Timeframes * p_val)
+                  % e.g. for 120 seconds, the 90th percentile index for the lowest throughputs would be 108
+                  % We round down for a more conservative measurement
+                  ReversedTimeframes = lists:reverse(SortedTimeframes),
+                  TimeframeCount = length(ReversedTimeframes),
+                  P90Index = erlang:trunc(TimeframeCount * 0.90),
+                  P95Index = erlang:trunc(TimeframeCount * 0.95),
+                  P99Index = erlang:trunc(TimeframeCount * 0.99),
+
+                  P90Value = length(lists:nth(P90Index, ReversedTimeframes)),
+                  P95Value = length(lists:nth(P95Index, ReversedTimeframes)),
+                  P99Value = length(lists:nth(P99Index, ReversedTimeframes)),
+                  MinValue = length(lists:nth(1, SortedTimeframes)), % This is supposed to be Sorted, not Reversed since we want lowest here
+                  MaxValue = length(lists:nth(1, ReversedTimeframes)),
+
+                  {ThisNode, TargetNode, DurationS, TotalMessages, Throughput, Variance, MinValue, MaxValue, MedianValue, P90Value, P95Value, P99Value}
       end.
 
 partition_throughput_list(List, CurrTime, EndTime, Acc) ->
@@ -79,7 +103,7 @@ partition_throughput_list(List, CurrTime, EndTime, Acc) ->
       NewAcc = Acc ++ [MessagesInTime],
 
       case EndTimeForPartition of 
-            Value when EndTimeForPartition =/= EndTime ->
+            Value when Value =/= EndTime ->
                   partition_throughput_list(List, CurrTime + 1000000000, EndTime, NewAcc);
             _ ->
                   NewAcc
@@ -92,10 +116,10 @@ write_csv(Results) ->
 
       % Open file and write the results
       {ok, File} = file:open(FullPath, [write]),
-      io:format(File, "Receiver,Sender,DurationSeconds,TotalMessagesRecv,AverageThroughput,Variance~n", []),
+      io:format(File, "Receiver,Sender,DurationSeconds,TotalMessagesRecv,AverageThroughput,Variance,MinThroughput,MaxThroughput,MedianThroughput,P90HighestThroughput,P95HighestThroughput,P99HighestThroughput~n", []),
       lists:foreach(
-            fun({SourceNode, DestNode, DurationS, TotalMessages, Throughput, Variance}) ->
-                  io:format(File, "~p,~p,~p,~p,~p,~p~n",[SourceNode, DestNode, DurationS, TotalMessages, Throughput, Variance])
+            fun({SourceNode, DestNode, DurationS, TotalMessages, Throughput, Variance, MinValue, MaxValue, MedianValue, P90Value, P95Value, P99Value}) ->
+                  io:format(File, "~p,~p,~p,~p,~p,~p,~p,~p,~p,~p,~p,~p~n",[SourceNode, DestNode, DurationS, TotalMessages, Throughput, Variance, MinValue, MaxValue, MedianValue, P90Value, P95Value, P99Value])
             end, Results),
       % Ensure data is written to disk; ignore errors on platforms where sync is not supported
       _ = file:sync(File),

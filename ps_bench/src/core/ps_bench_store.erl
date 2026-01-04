@@ -51,7 +51,7 @@ initialize_mnesia_storage(Nodes) ->
             rpc:multicall(Nodes, application, stop, [mnesia]),
             mnesia:create_schema(Nodes),
             ps_bench_utils:log_message("Attempting to restart mnesia database on ~p.", [Nodes]),
-            {Results, _BadNodes} = rpc:multicall(Nodes, application, start, [mnesia]),
+            {_Results, _BadNodes} = rpc:multicall(Nodes, application, start, [mnesia]),
             
             % Wait for all nodes to report mnesia is started
             wait_for_mnesia_on_nodes(Nodes),
@@ -190,7 +190,7 @@ record_connect(ClientName, TimeNs) ->
 
 record_disconnect(ClientName, TimeNs, Type) ->
     ensure_tables(),
-    Event = {TimeNs, ClientName, disconnect},
+    Event = {TimeNs, ClientName, disconnect, Type},
     ets:insert(?T_DISCONNECT_EVENTS, Event),
     ok.
 
@@ -215,7 +215,7 @@ write_recv_events_to_disk(OutFile) ->
 
     % Open file and write the results
     {ok, File} = file:open(OutFile, [write]),
-    io:format(File, "ReceiverID,ReceivingClient,SenderID,Topic,SeqId~n", []),
+    io:format(File, "ReceiverID,ReceivingClient,SenderID,Topic,SeqId,PubTimeNs,RecvTimeNs,BytesRecv~n", []),
     lists:foreach(
          fun({NodeName, RecvClientName, PublisherID, TopicBin, Seq, TPubNs, TRecvNs, Bytes}) ->
               io:format(File, "~p,~p,~p,~p,~p,~p,~p,~p~n",[NodeName, RecvClientName, PublisherID, TopicBin, Seq, TPubNs, TRecvNs, Bytes])
@@ -289,10 +289,10 @@ write_connect_events_to_disk(OutFile) ->
 
     % Open file and write the results
     {ok, File} = file:open(OutFile, [write]),
-    io:format(File, "ConnectTimeNs,ClientName,Type~n", []),
+    io:format(File, "ConnectTimeNs,ClientName,Op~n", []),
     lists:foreach(
-         fun({TimeNs, ClientName, Type}) ->
-              io:format(File, "~p,~p,~p~n",[TimeNs, ClientName, Type])
+         fun({TimeNs, ClientName, Op}) ->
+              io:format(File, "~p,~p,~p~n",[TimeNs, ClientName, Op])
           end, ConnectEvents),
     % Ensure data is written to disk; ignore errors on platforms where sync is not supported
     _ = file:sync(File),
@@ -308,10 +308,10 @@ write_disconnect_events_to_disk(OutFile) ->
 
     % Open file and write the results
     {ok, File} = file:open(OutFile, [write]),
-    io:format(File, "DisconnectTimeNs,ClientName,Type~n", []),
+    io:format(File, "DisconnectTimeNs,ClientName,Op,Type~n", []),
     lists:foreach(
-         fun({TimeNs, ClientName, Type}) ->
-              io:format(File, "~p,~p,~p~n",[TimeNs, ClientName, Type])
+         fun({TimeNs, ClientName, Op, Type}) ->
+              io:format(File, "~p,~p,~p,~p~n",[TimeNs, ClientName, Op, Type])
           end, DisconnectEvents),
     % Ensure data is written to disk; ignore errors on platforms where sync is not supported
     _ = file:sync(File),

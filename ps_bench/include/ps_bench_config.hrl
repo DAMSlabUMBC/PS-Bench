@@ -110,5 +110,5 @@
 -define(UNSUBSCRIBED_MSG, unsubscribed).
 
 % Records for metric storage
--define(PUB_EVENT_RECORD_NAME, pub_msg_event).
--record(?PUB_EVENT_RECORD_NAME, {node_name, topic, pub_count}).
+-define(PUB_AGG_RECORD_NAME, pub_aggregate).
+-record(?PUB_AGG_RECORD_NAME, {node_name, binary_aggregate}).

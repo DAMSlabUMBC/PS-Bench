@@ -168,7 +168,8 @@ log_message(Message) ->
 log_message(Message, Args) ->
     {ok, NodeName} = ps_bench_config_manager:fetch_node_name(),
     FormattedMessage = io_lib:format(Message, Args),
-    io:format("[~p] ~s~n", [NodeName, FormattedMessage]).
+    {{_,_,_},{Hour,Min,Sec}} = erlang:localtime(),
+    io:format("[~p - ~p:~p:~p] ~s~n", [NodeName, Hour, Min, Sec, FormattedMessage]).
 
 log_state_change(Message) ->
     log_state_change(Message, []).
@@ -176,4 +177,5 @@ log_state_change(Message) ->
 log_state_change(Message, Args) ->
     {ok, NodeName} = ps_bench_config_manager:fetch_node_name(),
     FormattedMessage = io_lib:format(Message, Args),
-    io:format("[~p] === ~s ===~n", [NodeName, FormattedMessage]).
+    {{_,_,_},{Hour,Min,Sec}} = erlang:localtime(),
+    io:format("[~p - ~p:~p:~p] === ~s ===~n", [NodeName, Hour, Min, Sec, FormattedMessage]).

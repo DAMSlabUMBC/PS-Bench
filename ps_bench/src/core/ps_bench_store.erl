@@ -6,7 +6,7 @@
 %% seq mgmt
 -export([get_next_seq_id/1]).
 %% recv event I/O
--export([record_recv/6, record_recv/7, record_publish/3, record_connect/2, record_disconnect/3, aggregate_publish_results/0, record_cpu_usage/3, record_memory_usage/3]).
+-export([record_recv/6, record_recv/7, record_publish/3, record_connect/2, record_disconnect/3, store_aggregate_publish_results_in_mnesia/0, record_cpu_usage/3, record_memory_usage/3]).
 %% rollup helpers
 -export([get_last_recv_seq/1, put_last_recv_seq/2]).
 %% window summaries
@@ -65,11 +65,11 @@ initialize_mnesia_storage(Nodes) ->
             % rpc:multicall(Nodes, mnesia, change_config, [extra_db_nodes, Nodes]),
             
             ps_bench_utils:log_message("Creating mnesia tables on ~p", [Nodes]),
-            mnesia:delete_table(?PUB_EVENT_RECORD_NAME),
-            mnesia:create_table(?PUB_EVENT_RECORD_NAME, [
+            mnesia:delete_table(?PUB_AGG_RECORD_NAME),
+            mnesia:create_table(?PUB_AGG_RECORD_NAME, [
                 {type, bag}, 
                 {ram_copies, Nodes}, 
-                {attributes, record_info(fields, ?PUB_EVENT_RECORD_NAME)}
+                {attributes, record_info(fields, ?PUB_AGG_RECORD_NAME)}
             ]),
             wait_for_tables();
         false ->
@@ -81,7 +81,7 @@ initialize_mnesia_storage(Nodes) ->
 %% This function swallows the exception and retries until we're ready
 wait_for_tables() ->
     process_flag(trap_exit, true),
-    case mnesia:wait_for_tables([?PUB_EVENT_RECORD_NAME], 5000) of
+    case mnesia:wait_for_tables([?PUB_AGG_RECORD_NAME], 5000) of
         {timeout, _} ->
             wait_for_tables();
         {error, {node_not_running, _}} ->
@@ -246,37 +246,46 @@ write_publish_events_to_disk(OutFile) ->
     _ = file:sync(File),
     file:close(File).
 
-aggregate_publish_results() ->
-    % We don't want to overload mnesia by storing every individual message,
-    % we simply want to send the count of messages sent per topic for this node to match
-    % against sequence IDs
+store_aggregate_publish_results_in_mnesia() ->
+    % On each node, we want to be able to correlate:
+    % - Sender ID
+    % - Topic Name
+    % - Sequence ID
+    % to ensure that each expected message was received
 
-    % Get the number of messages sent on each topic
-    FullTopicList = ets:foldl(fun({_NodeName, _ClientName, Topic, _Seq}, TopicList) ->
-        case lists:keyfind(Topic, 1, TopicList) of
-        {Topic, Value} ->
-            NewTuple = {Topic, Value + 1},
-            lists:keyreplace(Topic, 1, TopicList, NewTuple);
-        false ->
-            TopicList ++ [{Topic, 1}]
-    end end, [], ?T_PUBLISH_EVENTS),
+    % We don't need to send all message details, so we can aggregate into one tuple
+    % organized as {SenderID, TopicName -> [SeqIds])
+    FullTopicMap = ets:foldl(fun({_NodeName, _ClientName, Topic, Seq}, TopicMap) ->
+        
+        case maps:get(Topic, TopicMap, undefined) of
 
-    % Store the results in the distributed mnesia table
-    lists:foreach(fun({Topic, PubCount}) -> insert_pub_event_in_mnesia(Topic, PubCount) end, FullTopicList).
+            % We haven't seen this topic yet
+            undefined ->
+                TopicMap#{Topic => [Seq]};
 
-insert_pub_event_in_mnesia(Topic, PubCount) ->
+            % We already have this topic
+            SeqList ->
+                NewSeqList = SeqList ++ [Seq],
+                TopicMap#{Topic => NewSeqList}
+            end
+        end, #{}, ?T_PUBLISH_EVENTS),
+
+    % Seralize for mnesia storage
+    ResultsBinary = erlang:term_to_binary(FullTopicMap, [compressed]),
+
+    % Store in mnesia
     F = fun() ->
         {ok, NodeName} = ps_bench_config_manager:fetch_node_name(),
-        mnesia:write(#?PUB_EVENT_RECORD_NAME{node_name=NodeName, topic=Topic, pub_count=PubCount})
+        mnesia:write(#?PUB_AGG_RECORD_NAME{node_name=NodeName, binary_aggregate=ResultsBinary})
     end,
     ok = mnesia:activity(transaction, F).
 
 fetch_mnesia_publish_aggregation() ->
-    F = fun() -> mnesia:match_object(?PUB_EVENT_RECORD_NAME, mnesia:table_info(?PUB_EVENT_RECORD_NAME, wild_pattern), read) end,
+    F = fun() -> mnesia:match_object(?PUB_AGG_RECORD_NAME, mnesia:table_info(?PUB_AGG_RECORD_NAME, wild_pattern), read) end,
     mnesia:activity(transaction, F).
 
 fetch_mnesia_publish_aggregation_from_node(NodeName) ->
-    F = fun() -> mnesia:match_object(?PUB_EVENT_RECORD_NAME, {?PUB_EVENT_RECORD_NAME, NodeName, '_', '_'}, read) end,
+    F = fun() -> mnesia:match_object(?PUB_AGG_RECORD_NAME, {?PUB_AGG_RECORD_NAME, NodeName, '_'}, read) end,
     mnesia:activity(transaction, F).
 
 fetch_connect_events() ->

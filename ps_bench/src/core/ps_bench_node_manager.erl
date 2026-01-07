@@ -113,7 +113,7 @@ handle_next_step_command(finalize_scenario) ->
     end,
 
     ps_bench_scenario_manager:clean_up_scenario(),
-    ps_bench_store:aggregate_publish_results(),
+    ps_bench_store:store_aggregate_publish_results_in_mnesia(),
     gen_server:cast(?MODULE, global_continue),
     ok;
 

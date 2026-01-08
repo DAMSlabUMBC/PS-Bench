@@ -11,6 +11,8 @@ services:
     container_name: mochi
     hostname: mochi
     domainname: benchnet
+    volumes:
+      - ./out/mochi:/logs
     networks:
       benchnet:
         aliases: ["mochi", "mqtt", "broker"]

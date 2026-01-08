@@ -11,6 +11,8 @@ services:
     container_name: vernemq
     hostname: vernemq
     domainname: benchnet
+    volumes:
+      - ./out/vernemq:/var/log/vernemq
     networks:
       benchnet:
         aliases: ["vernemq", "mqtt", "broker"]
@@ -20,6 +22,7 @@ services:
       DOCKER_VERNEMQ_ALLOW_ANONYMOUS: "on"
       DOCKER_VERNEMQ_LISTENER__TCP__DEFAULT: "0.0.0.0:1883"
       DOCKER_VERNEMQ_LISTENER__TCP__ALLOWED_PROTOCOL_VERSIONS: "3,4,5"
+      DOCKER_VERNEMQ_LOG__CONSOLE: file
     healthcheck:
       test: ["CMD-SHELL", "ss -ltn | grep -q ':1883'"]
       interval: 15s

@@ -11,6 +11,12 @@ services:
     container_name: nanomq
     hostname: nanomq
     domainname: benchnet
+    environment:
+      NANOMQ_LOG_TO: file
+      NANOMQ_LOG_LEVEL: info
+      NANOMQ_LOG_DIR: "/logs"
+    volumes:
+      - ./out/nanomq:/logs
     networks:
       benchnet:
         aliases: ["nanomq", "mqtt", "broker"]

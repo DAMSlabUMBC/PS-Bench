@@ -29,7 +29,8 @@ RUN echo '#!/bin/sh' > /entrypoint.sh && \
     echo '/usr/local/bin/node_exporter --collector.disable-defaults --collector.cpu --collector.meminfo > /dev/null 2>&1 &' >> /entrypoint.sh && \
     echo 'echo "Started node_exporter on port 9100"' >> /entrypoint.sh && \
     echo '# Start Mochi MQTT in foreground' >> /entrypoint.sh && \
-    echo 'exec /mochi --config /config.yaml' >> /entrypoint.sh && \
+    echo 'mkdir -p /logs' >> /entrypoint.sh && \
+    echo 'exec /mochi --config /config.yaml > /logs/mochi.log' >> /entrypoint.sh && \
     chmod +x /entrypoint.sh
 
 # Expose node_exporter port in addition to broker ports

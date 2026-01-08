@@ -11,6 +11,11 @@ services:
     container_name: emqx
     hostname: emqx
     domainname: benchnet
+    environment:
+      EMQX_DEFAULT_LOG_HANDLER: file
+      EMQX_LOG__FILE__LEVEL: info
+    volumes:
+      - ./out/emqx:/opt/emqx/log
     networks:
       benchnet:
         aliases: ["emqx", "mqtt", "broker"]

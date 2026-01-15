@@ -26,6 +26,7 @@ services:
       SCENARIO: scalabilitysuite_smart_home_dds
     volumes:
       - ./out/runnerDDS1:/app/out
+      - ./out/opendds:/app/logs
       - ./results:/app/results
 
   runnerDDS2:
@@ -51,6 +52,7 @@ services:
       SCENARIO: scalabilitysuite_smart_home_dds
     volumes:
       - ./out/runnerDDS2:/app/out
+      - ./out/opendds:/app/logs
       - ./results:/app/results
 
   runnerDDS3:
@@ -76,6 +78,7 @@ services:
       SCENARIO: scalabilitysuite_smart_home_dds
     volumes:
       - ./out/runnerDDS3:/app/out
+      - ./out/opendds:/app/logs
       - ./results:/app/results
 
   runnerDDS4:
@@ -101,6 +104,7 @@ services:
       SCENARIO: scalabilitysuite_smart_home_dds
     volumes:
       - ./out/runnerDDS4:/app/out
+      - ./out/opendds:/app/logs
       - ./results:/app/results
 
   runnerDDS5:
@@ -126,4 +130,5 @@ services:
       SCENARIO: scalabilitysuite_smart_home_dds
     volumes:
       - ./out/runnerDDS5:/app/out
+      - ./out/opendds:/app/logs
       - ./results:/app/results

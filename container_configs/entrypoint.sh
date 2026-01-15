@@ -501,11 +501,8 @@ main() {
   create_app_config
 
   if [ "$IS_DDS" = "true" ]; then
-
-    # Make log dir
-    LOG_DIR="${OUT_DIR}/dds_logs"
-    mkdir -p "${LOG_DIR}"
-    sed -i -e "s@REPLACE_LOG_PATH@${LOG_DIR}@g" /app/configs/dds_configs/ps_bench_default_dds_interface.ini || true
+    # Make logging dir
+    mkdir -p "/app/logs"
     
     patch_hostnames_in_dds_config
     build_dds_nif

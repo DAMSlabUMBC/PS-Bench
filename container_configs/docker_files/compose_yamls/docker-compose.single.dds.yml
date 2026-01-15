@@ -25,4 +25,5 @@ services:
       SCENARIO: ${SCENARIO:-scalabilitysuite_smart_home_dds_1_node}
     volumes:
       - ./out/runnerDDS1:/app/out
+      - ./out/opendds:/app/logs
       - ./results:/app/results
